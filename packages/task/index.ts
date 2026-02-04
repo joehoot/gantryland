@@ -37,18 +37,9 @@ const isAbortError = (err: unknown): boolean =>
   (err as Error).name === "AbortError";
 
 /**
- * Creates the default initial state for a Task.
- *
- * @template T - The type of the resolved data
- * @returns A TaskState with data/error undefined, isLoading false, isStale true
- *
- * @example
- * ```typescript
- * const state = createDefaultTaskState<User>();
- * // { data: undefined, error: undefined, isLoading: false, isStale: true }
- * ```
+ * Internal helper for the initial Task state.
  */
-export const createDefaultTaskState = <T>(): TaskState<T> => ({
+const createDefaultTaskState = <T>(): TaskState<T> => ({
   data: undefined,
   error: undefined,
   isLoading: false,
@@ -90,14 +81,14 @@ export class Task<T> {
   private readonly listeners = new Set<Listener<T>>();
   private abortController: AbortController | null = null;
   private requestId = 0;
-  private fn?: TaskFn<T>;
+  private fn: TaskFn<T>;
 
   /**
    * Creates a new Task instance.
    *
-   * @param fn - Optional TaskFn to execute. Can be set later with setFn().
+   * @param fn - TaskFn to execute. Can be replaced later with setFn().
    */
-  constructor(fn?: TaskFn<T>) {
+  constructor(fn: TaskFn<T>) {
     this.fn = fn;
   }
 
@@ -118,7 +109,9 @@ export class Task<T> {
    *
    * @example
    * ```typescript
-   * const task = new Task<User>();
+   * const task = new Task<User>((signal) =>
+   *   fetch("/api/users/me", { signal }).then(r => r.json())
+   * );
    * task.setFn((signal) => fetch(`/api/users/${id}`, { signal }).then(r => r.json()));
    * await task.run();
    * ```
@@ -137,8 +130,6 @@ export class Task<T> {
    * - On error: preserves data, sets error, sets isLoading false
    * - On abort: preserves data, sets isLoading false, no error
    *
-   * @throws {Error} If no TaskFn has been set
-   *
    * @example
    * ```typescript
    * await task.run(); // fetches and updates state
@@ -146,8 +137,6 @@ export class Task<T> {
    * ```
    */
   async run(): Promise<void> {
-    if (!this.fn) throw new Error("Task fn not set");
-
     const currentRequestId = ++this.requestId;
     this.abortController?.abort();
     this.abortController = new AbortController();
@@ -169,14 +158,17 @@ export class Task<T> {
         isLoading: false,
         isStale: false,
       };
+      this.abortController = null;
     } catch (err) {
       if (currentRequestId !== this.requestId) return;
       if (isAbortError(err)) {
         this._state = { ...this._state, isLoading: false };
+        this.abortController = null;
         this._notify();
         return;
       }
       this._state = { ...this._state, error: err, isLoading: false };
+      this.abortController = null;
     }
 
     this._notify();
@@ -263,8 +255,11 @@ export class Task<T> {
     if (!this.abortController) return;
     this.requestId += 1;
     this.abortController.abort();
-    this._state = { ...this._state, isLoading: false };
-    this._notify();
+    this.abortController = null;
+    if (this._state.isLoading) {
+      this._state = { ...this._state, isLoading: false };
+      this._notify();
+    }
   }
 
   /**
@@ -280,6 +275,7 @@ export class Task<T> {
   reset(): void {
     this.requestId += 1;
     this.abortController?.abort();
+    this.abortController = null;
     this._state = createDefaultTaskState<T>();
     this._notify();
   }
@@ -297,6 +293,7 @@ export class Task<T> {
   dispose(): void {
     this.requestId += 1;
     this.abortController?.abort();
+    this.abortController = null;
     this.listeners.clear();
   }
 }

@@ -33,10 +33,9 @@ userTask.dispose();
 
 ## API
 
-### Constructors
+### Constructor
 
 ```typescript
-new Task<T>()
 new Task<T>(fn)
 ```
 
@@ -75,17 +74,11 @@ task.reset()
 task.dispose()
 ```
 
+`setFn` lets you swap the task function at runtime while keeping the same Task instance.
+
 `resolve` short-circuits: it aborts in-flight work, marks the task settled, and uses the provided data.
 
 `cancel` aborts in-flight work and sets `isLoading: false` while preserving existing data.
-
-### Helper Functions
-
-```typescript
-createDefaultTaskState<T>(): TaskState<T>
-```
-
-Returns the initial state: `{ data: undefined, error: undefined, isLoading: false, isStale: true }`.
 
 ## Notes
 
@@ -99,14 +92,15 @@ Returns the initial state: `{ data: undefined, error: undefined, isLoading: fals
 
 ```typescript
 // tasks/user.ts
-export const userTask = new Task<User>();
-userTask.setFn(() => fetch("/api/user").then((r) => r.json()));
+export const userTask = new Task<User>(() =>
+  fetch("/api/user").then((r) => r.json())
+);
 ```
 
 ### Parameterized tasks
 
 ```typescript
-const userTask = new Task<User>();
+const userTask = new Task<User>(() => fetch("/api/users/me").then((r) => r.json()));
 
 export async function runUserTask(id: string) {
   userTask.setFn(() => fetch(`/api/users/${id}`).then((r) => r.json()));
