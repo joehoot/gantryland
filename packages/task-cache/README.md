@@ -7,9 +7,9 @@ Works in browser and Node.js with no dependencies.
 ## Quick start
 
 ```typescript
-import { CacheStore, cached } from "./index.js";
-import { Task } from "../task/index.js";
-import { pipe } from "../task-combinators/index.js";
+import { CacheStore, cached } from "@gantryland/task-cache";
+import { Task } from "@gantryland/task";
+import { pipe } from "@gantryland/task-combinators";
 
 const cache = new CacheStore();
 
@@ -53,7 +53,7 @@ Wraps a TaskFn. Returns cached data if fresh, otherwise fetches and caches.
 ### Shared cache across tasks
 
 ```typescript
-import { pipe, map } from "../task-combinators/index.js";
+import { pipe, map } from "@gantryland/task-combinators";
 
 const cache = new CacheStore();
 

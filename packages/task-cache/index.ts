@@ -1,4 +1,4 @@
-import type { TaskFn } from "../task";
+import type { TaskFn } from "@gantryland/task";
 
 /**
  * Simple key-value cache with optional TTL support.

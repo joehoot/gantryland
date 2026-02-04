@@ -7,8 +7,8 @@ Works in browser and Node.js (17+) with no dependencies.
 ## Quick start
 
 ```typescript
-import { Task } from "./index.js";
-import { pipe, map, retry } from "../task-combinators/index.js";
+import { Task } from "@gantryland/task";
+import { pipe, map, retry } from "@gantryland/task-combinators";
 
 const userTask = new Task(
   pipe(

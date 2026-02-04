@@ -9,7 +9,7 @@ React hooks for the Task library. Requires React 18+ (uses `useSyncExternalStore
 Creates a Task instance and subscribes to its state.
 
 ```typescript
-import { useTask } from "./index.js";
+import { useTask } from "@gantryland/task-hooks";
 
 const [task, state] = useTask(() => new Task(fetchUser));
 ```
@@ -21,7 +21,7 @@ The task instance is stable across renders. Returns `[Task<T>, TaskState<T>]`.
 Runs a task on mount if it's stale and not already loading.
 
 ```typescript
-import { useTaskOnce } from "./index.js";
+import { useTaskOnce } from "@gantryland/task-hooks";
 
 const [task] = useTask(() => new Task(fetchUser));
 useTaskOnce(task);
@@ -34,7 +34,7 @@ Only triggers on initial render. Ignores later changes to the task instance.
 Subscribes to a task's state reactively.
 
 ```typescript
-import { useTaskState } from "./index.js";
+import { useTaskState } from "@gantryland/task-hooks";
 
 const state = useTaskState(task);
 // { data, error, isLoading, isStale }

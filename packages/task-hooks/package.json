@@ -1,0 +1,36 @@
+{
+  "name": "@gantryland/task-hooks",
+  "version": "0.1.0",
+  "description": "React hooks for @gantryland/task",
+  "keywords": ["react", "hooks", "task", "async"],
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "files": ["dist", "README.md"],
+  "sideEffects": false,
+  "license": "MIT",
+  "publishConfig": {
+    "access": "public"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/joehoot/gantryland.git"
+  },
+  "bugs": {
+    "url": "https://github.com/joehoot/gantryland/issues"
+  },
+  "homepage": "https://github.com/joehoot/gantryland/tree/main/packages/task-hooks#readme",
+  "dependencies": {
+    "@gantryland/task": "^0.1.0"
+  },
+  "peerDependencies": {
+    "react": ">=18"
+  }
+}

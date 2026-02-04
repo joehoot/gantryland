@@ -1,4 +1,4 @@
-import type { TaskFn } from "../task";
+import type { TaskFn } from "@gantryland/task";
 
 const isAbortError = (err: unknown): boolean =>
   (err as Error).name === "AbortError";

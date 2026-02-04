@@ -1,4 +1,4 @@
-import { Task, createDefaultTaskState, type TaskState } from "../task";
+import { Task, createDefaultTaskState, type TaskState } from "@gantryland/task";
 import { useRef, useEffect, useSyncExternalStore, useState } from "react";
 
 /**
