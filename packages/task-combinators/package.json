@@ -21,7 +21,7 @@
   },
   "repository": {
     "type": "git",
-    "url": "https://github.com/joehoot/gantryland.git"
+    "url": "git+https://github.com/joehoot/gantryland.git"
   },
   "bugs": {
     "url": "https://github.com/joehoot/gantryland/issues"
