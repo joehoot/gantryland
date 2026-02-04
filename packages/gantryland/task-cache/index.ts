@@ -1,0 +1,145 @@
+import type { TaskFn } from "../task";
+
+/**
+ * Simple key-value cache with optional TTL support.
+ *
+ * Stores data with timestamps for time-based expiration. Use with the
+ * `cached` combinator to memoize TaskFn results.
+ *
+ * @example
+ * ```typescript
+ * const cache = new CacheStore();
+ *
+ * cache.set('users', [{ id: 1, name: 'Alice' }]);
+ * cache.get('users'); // [{ id: 1, name: 'Alice' }]
+ * cache.get('users', 60_000); // same, if within 1 minute
+ *
+ * cache.invalidate('users'); // remove one
+ * cache.invalidate(); // clear all
+ * ```
+ */
+export class CacheStore {
+  private store = new Map<string, { data: unknown; time: number }>();
+
+  /**
+   * Retrieves cached data by key. Returns undefined if not found or expired.
+   *
+   * @template T - The expected type of the cached data
+   * @param key - The cache key
+   * @param maxAge - Optional TTL in milliseconds. If provided and the entry
+   *                 is older than maxAge, it is deleted and undefined is returned.
+   * @returns The cached data or undefined
+   *
+   * @example
+   * ```typescript
+   * cache.get<User[]>('users'); // cached forever
+   * cache.get<User[]>('users', 60_000); // only if cached within 1 min
+   * ```
+   */
+  get<T>(key: string, maxAge?: number): T | undefined {
+    const entry = this.store.get(key);
+    if (!entry) return undefined;
+    if (maxAge && Date.now() - entry.time > maxAge) {
+      this.store.delete(key);
+      return undefined;
+    }
+    return entry.data as T;
+  }
+
+  /**
+   * Stores data with the current timestamp.
+   *
+   * @param key - The cache key
+   * @param data - The data to cache
+   *
+   * @example
+   * ```typescript
+   * cache.set('users', users);
+   * ```
+   */
+  set(key: string, data: unknown): void {
+    this.store.set(key, { data, time: Date.now() });
+  }
+
+  /**
+   * Checks if a key exists and is not expired.
+   *
+   * @param key - The cache key
+   * @param maxAge - Optional TTL in milliseconds
+   * @returns True if the key exists and is fresh
+   *
+   * @example
+   * ```typescript
+   * if (!cache.has('users', 60_000)) {
+   *   await fetchUsers();
+   * }
+   * ```
+   */
+  has(key: string, maxAge?: number): boolean {
+    return this.get(key, maxAge) !== undefined;
+  }
+
+  /**
+   * Invalidates cached data. Pass a key to remove one entry, or no
+   * arguments to clear the entire cache.
+   *
+   * @param key - Optional key to invalidate. If omitted, clears all.
+   *
+   * @example
+   * ```typescript
+   * cache.invalidate('users'); // remove one
+   * cache.invalidate(); // clear all
+   * ```
+   */
+  invalidate(key?: string): void {
+    if (key) {
+      this.store.delete(key);
+    } else {
+      this.store.clear();
+    }
+  }
+}
+
+/**
+ * Cache combinator for TaskFn. Returns cached data if fresh, otherwise
+ * executes the TaskFn and caches the result.
+ *
+ * @template T - The type of the resolved data
+ * @param key - The cache key
+ * @param store - The CacheStore instance
+ * @param maxAge - Optional TTL in milliseconds. If omitted, cached forever
+ *                 (until manual invalidation).
+ * @returns A combinator that wraps a TaskFn with caching
+ *
+ * @example
+ * ```typescript
+ * import { pipe } from '../task-combinators';
+ * import { Task } from '../task';
+ *
+ * const cache = new CacheStore();
+ *
+ * const task = new Task(
+ *   pipe(
+ *     (signal) => fetch('/api/users', { signal }).then(r => r.json()),
+ *     cached('users', cache, 60_000) // cache for 1 minute
+ *   )
+ * );
+ *
+ * await task.run(); // fetches
+ * await task.run(); // cache hit, no fetch
+ *
+ * cache.invalidate('users');
+ * await task.run(); // fetches again
+ * ```
+ */
+export const cached =
+  <T>(key: string, store: CacheStore, maxAge?: number) =>
+  (taskFn: TaskFn<T>): TaskFn<T> =>
+  async (signal?: AbortSignal) => {
+    const hit = store.get<T>(key, maxAge);
+    if (hit !== undefined) return hit;
+
+    const result = await taskFn(signal);
+    store.set(key, result);
+    return result;
+  };
