@@ -153,7 +153,7 @@ export const useTaskResult = <T, Args extends unknown[] = []>(
 export const useTaskError = <T, Args extends unknown[] = []>(
   task: Task<T, Args> | null | undefined,
   options?: { fallbackState?: TaskState<T> }
-): unknown | undefined =>
+): Error | undefined =>
   useTaskState(task, {
     fallbackState: options?.fallbackState,
     select: (state) => state.error,

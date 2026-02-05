@@ -10,7 +10,7 @@
  */
 export type TaskState<T> = {
   data: T | undefined;
-  error: unknown | undefined;
+  error: Error | undefined;
   isLoading: boolean;
   isStale: boolean;
 };
@@ -40,6 +40,9 @@ export type TaskFn<T, Args extends unknown[] = []> = (
 
 const isAbortError = (err: unknown): boolean =>
   (err as Error).name === "AbortError";
+
+const toError = (err: unknown): Error =>
+  err instanceof Error ? err : new Error(String(err));
 
 /**
  * Internal helper for the initial Task state.
@@ -158,18 +161,6 @@ export class Task<T, Args extends unknown[] = []> {
    * await task.run(userId, includeFlags);
    * ```
    */
-  /**
-   * Executes the TaskFn and updates state reactively.
-   *
-   * @param args - Arguments forwarded to the TaskFn
-   * @returns Resolved data when successful, otherwise undefined
-   *
-   * @example
-   * ```typescript
-   * await task.run();
-   * await task.run(userId, includeFlags);
-   * ```
-   */
   async run(...args: Args): Promise<T | undefined> {
     if (!this.fn) {
       throw new Error("TaskFn is not set. Call define() before run().");
@@ -200,7 +191,7 @@ export class Task<T, Args extends unknown[] = []> {
         }
         return undefined;
       }
-      this.updateState({ error: err, isLoading: false });
+      this.updateState({ error: toError(err), isLoading: false });
       return undefined;
     }
   }
