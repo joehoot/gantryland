@@ -12,7 +12,7 @@ Task ecosystem expansion ideas:
   - Persistent cache stores (IndexedDB, localStorage, Node filesystem)
   - Implements CacheStore interface
 
-- @gantryland/task-router
+- @gantryland/task-router (done)
   - Task + route params integration, prefetch hooks or route loaders
 
 - @gantryland/task-logger (done)
