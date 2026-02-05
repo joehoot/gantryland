@@ -125,7 +125,7 @@ type CacheEntry<T> = {
 
 Stores can emit events to power analytics, logging, or invalidation tracing.
 
-Event types: `hit`, `miss`, `stale`, `set`, `invalidate`, `clear`, `revalidate`.
+Event types: `hit`, `miss`, `stale`, `set`, `invalidate`, `clear`, `revalidate`, `revalidateError`.
 
 ### CacheKey
 
@@ -149,13 +149,15 @@ staleWhileRevalidate(): miss -> fetch -> store -> return
 - Fresh hit returns cached data and emits `hit`.
 - Miss or stale fetches, stores on resolve, and emits `miss` or `stale` then `set`.
 - Dedupe is on by default; concurrent calls for the same key share one promise.
+- When deduped, only the first caller's AbortSignal is used.
 - If the task rejects (including AbortError), the cache is not updated.
 
 ### staleWhileRevalidate
 
 - Fresh hit returns cached data and emits `hit`.
 - Stale within the window returns cached data, emits `stale` then `revalidate`, and revalidates in the background.
-- Background revalidation does not use the caller's AbortSignal and errors are ignored.
+- Background revalidation does not use the caller's AbortSignal.
+- Background errors emit `revalidateError`, are ignored, and do not update the cache.
 - Miss or beyond the stale window fetches and stores on resolve.
 
 ### invalidateOnResolve

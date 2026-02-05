@@ -25,7 +25,8 @@ export type CacheEventType =
   | "set"
   | "invalidate"
   | "clear"
-  | "revalidate";
+  | "revalidate"
+  | "revalidateError";
 
 /**
  * Cache event payload.
@@ -34,6 +35,7 @@ export type CacheEvent = {
   type: CacheEventType;
   key?: CacheKey;
   entry?: CacheEntry<unknown>;
+  error?: unknown;
 };
 
 /**
@@ -235,7 +237,8 @@ const resolveWithDedupe = async <T, Args extends unknown[] = []>(
   signal: AbortSignal | undefined,
   args: Args,
   options: CacheOptions = {},
-  previous?: CacheEntry<T>
+  previous?: CacheEntry<T>,
+  onError?: (error: unknown) => void
 ): Promise<T> => {
   const dedupe = options.dedupe !== false;
   const pending = dedupe ? getPendingMap(store) : undefined;
@@ -248,6 +251,10 @@ const resolveWithDedupe = async <T, Args extends unknown[] = []>(
     .then((value) => {
       setEntry(store, key, value, options.tags, previous);
       return value;
+    })
+    .catch((error) => {
+      onError?.(error);
+      throw error;
     })
     .finally(() => {
       pending?.delete(key);
@@ -263,6 +270,7 @@ const resolveWithDedupe = async <T, Args extends unknown[] = []>(
  * - Resolves to cached data on hit.
  * - Fetches on miss or stale and stores the resolved value.
  * - Dedupe is enabled by default; concurrent calls share the same promise.
+ *   When deduped, only the first caller's AbortSignal is used.
  * - If the task rejects (including AbortError), the cache is not updated.
  */
 export const cache =
@@ -286,7 +294,7 @@ export const cache =
  * - Fresh entries are returned immediately.
  * - Stale entries within the stale window return cached data and revalidate.
  * - Background revalidation does not use the caller's AbortSignal.
- * - Background errors are ignored and do not update the cache.
+ * - Background errors are ignored, emit `revalidateError`, and do not update the cache.
  */
 export const staleWhileRevalidate =
   <T, Args extends unknown[] = []>(key: CacheKey, store: CacheStore, options: CacheOptions = {}) =>
@@ -301,7 +309,18 @@ export const staleWhileRevalidate =
     if (entry && isWithinStale(entry, options.ttl, options.staleTtl)) {
       store.emit?.({ type: "stale", key, entry });
       store.emit?.({ type: "revalidate", key, entry });
-      void resolveWithDedupe(key, store, taskFn, undefined, args, options, entry).catch(() => {
+      void resolveWithDedupe(
+        key,
+        store,
+        taskFn,
+        undefined,
+        args,
+        options,
+        entry,
+        (error) => {
+          store.emit?.({ type: "revalidateError", key, entry, error });
+        }
+      ).catch(() => {
         // Background revalidation errors are ignored.
       });
       return entry.value;

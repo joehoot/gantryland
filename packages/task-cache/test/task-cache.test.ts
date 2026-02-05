@@ -166,6 +166,8 @@ describe("staleWhileRevalidate", () => {
 
   it("ignores background revalidation errors", async () => {
     const store = new MemoryCacheStore();
+    const events: string[] = [];
+    store.subscribe((event) => events.push(event.type));
     const seed = staleWhileRevalidate("key", store, { ttl: 10, staleTtl: 30 })(
       async () => "initial"
     );
@@ -184,8 +186,10 @@ describe("staleWhileRevalidate", () => {
 
     deferred.reject(new Error("boom"));
     await deferred.promise.catch(() => {});
+    await Promise.resolve();
 
     expect(store.get<string>("key")?.value).toBe("initial");
+    expect(events).toContain("revalidateError");
     vi.useRealTimers();
   });
 
