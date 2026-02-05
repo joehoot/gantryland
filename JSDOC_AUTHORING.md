@@ -22,6 +22,7 @@ Use this ordering for JSDoc blocks when applicable:
 Always answer these, if relevant:
 - Does it abort or respect an AbortSignal?
 - Does it swallow or rethrow AbortError?
+- Are there multiple completion paths (abort, timeout, success) that must not double-settle?
 - Does it preserve prior data or overwrite state?
 - Does it return `undefined` on abort/superseded runs?
 - Is fallback sync or async?
@@ -43,6 +44,7 @@ If any are relevant, say so directly. Avoid vague terms like "may" when behavior
 ## Consistency Rules (from Task + Task-Combinators)
 - "AbortError" is a first-class cancellation signal.
 - "Latest wins" semantics should be stated when applicable.
+- If a shared in-flight promise ignores later AbortSignals, state it.
 - Avoid promising that timeouts abort underlying tasks unless the API does.
 - If a combinator normalizes errors (e.g., AbortError -> TimeoutError), state it.
 - For Task `run`, be explicit that non-successful outcomes resolve to `undefined`.

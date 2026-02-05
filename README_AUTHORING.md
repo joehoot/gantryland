@@ -70,6 +70,7 @@ If a section is irrelevant, omit it rather than forcing it.
 ### Flow / Run semantics
 - Use a small ASCII flow diagram if useful.
 - Explicitly state what happens on success, error, abort, or superseded runs.
+- Call out pre-start vs in-flight abort behavior when scheduling or queueing.
 
 ### API
 - Include a high-level “API at a glance” table if there are multiple exports.
@@ -97,5 +98,6 @@ Mirror the style used in `packages/task/README.md`:
 - README matches current API and JSDoc behavior.
 - All examples compile and reflect real exports.
 - AbortError behavior is explicitly stated if applicable.
+- Dedupe and AbortSignal ownership are documented when applicable.
 - Contents anchors are accurate and updated after edits.
 - No duplicated or outdated sections.

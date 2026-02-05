@@ -9,6 +9,11 @@ export type CacheKey = string | number | symbol;
  * Cache entry payload with metadata.
  *
  * @template T - Cached value type
+ *
+ * @property value - Cached value
+ * @property createdAt - Epoch timestamp of initial write
+ * @property updatedAt - Epoch timestamp of last update
+ * @property tags - Optional tags for invalidation
  */
 export type CacheEntry<T> = {
   value: T;
@@ -34,6 +39,11 @@ export type CacheEventType =
  * Cache event payload.
  *
  * `error` is set for `revalidateError` events.
+ *
+ * @property type - Event type
+ * @property key - Cache key involved in the event
+ * @property entry - Cache entry involved in the event
+ * @property error - Error for `revalidateError` events
  */
 export type CacheEvent = {
   type: CacheEventType;
@@ -44,6 +54,16 @@ export type CacheEvent = {
 
 /**
  * Minimal cache store interface.
+ *
+ * @property get - Return a cache entry by key
+ * @property set - Store a cache entry by key
+ * @property delete - Remove a cache entry by key
+ * @property clear - Remove all cache entries
+ * @property has - Check whether a key exists
+ * @property keys - Return all cache keys
+ * @property subscribe - Subscribe to cache events
+ * @property emit - Emit a cache event to subscribers
+ * @property invalidateTags - Remove entries matching tags
  */
 export type CacheStore = {
   get<T>(key: CacheKey): CacheEntry<T> | undefined;
@@ -60,7 +80,7 @@ export type CacheStore = {
 /**
  * In-memory CacheStore with tag support.
  *
- * Emits cache events on set/delete/clear and tag invalidation.
+ * Emits cache events on set, delete, clear, and tag invalidation.
  *
  * @example
  * ```typescript
@@ -76,6 +96,10 @@ export class MemoryCacheStore implements CacheStore {
 
   /**
    * Get a cache entry by key.
+   *
+   * @template T - Cached value type
+   * @param key - Cache key
+   * @returns The cache entry, or undefined when missing
    */
   get<T>(key: CacheKey): CacheEntry<T> | undefined {
     return this.store.get(key) as CacheEntry<T> | undefined;
@@ -83,6 +107,12 @@ export class MemoryCacheStore implements CacheStore {
 
   /**
    * Set a cache entry by key.
+   *
+   * Replaces any existing entry and updates tag indices.
+   *
+   * @template T - Cached value type
+   * @param key - Cache key
+   * @param entry - Entry to store
    */
   set<T>(key: CacheKey, entry: CacheEntry<T>): void {
     const existing = this.store.get(key);
@@ -94,6 +124,10 @@ export class MemoryCacheStore implements CacheStore {
 
   /**
    * Delete a cache entry by key.
+   *
+   * Emits an `invalidate` event with the previous entry when present.
+   *
+   * @param key - Cache key
    */
   delete(key: CacheKey): void {
     const existing = this.store.get(key);
@@ -104,6 +138,8 @@ export class MemoryCacheStore implements CacheStore {
 
   /**
    * Clear all entries.
+   *
+   * @returns Nothing
    */
   clear(): void {
     this.store.clear();
@@ -113,6 +149,9 @@ export class MemoryCacheStore implements CacheStore {
 
   /**
    * Check whether a key exists.
+   *
+   * @param key - Cache key
+   * @returns True when the key exists
    */
   has(key: CacheKey): boolean {
     return this.store.has(key);
@@ -120,6 +159,8 @@ export class MemoryCacheStore implements CacheStore {
 
   /**
    * List all keys.
+   *
+   * @returns Iterable of cache keys
    */
   keys(): Iterable<CacheKey> {
     return this.store.keys();
@@ -127,6 +168,9 @@ export class MemoryCacheStore implements CacheStore {
 
   /**
    * Subscribe to cache events.
+   *
+   * @param listener - Event listener
+   * @returns Unsubscribe function
    */
   subscribe(listener: (event: CacheEvent) => void): () => void {
     this.listeners.add(listener);
@@ -135,6 +179,10 @@ export class MemoryCacheStore implements CacheStore {
 
   /**
    * Emit a cache event to listeners.
+   *
+   * Listener errors are caught and logged.
+   *
+   * @param event - Cache event payload
    */
   emit(event: CacheEvent): void {
     for (const listener of this.listeners) {
@@ -148,6 +196,8 @@ export class MemoryCacheStore implements CacheStore {
 
   /**
    * Invalidate entries matching any tag.
+   *
+   * @param tags - Tags to invalidate
    */
   invalidateTags(tags: string[]): void {
     for (const tag of tags) {
@@ -178,6 +228,11 @@ export class MemoryCacheStore implements CacheStore {
 
 /**
  * Options for cache and stale-while-revalidate.
+ *
+ * @property ttl - Time-to-live in milliseconds (fresh window)
+ * @property staleTtl - Additional stale window after ttl expires
+ * @property tags - Tags to associate with stored entries
+ * @property dedupe - Share in-flight requests for the same key
  */
 export type CacheOptions = {
   /**
@@ -185,11 +240,11 @@ export type CacheOptions = {
    */
   ttl?: number;
   /**
-   * Additional stale window in milliseconds after ttl expires.
+   * Additional stale window after ttl expires.
    */
   staleTtl?: number;
   /**
-   * Tags to associate with stored entries for invalidation.
+   * Tags to associate with stored entries.
    */
   tags?: string[];
   /**
@@ -278,7 +333,7 @@ const resolveWithDedupe = async <T, Args extends unknown[] = []>(
 };
 
 /**
- * Cache results by key and store.
+ * Cache TaskFn results by key and store.
  *
  * Returns cached data when fresh; otherwise runs the TaskFn and stores the result.
  * If the TaskFn rejects (including AbortError), the cache is not updated.
@@ -286,10 +341,10 @@ const resolveWithDedupe = async <T, Args extends unknown[] = []>(
  *
  * @template T - Resolved data type
  * @template Args - TaskFn argument tuple
- * @param key - Cache key for the entry.
- * @param store - CacheStore implementation.
- * @param options - Cache behavior options.
- * @returns A combinator that wraps a TaskFn.
+ * @param key - Cache key for the entry
+ * @param store - CacheStore implementation
+ * @param options - Cache behavior options
+ * @returns A combinator that wraps a TaskFn
  *
  * @example
  * ```typescript
@@ -324,10 +379,10 @@ export const cache =
  *
  * @template T - Resolved data type
  * @template Args - TaskFn argument tuple
- * @param key - Cache key for the entry.
- * @param store - CacheStore implementation.
- * @param options - Cache behavior options.
- * @returns A combinator that wraps a TaskFn.
+ * @param key - Cache key for the entry
+ * @param store - CacheStore implementation
+ * @param options - Cache behavior options
+ * @returns A combinator that wraps a TaskFn
  *
  * @example
  * ```typescript
@@ -374,7 +429,9 @@ export const staleWhileRevalidate =
   };
 
 /**
- * Target(s) to invalidate after a task resolves.
+ * Targets to invalidate after a task resolves.
+ *
+ * Supports a cache key, key array, tag object, or a resolver function.
  *
  * @template T - Resolved data type
  */
@@ -392,9 +449,9 @@ export type InvalidateTarget<T> =
  *
  * @template T - Resolved data type
  * @template Args - TaskFn argument tuple
- * @param target - Keys, tags, or resolver for invalidation.
- * @param store - CacheStore implementation.
- * @returns A combinator that wraps a TaskFn.
+ * @param target - Keys, tags, or resolver for invalidation
+ * @param store - CacheStore implementation
+ * @returns A combinator that wraps a TaskFn
  *
  * @example
  * ```typescript
@@ -426,8 +483,8 @@ export const invalidateOnResolve =
  *
  * Coerces each part to a string and joins with ":".
  *
- * @param parts - Key parts to join.
- * @returns A stable string key.
+ * @param parts - Key parts to join
+ * @returns A stable string key
  *
  * @example
  * ```typescript

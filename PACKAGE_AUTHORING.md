@@ -28,6 +28,7 @@ Use this guide to design, implement, and document Gantryland packages. The refer
 - Do not introduce stateful side effects unless required.
 - Use types to enforce ergonomics; avoid `unknown` leakage in public APIs.
 - Ensure AbortSignal cleanup (remove listeners, clear timers).
+- Guard against double-settle when multiple completion paths exist.
 
 ## Error and Cancellation Rules
 - AbortError is a first-class cancellation signal.
@@ -43,6 +44,7 @@ Use this guide to design, implement, and document Gantryland packages. The refer
 ## Tests
 - Cover success, failure, and abort paths.
 - Include edge cases: retries, timeouts, and supersession behavior.
+- Include pre-start abort vs in-flight abort cases for queued or delayed work.
 - Prefer deterministic tests; use fake timers when needed.
 
 ## Naming and Terminology
@@ -61,4 +63,11 @@ Use this guide to design, implement, and document Gantryland packages. The refer
 - Abort behavior explicitly stated.
 - All examples compile.
 - Tests cover major behaviors.
+- Dedupe and AbortSignal ownership are documented when applicable.
 - No duplicate or conflicting docs.
+
+## Post-change Audit
+- Re-check AbortSignal lifecycle (remove listeners once a run starts).
+- Ensure cancellation cannot double-settle a promise.
+- Verify queued aborts remove entries and do not block subsequent work.
+- Check start/abort races for a single completion path.
