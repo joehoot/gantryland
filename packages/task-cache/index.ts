@@ -7,6 +7,8 @@ export type CacheKey = string | number | symbol;
 
 /**
  * Cache entry payload with metadata.
+ *
+ * @template T - Cached value type
  */
 export type CacheEntry<T> = {
   value: T;
@@ -30,6 +32,8 @@ export type CacheEventType =
 
 /**
  * Cache event payload.
+ *
+ * `error` is set for `revalidateError` events.
  */
 export type CacheEvent = {
   type: CacheEventType;
@@ -55,6 +59,15 @@ export type CacheStore = {
 
 /**
  * In-memory CacheStore with tag support.
+ *
+ * Emits cache events on set/delete/clear and tag invalidation.
+ *
+ * @example
+ * ```typescript
+ * const store = new MemoryCacheStore();
+ * store.set("user:1", { value: { id: 1 }, createdAt: Date.now(), updatedAt: Date.now() });
+ * const entry = store.get<{ id: number }>("user:1");
+ * ```
  */
 export class MemoryCacheStore implements CacheStore {
   private store = new Map<CacheKey, CacheEntry<unknown>>();
@@ -265,13 +278,28 @@ const resolveWithDedupe = async <T, Args extends unknown[] = []>(
 };
 
 /**
- * Cache combinator. Returns cached data if fresh, otherwise fetches and caches.
+ * Cache results by key and store.
  *
- * - Resolves to cached data on hit.
- * - Fetches on miss or stale and stores the resolved value.
- * - Dedupe is enabled by default; concurrent calls share the same promise.
- *   When deduped, only the first caller's AbortSignal is used.
- * - If the task rejects (including AbortError), the cache is not updated.
+ * Returns cached data when fresh; otherwise runs the TaskFn and stores the result.
+ * If the TaskFn rejects (including AbortError), the cache is not updated.
+ * Dedupe is enabled by default; when deduped, only the first caller's AbortSignal is used.
+ *
+ * @template T - Resolved data type
+ * @template Args - TaskFn argument tuple
+ * @param key - Cache key for the entry.
+ * @param store - CacheStore implementation.
+ * @param options - Cache behavior options.
+ * @returns A combinator that wraps a TaskFn.
+ *
+ * @example
+ * ```typescript
+ * const store = new MemoryCacheStore();
+ * const taskFn = pipe(
+ *   (signal) => fetch("/api/users", { signal }).then((r) => r.json()),
+ *   cache("users", store, { ttl: 10_000 })
+ * );
+ * const users = await taskFn();
+ * ```
  */
 export const cache =
   <T, Args extends unknown[] = []>(key: CacheKey, store: CacheStore, options: CacheOptions = {}) =>
@@ -288,13 +316,28 @@ export const cache =
   };
 
 /**
- * Stale-while-revalidate combinator. Returns cached data immediately if stale
- * within the stale window, and revalidates in the background.
+ * Return cached data and refresh in the background when stale.
  *
- * - Fresh entries are returned immediately.
- * - Stale entries within the stale window return cached data and revalidate.
- * - Background revalidation does not use the caller's AbortSignal.
- * - Background errors are ignored, emit `revalidateError`, and do not update the cache.
+ * Returns cached data when fresh, or when within the stale window.
+ * Background revalidation does not use the caller's AbortSignal.
+ * Background errors emit `revalidateError`, are ignored, and do not update the cache.
+ *
+ * @template T - Resolved data type
+ * @template Args - TaskFn argument tuple
+ * @param key - Cache key for the entry.
+ * @param store - CacheStore implementation.
+ * @param options - Cache behavior options.
+ * @returns A combinator that wraps a TaskFn.
+ *
+ * @example
+ * ```typescript
+ * const store = new MemoryCacheStore();
+ * const taskFn = pipe(
+ *   (signal) => fetch("/api/feed", { signal }).then((r) => r.json()),
+ *   staleWhileRevalidate("feed", store, { ttl: 5_000, staleTtl: 30_000 })
+ * );
+ * const feed = await taskFn();
+ * ```
  */
 export const staleWhileRevalidate =
   <T, Args extends unknown[] = []>(key: CacheKey, store: CacheStore, options: CacheOptions = {}) =>
@@ -332,6 +375,8 @@ export const staleWhileRevalidate =
 
 /**
  * Target(s) to invalidate after a task resolves.
+ *
+ * @template T - Resolved data type
  */
 export type InvalidateTarget<T> =
   | CacheKey
@@ -340,9 +385,26 @@ export type InvalidateTarget<T> =
   | ((result: T) => CacheKey | CacheKey[] | { tags: string[] });
 
 /**
- * Invalidates cache entries after a TaskFn resolves.
+ * Invalidate cache entries after a TaskFn resolves.
  *
- * If the task rejects (including AbortError), no invalidation happens.
+ * Supports keys, key arrays, tags, or a resolver function.
+ * If the TaskFn rejects (including AbortError), no invalidation happens.
+ *
+ * @template T - Resolved data type
+ * @template Args - TaskFn argument tuple
+ * @param target - Keys, tags, or resolver for invalidation.
+ * @param store - CacheStore implementation.
+ * @returns A combinator that wraps a TaskFn.
+ *
+ * @example
+ * ```typescript
+ * const store = new MemoryCacheStore();
+ * const taskFn = pipe(
+ *   (signal) => fetch("/api/posts", { method: "POST", signal }).then((r) => r.json()),
+ *   invalidateOnResolve({ tags: ["posts"] }, store)
+ * );
+ * await taskFn();
+ * ```
  */
 export const invalidateOnResolve =
   <T, Args extends unknown[] = []>(target: InvalidateTarget<T>, store: CacheStore) =>
@@ -360,7 +422,17 @@ export const invalidateOnResolve =
   };
 
 /**
- * Helper for consistent cache keys.
+ * Build a stable cache key from parts.
+ *
+ * Coerces each part to a string and joins with ":".
+ *
+ * @param parts - Key parts to join.
+ * @returns A stable string key.
+ *
+ * @example
+ * ```typescript
+ * const key = cacheKey("user", 42, true);
+ * ```
  */
 export const cacheKey = (
   ...parts: Array<string | number | boolean | null | undefined>
