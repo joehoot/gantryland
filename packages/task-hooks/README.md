@@ -61,6 +61,9 @@ import { useTaskRun } from "@gantryland/task-hooks";
 const run = useTaskRun(task);
 
 useTaskRun(task, { auto: true, deps: [userId] });
+
+// Auto-run when inputs change
+const runUser = useTaskRun(task, { auto: true, deps: [userId, filter] });
 ```
 
 ### useTaskResult
