@@ -5,7 +5,7 @@ Task ecosystem expansion ideas:
 - @gantryland/task-observable
   - RxJS interop or minimal observable adapter (fromTask/toTask)
 
-- @gantryland/task-scheduler
+- @gantryland/task-scheduler (done)
   - Polling, interval refresh, debounce/throttle, queueing
 
 - @gantryland/task-storage (done)
