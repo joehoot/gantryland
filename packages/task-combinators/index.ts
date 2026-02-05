@@ -1,7 +1,18 @@
 import type { TaskFn } from "@gantryland/task";
 
-const isAbortError = (err: unknown): boolean =>
-  (err as Error).name === "AbortError";
+const isAbortError = (err: unknown): boolean => {
+  if (typeof DOMException !== "undefined" && err instanceof DOMException) {
+    return err.name === "AbortError";
+  }
+  return (err as Error).name === "AbortError";
+};
+
+export class TimeoutError extends Error {
+  constructor(message = "Timeout") {
+    super(message);
+    this.name = "TimeoutError";
+  }
+}
 
 // Combinators
 
@@ -106,7 +117,7 @@ export const tapError =
  * in custom error classes. Skips AbortError.
  *
  * @template T - The data type
- * @param fn - Function that transforms the error
+ * @param fn - Function that transforms the error to an Error
  * @returns A combinator that transforms and rethrows the error
  *
  * @example
@@ -118,7 +129,7 @@ export const tapError =
  * ```
  */
 export const mapError =
-  <T>(fn: (error: unknown) => unknown) =>
+  <T>(fn: (error: unknown) => Error) =>
   (taskFn: TaskFn<T>): TaskFn<T> =>
   (signal?: AbortSignal) =>
     taskFn(signal).catch((err) => {
@@ -160,6 +171,7 @@ export const catchError =
 /**
  * Retries on failure. `retry(2)` means 3 total attempts (1 + 2 retries).
  * Checks the abort signal between attempts. Skips retry on AbortError.
+ * Negative attempts are treated as 0.
  *
  * @template T - The data type
  * @param attempts - Number of retry attempts (not total attempts)
@@ -178,8 +190,9 @@ export const retry =
   <T>(attempts: number) =>
   (taskFn: TaskFn<T>): TaskFn<T> =>
   async (signal?: AbortSignal) => {
+    const maxAttempts = Math.max(0, attempts);
     let lastError: unknown;
-    for (let i = 0; i <= attempts; i++) {
+    for (let i = 0; i <= maxAttempts; i++) {
       if (signal?.aborted) throw new DOMException("Aborted", "AbortError");
       try {
         return await taskFn(signal);
@@ -197,7 +210,7 @@ export const retry =
  *
  * @template T - The data type
  * @param ms - Timeout in milliseconds
- * @returns A combinator that rejects with Error("Timeout") if exceeded
+ * @returns A combinator that rejects with TimeoutError if exceeded
  *
  * @example
  * ```typescript
@@ -219,7 +232,7 @@ export const timeout =
       }
 
       const timer = setTimeout(() => {
-        reject(new Error("Timeout"));
+        reject(new TimeoutError());
       }, ms);
 
       const onAbort = () => {
@@ -277,6 +290,33 @@ export function pipe<A, B, C, D, E>(
   cd: (c: C) => D,
   de: (d: D) => E,
 ): E;
+export function pipe<A, B, C, D, E, F>(
+  a: A,
+  ab: (a: A) => B,
+  bc: (b: B) => C,
+  cd: (c: C) => D,
+  de: (d: D) => E,
+  ef: (e: E) => F,
+): F;
+export function pipe<A, B, C, D, E, F, G>(
+  a: A,
+  ab: (a: A) => B,
+  bc: (b: B) => C,
+  cd: (c: C) => D,
+  de: (d: D) => E,
+  ef: (e: E) => F,
+  fg: (f: F) => G,
+): G;
+export function pipe<A, B, C, D, E, F, G, H>(
+  a: A,
+  ab: (a: A) => B,
+  bc: (b: B) => C,
+  cd: (c: C) => D,
+  de: (d: D) => E,
+  ef: (e: E) => F,
+  fg: (f: F) => G,
+  gh: (g: G) => H,
+): H;
 export function pipe(
   initial: unknown,
   ...fns: ((arg: unknown) => unknown)[]

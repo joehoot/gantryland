@@ -8,7 +8,7 @@ Works in browser and Node.js (17+) with no dependencies.
 
 ```typescript
 import { Task } from "@gantryland/task";
-import { pipe, map, retry, timeout, tapError } from "@gantryland/task-combinators";
+import { pipe, map, retry, timeout, tapError, TimeoutError } from "@gantryland/task-combinators";
 
 const task = new Task(
   pipe(
@@ -16,7 +16,13 @@ const task = new Task(
     map((users) => users.filter((u) => u.active)),
     retry(2),
     timeout(5000),
-    tapError((err) => console.error(err))
+    tapError((err) => {
+      if (err instanceof TimeoutError) {
+        console.error("request timed out");
+        return;
+      }
+      console.error(err);
+    })
   )
 );
 ```
@@ -65,7 +71,7 @@ tapError((err) => reportError(err))
 
 ### mapError
 
-Transform error before rethrowing (skips AbortError).
+Transform error before rethrowing (skips AbortError). Mapper should return an Error.
 
 ```typescript
 mapError((err) => new CustomError(err))
@@ -73,7 +79,7 @@ mapError((err) => new CustomError(err))
 
 ### catchError
 
-Recover with fallback value (skips AbortError).
+Recover with fallback value (skips AbortError). Fallbacks are synchronous.
 
 ```typescript
 catchError([])  // fallback to empty array
@@ -88,12 +94,23 @@ Retry on failure. `retry(2)` = 3 total attempts.
 retry(2)
 ```
 
+Negative attempts are treated as 0.
+
 ### timeout
 
-Fail after duration. Respects abort signal.
+Fail after duration. Respects abort signal; does not abort the underlying task.
+Rejects with `TimeoutError`.
 
 ```typescript
 timeout(5000)  // 5 seconds
+```
+
+### TimeoutError
+
+Error type used by `timeout`.
+
+```typescript
+new TimeoutError()
 ```
 
 ## Patterns
@@ -136,4 +153,5 @@ pipe(
 - All combinators respect AbortError - they don't swallow or transform it
 - `retry` checks the signal between attempts
 - `timeout` cleans up properly on abort
+- `timeout` rejects with `TimeoutError`
 - Combinators are curried: `map(fn)(taskFn)` or use with `pipe`
