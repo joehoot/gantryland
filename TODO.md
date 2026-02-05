@@ -15,7 +15,7 @@ Task ecosystem expansion ideas:
 - @gantryland/task-router
   - Task + route params integration, prefetch hooks or route loaders
 
-- @gantryland/task-logger
+- @gantryland/task-logger (done)
   - Instrumentation: debug logs, timings, cache events, task lifecycle metrics
 
 - @gantryland/task-validate
