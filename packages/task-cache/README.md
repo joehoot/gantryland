@@ -35,9 +35,11 @@ await task.run(); // fetches again
 const cache = new CacheStore();
 
 cache.get<T>(key, maxAge?): T | undefined
+cache.peek<T>(key): T | undefined
 cache.set(key, data): void
 cache.has(key, maxAge?): boolean
 cache.invalidate(key?): void  // no key = clear all
+cache.delete(key): void  // alias for invalidate(key)
 ```
 
 ### cached combinator
@@ -47,6 +49,8 @@ cached<T>(key: string, store: CacheStore, maxAge?: number)
 ```
 
 Wraps a TaskFn. Returns cached data if fresh, otherwise fetches and caches.
+
+Concurrent requests for the same key share the in-flight result.
 
 ## Patterns
 
@@ -82,4 +86,7 @@ cached("users", cache, 5 * 60 * 1000)
 
 // Cache forever (until manual invalidation)
 cached("users", cache)
+
+// Cache expires immediately (always stale)
+cached("users", cache, 0)
 ```

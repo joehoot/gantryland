@@ -39,11 +39,23 @@ export class CacheStore {
   get<T>(key: string, maxAge?: number): T | undefined {
     const entry = this.store.get(key);
     if (!entry) return undefined;
-    if (maxAge && Date.now() - entry.time > maxAge) {
+    if (maxAge !== undefined && Date.now() - entry.time > maxAge) {
       this.store.delete(key);
       return undefined;
     }
     return entry.data as T;
+  }
+
+  /**
+   * Retrieves cached data without TTL eviction.
+   *
+   * @template T - The expected type of the cached data
+   * @param key - The cache key
+   * @returns The cached data or undefined
+   */
+  peek<T>(key: string): T | undefined {
+    const entry = this.store.get(key);
+    return entry ? (entry.data as T) : undefined;
   }
 
   /**
@@ -76,7 +88,13 @@ export class CacheStore {
    * ```
    */
   has(key: string, maxAge?: number): boolean {
-    return this.get(key, maxAge) !== undefined;
+    const entry = this.store.get(key);
+    if (!entry) return false;
+    if (maxAge !== undefined && Date.now() - entry.time > maxAge) {
+      this.store.delete(key);
+      return false;
+    }
+    return true;
   }
 
   /**
@@ -98,7 +116,18 @@ export class CacheStore {
       this.store.clear();
     }
   }
+
+  /**
+   * Alias for invalidate(key).
+   *
+   * @param key - The cache key to delete
+   */
+  delete(key: string): void {
+    this.invalidate(key);
+  }
 }
+
+const pendingByStore = new WeakMap<CacheStore, Map<string, Promise<unknown>>>();
 
 /**
  * Cache combinator for TaskFn. Returns cached data if fresh, otherwise
@@ -136,10 +165,22 @@ export const cached =
   <T>(key: string, store: CacheStore, maxAge?: number) =>
   (taskFn: TaskFn<T>): TaskFn<T> =>
   async (signal?: AbortSignal) => {
-    const hit = store.get<T>(key, maxAge);
-    if (hit !== undefined) return hit;
+    if (store.has(key, maxAge)) return store.get<T>(key, maxAge) as T;
 
-    const result = await taskFn(signal);
-    store.set(key, result);
-    return result;
+    const storePending = pendingByStore.get(store) ?? new Map();
+    pendingByStore.set(store, storePending);
+    const pending = storePending.get(key) as Promise<T> | undefined;
+    if (pending) return pending;
+
+    const promise = taskFn(signal)
+      .then((result) => {
+        store.set(key, result);
+        return result;
+      })
+      .finally(() => {
+        storePending.delete(key);
+      });
+
+    storePending.set(key, promise);
+    return promise;
   };
