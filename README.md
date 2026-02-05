@@ -44,7 +44,7 @@ Each package is configured with `publishConfig.access=public` for scoped npm pub
 ## Release process
 
 ```bash
-npx changeset
+npm run release:changeset
 npm run release:changelog
 npm run release:prepare
 npm publish -ws
