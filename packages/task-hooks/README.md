@@ -1,12 +1,31 @@
 # @gantryland/task-hooks
 
-React hooks for the Task library. Requires React 18+ (uses `useSyncExternalStore`).
+React hooks for `@gantryland/task`. Build reactive UIs over Task state with stable instances and ergonomic helpers. Requires React 18+ (uses `useSyncExternalStore`).
+
+- Stable Task instances across component lifetimes.
+- Auto-run helpers for common lifecycle patterns.
+- Selectors to reduce re-renders.
+- Works with any TaskFn or Task factory.
 
 ## Installation
 
 ```bash
 npm install @gantryland/task-hooks
 ```
+
+## Contents
+
+- [Quick start](#quick-start)
+- [Design goals](#design-goals)
+- [When to use task-hooks](#when-to-use-task-hooks)
+- [When not to use task-hooks](#when-not-to-use-task-hooks)
+- [Core concepts](#core-concepts)
+- [Flow](#flow)
+- [API](#api)
+- [Common patterns](#common-patterns)
+- [Integrations](#integrations)
+- [Related packages](#related-packages)
+- [Tests](#tests)
 
 ## Quick start
 
@@ -31,6 +50,25 @@ export function UserPanel() {
 }
 ```
 
+This example shows a stable Task instance that runs on mount.
+
+## Design goals
+
+- Keep hook APIs small and explicit.
+- Ensure Tasks remain stable across renders.
+- Make it easy to subscribe to minimal state.
+
+## When to use task-hooks
+
+- You want reactive UI over Task state.
+- You need to run tasks on mount or dependency changes.
+- You want stable `run()`/`cancel()` callbacks.
+
+## When not to use task-hooks
+
+- You are not in a React runtime.
+- You need stream semantics instead of Task state.
+
 ## Core concepts
 
 ### Task instance is stable
@@ -46,14 +84,44 @@ const [taskA] = useTask(fetchUsers); // TaskFn
 const [taskB] = useTask(() => new Task(fetchUsers), { mode: "factory" });
 ```
 
-## Hooks
+### Nullable tasks
+
+`useTaskState`, `useTaskResult`, and `useTaskError` accept `null` or `undefined` and return a default stale state (or your provided fallback).
+
+## Flow
+
+```text
+useTask -> subscribe -> render
+useTaskOnce/useTaskRun -> run() when conditions match
+```
+
+## API
+
+### API at a glance
+
+| Member | Purpose | Returns |
+| --- | --- | --- |
+| **Hooks** |  |  |
+| [`useTask`](#usetask) | Create Task and subscribe | `[Task, TaskState]` |
+| [`useTaskOnce`](#usetaskonce) | Run on mount if stale | `void` |
+| [`useTaskState`](#usetaskstate) | Subscribe to state or slice | `TaskState` or selected value |
+| [`useTaskRun`](#usetaskrun) | Stable run callback | `() => Promise<void>` |
+| [`useTaskResult`](#usetaskresult) | Full TaskState | `TaskState` |
+| [`useTaskError`](#usetaskerror) | Error-only selector | `unknown | undefined` |
+| [`useTaskAbort`](#usetaskabort) | Stable cancel callback | `() => void` |
 
 ### useTask
 
-Creates a Task instance and subscribes to its state.
+Creates a Task instance and subscribes to its state. The Task instance is stable across renders.
 
 ```tsx
 const [task, state] = useTask(fetchUsers);
+```
+
+Use `mode: "factory"` when passing a Task factory:
+
+```tsx
+const [task, state] = useTask(() => new Task(fetchUsers), { mode: "factory" });
 ```
 
 ### useTaskOnce
@@ -110,7 +178,20 @@ Returns a stable `cancel()` callback.
 const cancel = useTaskAbort(task);
 ```
 
-## Practical examples
+### Guarantees
+
+- Task instances created by `useTask` are stable across renders.
+- `useTaskOnce` only runs on initial mount.
+- Selector hooks return a stale fallback for nullable tasks.
+
+### Gotchas
+
+- Use `mode: "factory"` when passing a Task factory.
+- `useTaskRun` auto mode only re-runs when deps change.
+
+## Common patterns
+
+Use these patterns for most usage.
 
 ### Fetch on mount
 
@@ -129,7 +210,7 @@ return <UserList users={data} />;
 ```tsx
 import { useTask, useTaskRun } from "@gantryland/task-hooks";
 
-const [task, { data, isLoading }] = useTask(fetchUsers);
+const [task, { isLoading }] = useTask(fetchUsers);
 const handleRefresh = useTaskRun(task);
 
 return (
@@ -161,7 +242,7 @@ useTaskOnce(userTask);
 import { Task } from "@gantryland/task";
 import { useTask, useTaskRun } from "@gantryland/task-hooks";
 
-const [task, { data, isLoading }] = useTask(
+const [task] = useTask(
   () =>
     new Task((signal) =>
       fetch(`/api/users/${userId}`, { signal }).then((r) => r.json())
@@ -180,6 +261,21 @@ import { useTaskState } from "@gantryland/task-hooks";
 const isLoading = useTaskState(task, { select: (s) => s.isLoading });
 const user = useTaskState(task, { select: (s) => s.data });
 ```
+
+### Abort in-flight work
+
+```tsx
+import { useTask, useTaskAbort } from "@gantryland/task-hooks";
+
+const [task] = useTask(fetchUsers);
+const cancel = useTaskAbort(task);
+
+return <button onClick={cancel}>Cancel</button>;
+```
+
+## Integrations
+
+Compose with other Gantryland utilities. This section shows common pairings.
 
 ### Compose with task-combinators
 
@@ -214,7 +310,7 @@ import { useTask, useTaskOnce } from "@gantryland/task-hooks";
 
 const store = new MemoryCacheStore();
 
-const [task, state] = useTask(
+const [task] = useTask(
   () =>
     new Task(
       pipe(
@@ -226,17 +322,6 @@ const [task, state] = useTask(
 );
 
 useTaskOnce(task);
-```
-
-### Abort in-flight work
-
-```tsx
-import { useTask, useTaskAbort } from "@gantryland/task-hooks";
-
-const [task] = useTask(fetchUsers);
-const cancel = useTaskAbort(task);
-
-return <button onClick={cancel}>Cancel</button>;
 ```
 
 ## Related packages

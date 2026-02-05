@@ -2,13 +2,30 @@
 
 Minimal observable primitives for Task. Designed for small, dependency-free interop with libraries that consume observables.
 
-Works in browser and Node.js with no dependencies.
+- Tiny Observable/Observer contracts for easy adapters.
+- Convert Task state or results to observables.
+- Convert observables into TaskFn.
+- Works in browser and Node.js with no dependencies.
 
 ## Installation
 
 ```bash
 npm install @gantryland/task-observable
 ```
+
+## Contents
+
+- [Quick start](#quick-start)
+- [Design goals](#design-goals)
+- [When to use task-observable](#when-to-use-task-observable)
+- [When not to use task-observable](#when-not-to-use-task-observable)
+- [Core concepts](#core-concepts)
+- [Flow](#flow)
+- [API](#api)
+- [Common patterns](#common-patterns)
+- [Integrations](#integrations)
+- [Related packages](#related-packages)
+- [Tests](#tests)
 
 ## Quick start
 
@@ -28,6 +45,25 @@ await task.run();
 
 subscription.unsubscribe();
 ```
+
+This example shows Task results as an observable stream.
+
+## Design goals
+
+- Keep observable contracts tiny and portable.
+- Make Task interop explicit and predictable.
+- Avoid extra dependencies.
+
+## When to use task-observable
+
+- You need to feed Task state into an observable consumer.
+- You want to adapt an observable into a TaskFn.
+- You want a minimal observable interface without RxJS.
+
+## When not to use task-observable
+
+- You need full stream operators and schedulers.
+- You need multi-cast or hot observable utilities.
 
 ## Core concepts
 
@@ -53,7 +89,27 @@ type Observable<T> = {
 - `fromTask` emits resolved data values only.
 - `toTask` converts an observable to a TaskFn and resolves on the first `next`.
 
+## Flow
+
+```text
+Task -> fromTaskState -> Observable<TaskState>
+Task -> fromTask -> Observable<T>
+Observable<T> -> toTask -> TaskFn<T>
+```
+
 ## API
+
+### API at a glance
+
+| Member | Purpose | Returns |
+| --- | --- | --- |
+| **Core** |  |  |
+| [`createObservable`](#createobservable) | Build an Observable from subscribe | `Observable<T>` |
+| **Task -> Observable** |  |  |
+| [`fromTaskState`](#fromtaskstate) | Task -> Observable<TaskState> | `Observable<TaskState<T>>` |
+| [`fromTask`](#fromtask) | Task -> Observable<T> | `Observable<T>` |
+| **Observable -> Task** |  |  |
+| [`toTask`](#totask) | Observable -> TaskFn | `TaskFn<T>` |
 
 ### createObservable
 
@@ -92,7 +148,20 @@ Convert an observable into a TaskFn. Only the first value is used.
 const taskFn = toTask(observable)
 ```
 
-## Practical examples
+### Guarantees
+
+- `fromTaskState` emits every Task state change.
+- `fromTask` emits only after successful resolution.
+- `toTask` respects abort and rejects on observable errors.
+
+### Gotchas
+
+- `fromTask` does not emit on `error` or `cancel`.
+- `toTask` resolves on the first `next` only.
+
+## Common patterns
+
+Use these patterns for most usage.
 
 ### Stream Task state to an observable
 
@@ -158,6 +227,10 @@ const task = new Task(
 );
 ```
 
+## Integrations
+
+Compose with other Gantryland utilities. This section shows common pairings.
+
 ### Integrate with task-hooks (React)
 
 ```tsx
@@ -180,12 +253,6 @@ export function UserPanel() {
   return <pre>{JSON.stringify(state, null, 2)}</pre>;
 }
 ```
-
-## Notes
-
-- Observers are simple `{ next, error?, complete? }` objects.
-- `fromTask` emits only after successful resolution (not on `error` or `cancel`).
-- `toTask` resolves on first `next`, rejects on `error`, and respects abort.
 
 ## Related packages
 

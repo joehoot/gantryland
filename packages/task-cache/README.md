@@ -1,8 +1,11 @@
 # @gantryland/task-cache
 
-Cache primitives and combinators for `@gantryland/task`. Designed to compose with TaskFn pipelines and shared across the Task ecosystem.
+Cache primitives and combinators for `@gantryland/task`. Compose caching into TaskFn pipelines with minimal surface area and predictable behavior.
 
-Works in browser and Node.js with no dependencies.
+- Works with any TaskFn, no framework coupling.
+- Built-in in-memory store with tag invalidation and events.
+- Stale-while-revalidate and dedupe support out of the box.
+- Works in browser and Node.js with no dependencies.
 
 ## Installation
 
@@ -10,11 +13,25 @@ Works in browser and Node.js with no dependencies.
 npm install @gantryland/task-cache
 ```
 
+## Contents
+
+- [Quick start](#quick-start)
+- [Design goals](#design-goals)
+- [When to use task-cache](#when-to-use-task-cache)
+- [When not to use task-cache](#when-not-to-use-task-cache)
+- [Core concepts](#core-concepts)
+- [Flow](#flow)
+- [API](#api)
+- [Common patterns](#common-patterns)
+- [Integrations](#integrations)
+- [Related packages](#related-packages)
+- [Tests](#tests)
+
 ## Quick start
 
 ```typescript
 import { Task } from "@gantryland/task";
-import { MemoryCacheStore, cache, staleWhileRevalidate } from "@gantryland/task-cache";
+import { MemoryCacheStore, cache } from "@gantryland/task-cache";
 import { pipe } from "@gantryland/task-combinators";
 
 const store = new MemoryCacheStore();
@@ -28,14 +45,26 @@ const usersTask = new Task(
 
 await usersTask.run(); // fetches and caches
 await usersTask.run(); // cache hit
-
-const swrTask = new Task(
-  pipe(
-    (signal) => fetch("/api/users", { signal }).then((r) => r.json()),
-    staleWhileRevalidate("users", store, { ttl: 30_000, staleTtl: 60_000 })
-  )
-);
 ```
+
+This example shows `cache` reuse for fresh data.
+
+## Design goals
+
+- Make caching explicit and composable at the TaskFn level.
+- Keep stores minimal so you can swap implementations.
+- Provide deterministic cache semantics and clear invalidation paths.
+
+## When to use task-cache
+
+- You want reuse across TaskFn calls with TTLs.
+- You need stale-while-revalidate behavior.
+- You want tag-based invalidation or cache events.
+
+## When not to use task-cache
+
+- You need a full data layer with automatic normalization.
+- You cannot tolerate stale reads of any kind.
 
 ## Core concepts
 
@@ -68,35 +97,131 @@ type CacheEntry<T> = {
 }
 ```
 
-### Cache events
+### CacheEvent
 
 Stores can emit events to power analytics, logging, or invalidation tracing.
 
 Event types: `hit`, `miss`, `stale`, `set`, `invalidate`, `clear`, `revalidate`.
 
+### CacheKey
+
+Cache keys can be strings, numbers, or symbols. Use `cacheKey` for consistent keys across call sites.
+
+## Flow
+
+```text
+cache(): fresh -> return
+cache(): stale/miss -> fetch -> store -> return
+
+staleWhileRevalidate(): fresh -> return
+staleWhileRevalidate(): stale -> return stale -> revalidate in background
+staleWhileRevalidate(): miss -> fetch -> store -> return
+```
+
 ## API
+
+### API at a glance
+
+| Member | Purpose | Returns |
+| --- | --- | --- |
+| **Stores** |  |  |
+| [`MemoryCacheStore`](#memorycachestore) | In-memory store with tags and events | `MemoryCacheStore` |
+| **Combinators** |  |  |
+| [`cache`](#cache) | Cache with TTL and dedupe | `(taskFn) => TaskFn` |
+| [`staleWhileRevalidate`](#stalewhilerevalidate) | Serve stale and refresh in background | `(taskFn) => TaskFn` |
+| [`invalidateOnResolve`](#invalidateonresolve) | Invalidate after TaskFn resolves | `(taskFn) => TaskFn` |
+| **Helpers** |  |  |
+| [`cacheKey`](#cachekey) | Build consistent cache keys | `string` |
 
 ### MemoryCacheStore
 
-In-memory store with tag invalidation and event emission.
+In-memory CacheStore with tag invalidation and event emission.
 
 ```typescript
-import { MemoryCacheStore } from "@gantryland/task-cache";
-
 const store = new MemoryCacheStore();
-store.subscribe((event) => console.log(event.type, event.key));
-store.invalidateTags(["users"]);
 ```
+
+#### store.get
+
+```typescript
+store.get<T>(key: CacheKey): CacheEntry<T> | undefined
+```
+
+Read an entry by key.
+
+#### store.set
+
+```typescript
+store.set<T>(key: CacheKey, entry: CacheEntry<T>): void
+```
+
+Write an entry by key and emit a `set` event.
+
+#### store.delete
+
+```typescript
+store.delete(key: CacheKey): void
+```
+
+Delete an entry by key and emit an `invalidate` event.
+
+#### store.clear
+
+```typescript
+store.clear(): void
+```
+
+Clear all entries and emit a `clear` event.
+
+#### store.has
+
+```typescript
+store.has(key: CacheKey): boolean
+```
+
+Check whether a key exists.
+
+#### store.keys
+
+```typescript
+store.keys(): Iterable<CacheKey>
+```
+
+Return all keys.
+
+#### store.subscribe
+
+```typescript
+store.subscribe(listener: (event: CacheEvent) => void): () => void
+```
+
+Listen to cache events. Returns an unsubscribe function.
+
+#### store.emit
+
+```typescript
+store.emit(event: CacheEvent): void
+```
+
+Emit a cache event to subscribers.
+
+#### store.invalidateTags
+
+```typescript
+store.invalidateTags(tags: string[]): void
+```
+
+Invalidate all entries matching any tag.
 
 ### cache
 
-Return cached data if fresh, otherwise fetch and cache.
+Return cached data if fresh; otherwise fetch and cache. Dedupe is enabled by default.
 
 ```typescript
-cache("users", store, { ttl: 60_000, tags: ["users"] })
+cache("users", store, { ttl: 60_000, tags: ["users"], dedupe: true })
 ```
 
-Options:
+#### CacheOptions
 
 ```typescript
 type CacheOptions = {
@@ -109,7 +234,7 @@ type CacheOptions = {
 
 ### staleWhileRevalidate
 
-Return stale data (if within stale window) and refresh in the background.
+Return stale data (if within the stale window) and refresh in the background.
 
 ```typescript
 staleWhileRevalidate("users", store, { ttl: 30_000, staleTtl: 60_000 })
@@ -133,7 +258,9 @@ Helper for consistent cache keys.
 cacheKey("user", userId)
 ```
 
-## Practical examples
+## Common patterns
+
+Use these patterns for most usage.
 
 ### Cache with Task and pipe
 
@@ -200,11 +327,26 @@ const createTask = new Task(
 ### In-flight dedupe
 
 ```typescript
-import { cache } from "@gantryland/task-cache";
-
 cache("users", store, { ttl: 10_000, dedupe: true });
 cache("users", store, { ttl: 10_000, dedupe: false });
 ```
+
+### Observe cache events
+
+```typescript
+const store = new MemoryCacheStore();
+
+const unsub = store.subscribe((event) => {
+  console.log(event.type, event.key, event.entry?.updatedAt);
+});
+
+// Later
+unsub();
+```
+
+## Integrations
+
+Compose with other Gantryland utilities. This section shows common pairings.
 
 ### Persist cache with task-storage
 
@@ -223,26 +365,6 @@ const task = new Task(
   )
 );
 ```
-
-### Observe cache events
-
-```typescript
-const store = new MemoryCacheStore();
-
-const unsub = store.subscribe((event) => {
-  console.log(event.type, event.key, event.entry?.updatedAt);
-});
-
-// Later
-unsub();
-```
-
-## Notes
-
-- `cache` is strict: expired entries are re-fetched.
-- `staleWhileRevalidate` returns stale data during the stale window and refreshes in the background.
-- In-flight dedupe is enabled by default (`dedupe: false` to opt out).
-- Tag invalidation requires a store that supports `invalidateTags` (MemoryCacheStore and StorageCacheStore do).
 
 ## Related packages
 

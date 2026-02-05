@@ -2,13 +2,30 @@
 
 Validation combinators for Task. Designed to be schema-library agnostic and small enough to drop into any TaskFn pipeline.
 
-Works in browser and Node.js with no dependencies.
+- Lightweight validation combinator for TaskFn.
+- Adapters for safeParse and predicate validators.
+- Consistent ValidationError with issues payload.
+- Works in browser and Node.js with no dependencies.
 
 ## Installation
 
 ```bash
 npm install @gantryland/task-validate
 ```
+
+## Contents
+
+- [Quick start](#quick-start)
+- [Design goals](#design-goals)
+- [When to use task-validate](#when-to-use-task-validate)
+- [When not to use task-validate](#when-not-to-use-task-validate)
+- [Core concepts](#core-concepts)
+- [Flow](#flow)
+- [API](#api)
+- [Common patterns](#common-patterns)
+- [Integrations](#integrations)
+- [Related packages](#related-packages)
+- [Tests](#tests)
 
 ## Quick start
 
@@ -28,6 +45,25 @@ const task = new Task(
 );
 ```
 
+This example shows Zod validation with ValidationError on failure.
+
+## Design goals
+
+- Be schema-library agnostic.
+- Keep validation in TaskFn pipelines.
+- Provide a consistent error shape.
+
+## When to use task-validate
+
+- You want validation in TaskFn composition.
+- You use a schema library with `safeParse`.
+- You want type guards to enforce output shape.
+
+## When not to use task-validate
+
+- You want automatic schema generation.
+- You need complex, multi-step validation flows.
+
 ## Core concepts
 
 ### Validator
@@ -44,7 +80,25 @@ type Validator<T> = {
 
 When validation fails, `ValidationError` is thrown and can carry `issues` from your schema library.
 
+## Flow
+
+```text
+TaskFn -> validate(validator) -> TaskFn
+```
+
 ## API
+
+### API at a glance
+
+| Member | Purpose | Returns |
+| --- | --- | --- |
+| **Combinator** |  |  |
+| [`validate`](#validate) | Validate TaskFn output | `(taskFn) => TaskFn` |
+| **Adapters** |  |  |
+| [`fromSafeParse`](#fromsafeparse) | Adapter for safeParse | `Validator<T>` |
+| [`fromPredicate`](#frompredicate) | Adapter for type guards | `Validator<T>` |
+| **Errors** |  |  |
+| [`ValidationError`](#validationerror) | Validation error class | `Error` |
 
 ### validate
 
@@ -78,7 +132,19 @@ Error thrown when validation fails. Includes `issues`.
 new ValidationError("Validation failed", issues)
 ```
 
-## Practical examples
+### Guarantees
+
+- `validate` throws `ValidationError` on validation failure.
+- `fromSafeParse` and `fromPredicate` preserve original error payloads as issues.
+
+### Gotchas
+
+- `validate` runs after the TaskFn resolves, not before.
+- Predicate validators must be total; false results throw.
+
+## Common patterns
+
+Use these patterns for most usage.
 
 ### Validate API payloads with Zod
 
@@ -150,6 +216,10 @@ const task = new Task(
 );
 ```
 
+## Integrations
+
+Compose with other Gantryland utilities. This section shows common pairings.
+
 ### React usage with task-hooks
 
 ```tsx
@@ -158,7 +228,7 @@ import { useTask, useTaskOnce } from "@gantryland/task-hooks";
 import { validate, fromSafeParse } from "@gantryland/task-validate";
 import { pipe } from "@gantryland/task-combinators";
 
-const [task, state] = useTask(
+const [task] = useTask(
   () =>
     new Task(
       pipe(
@@ -171,11 +241,6 @@ const [task, state] = useTask(
 
 useTaskOnce(task);
 ```
-
-## Notes
-
-- `validate` returns a TaskFn that throws `ValidationError` on failure.
-- `fromSafeParse` supports zod/valibot/io-ts style APIs.
 
 ## Related packages
 

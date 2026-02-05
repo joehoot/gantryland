@@ -2,7 +2,10 @@
 
 Persistent cache stores that implement `CacheStore` from `@gantryland/task-cache`. Use these to keep cache entries across sessions or processes.
 
-Works in browser and Node.js with no dependencies.
+- Storage-backed cache for browser environments.
+- File-backed cache for Node.js processes.
+- Tag invalidation and cache events supported.
+- Works in browser and Node.js with no dependencies.
 
 ## Installation
 
@@ -10,7 +13,21 @@ Works in browser and Node.js with no dependencies.
 npm install @gantryland/task-storage
 ```
 
-## Quick start (browser)
+## Contents
+
+- [Quick start](#quick-start)
+- [Design goals](#design-goals)
+- [When to use task-storage](#when-to-use-task-storage)
+- [When not to use task-storage](#when-not-to-use-task-storage)
+- [Core concepts](#core-concepts)
+- [Flow](#flow)
+- [API](#api)
+- [Common patterns](#common-patterns)
+- [Integrations](#integrations)
+- [Related packages](#related-packages)
+- [Tests](#tests)
+
+## Quick start
 
 ```typescript
 import { Task } from "@gantryland/task";
@@ -28,13 +45,24 @@ const task = new Task(
 );
 ```
 
-## Quick start (Node.js)
+This example shows localStorage-backed cache persistence.
 
-```typescript
-import { FileCacheStore } from "@gantryland/task-storage";
+## Design goals
 
-const store = new FileCacheStore("./.cache/tasks.json", { pretty: true });
-```
+- Provide drop-in persistent CacheStore implementations.
+- Keep storage formats simple and inspectable.
+- Remain compatible with task-cache combinators.
+
+## When to use task-storage
+
+- You want cache persistence across browser sessions.
+- You need a shared on-disk cache in Node.js.
+- You want CacheStore events and tag invalidation.
+
+## When not to use task-storage
+
+- You need distributed caching across machines.
+- You need async streaming or very large payloads.
 
 ## Core concepts
 
@@ -46,7 +74,38 @@ Wraps a `Storage`-like interface (localStorage/sessionStorage). Entries are seri
 
 Persists a cache map to disk as JSON using synchronous I/O. Intended for Node.js processes.
 
+### StorageLike
+
+Minimal interface for a storage backend.
+
+```typescript
+type StorageLike = {
+  getItem(key: string): string | null
+  setItem(key: string, value: string): void
+  removeItem(key: string): void
+  key(index: number): string | null
+  readonly length: number
+}
+```
+
+## Flow
+
+```text
+TaskFn -> cache(...) -> StorageCacheStore
+TaskFn -> cache(...) -> FileCacheStore
+```
+
 ## API
+
+### API at a glance
+
+| Member | Purpose | Returns |
+| --- | --- | --- |
+| **Stores** |  |  |
+| [`StorageCacheStore`](#storagecachestore) | Storage-backed cache store | `StorageCacheStore` |
+| [`FileCacheStore`](#filecachestore) | File-backed cache store | `FileCacheStore` |
+| **Interfaces** |  |  |
+| [`StorageLike`](#storagelike) | Storage interface | `type` |
 
 ### StorageCacheStore
 
@@ -78,7 +137,20 @@ type StorageLike = {
 }
 ```
 
-## Practical examples
+### Guarantees
+
+- StorageCacheStore scopes keys by prefix.
+- FileCacheStore persists on every write.
+- Both stores emit cache events when entries change.
+
+### Gotchas
+
+- FileCacheStore uses synchronous file I/O.
+- StorageCacheStore serializes values to JSON by default.
+
+## Common patterns
+
+Use these patterns for most usage.
 
 ### Persist Task cache to localStorage
 
@@ -105,7 +177,7 @@ import { FileCacheStore } from "@gantryland/task-storage";
 
 const store = new FileCacheStore("./.cache/tasks.json", { pretty: true });
 
-// Combine with task-cache when creating TaskFns
+// Combine with task-cache when creating TaskFns.
 ```
 
 ### Custom serialization
@@ -123,6 +195,10 @@ const store = new StorageCacheStore(localStorage, {
 });
 ```
 
+## Integrations
+
+Compose with other Gantryland utilities. This section shows common pairings.
+
 ### Use with task-cache and task-hooks
 
 ```tsx
@@ -134,7 +210,7 @@ import { useTask, useTaskOnce } from "@gantryland/task-hooks";
 
 const store = new StorageCacheStore(localStorage, { prefix: "app:" });
 
-const [task, state] = useTask(
+const [task] = useTask(
   () =>
     new Task(
       pipe(
@@ -160,12 +236,6 @@ const unsubscribe = logCache(store, { label: "storage" });
 // Later
 unsubscribe();
 ```
-
-## Notes
-
-- `StorageCacheStore` serializes entries with JSON by default.
-- `FileCacheStore` uses synchronous file I/O; intended for Node.js.
-- Use `@gantryland/task-cache` combinators (`cache`, `staleWhileRevalidate`) with these stores.
 
 ## Related packages
 

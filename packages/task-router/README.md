@@ -2,13 +2,30 @@
 
 Route helpers for Task. Simple pattern matching plus Task wrappers for route params, without bringing in a full router.
 
-Works in browser and Node.js with no dependencies.
+- Lightweight pattern matching with `:param` segments.
+- Task wrappers that keep params and execution together.
+- Helpers to build paths from params.
+- Works in browser and Node.js with no dependencies.
 
 ## Installation
 
 ```bash
 npm install @gantryland/task-router
 ```
+
+## Contents
+
+- [Quick start](#quick-start)
+- [Design goals](#design-goals)
+- [When to use task-router](#when-to-use-task-router)
+- [When not to use task-router](#when-not-to-use-task-router)
+- [Core concepts](#core-concepts)
+- [Flow](#flow)
+- [API](#api)
+- [Common patterns](#common-patterns)
+- [Integrations](#integrations)
+- [Related packages](#related-packages)
+- [Tests](#tests)
 
 ## Quick start
 
@@ -24,6 +41,25 @@ const userTask = createPathTask(
 await userTask.runPath("/users/123");
 ```
 
+This example shows a route pattern bound to a Task and run by path.
+
+## Design goals
+
+- Keep routing helpers tiny and composable.
+- Avoid a full router dependency.
+- Make params explicit and easy to reuse.
+
+## When to use task-router
+
+- You want a small route matcher for Task.
+- You need param-driven TaskFns.
+- You want to build or validate paths with params.
+
+## When not to use task-router
+
+- You need nested routes, loaders, or history management.
+- You need wildcard or regex route matching.
+
 ## Core concepts
 
 ### Patterns and params
@@ -32,7 +68,7 @@ Patterns support `:param` segments. `matchRoute` returns `{ params, path }` when
 
 ### RouteTask
 
-`createRouteTask` and `createPathTask` return a `RouteTask`, a small wrapper around a `Task` with param helpers.
+`createRouteTask` and `createPathTask` return a `RouteTask`, a wrapper around a Task with param helpers.
 
 ```typescript
 type RouteTask<T> = {
@@ -43,7 +79,25 @@ type RouteTask<T> = {
 };
 ```
 
+## Flow
+
+```text
+pattern + params -> TaskFn -> Task
+path -> matchRoute -> params -> run(params)
+```
+
 ## API
+
+### API at a glance
+
+| Member | Purpose | Returns |
+| --- | --- | --- |
+| **Routing** |  |  |
+| [`matchRoute`](#matchroute) | Match a path to params | `RouteMatch | null` |
+| [`buildPath`](#buildpath) | Build path from params | `string` |
+| **Tasks** |  |  |
+| [`createRouteTask`](#createroutetask) | Task wrapper with params | `RouteTask<T>` |
+| [`createPathTask`](#createpathtask) | RouteTask + runPath | `RouteTask<T> & { runPath }` |
 
 ### matchRoute
 
@@ -82,7 +136,20 @@ const routeTask = createPathTask(
 );
 ```
 
-## Practical examples
+### Guarantees
+
+- `matchRoute` returns `null` for non-matching paths.
+- `buildPath` encodes params.
+- `createPathTask` throws if a path does not match the pattern.
+
+### Gotchas
+
+- Patterns support `:param` segments only (no wildcards).
+- `buildPath` throws if a param is missing.
+
+## Common patterns
+
+Use these patterns for most usage.
 
 ### Use in a minimal client-side router
 
@@ -153,6 +220,10 @@ const task = createPathTask(
 );
 ```
 
+## Integrations
+
+Compose with other Gantryland utilities. This section shows common pairings.
+
 ### React usage with task-hooks
 
 ```tsx
@@ -173,12 +244,6 @@ export function UserRoute({ id }: { id: string }) {
   return <UserCard user={state.data} />;
 }
 ```
-
-## Notes
-
-- Patterns support `:param` segments only (no wildcards).
-- `createPathTask` throws if a path does not match the pattern.
-- `buildPath` throws if a param is missing.
 
 ## Related packages
 

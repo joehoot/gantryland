@@ -1,8 +1,11 @@
 # @gantryland/task-combinators
 
-Composable operators for TaskFn. Transform results, retry, timeout, and orchestrate multiple TaskFns with a small, predictable API.
+Composable operators for TaskFn. Transform results, handle errors, retry, timeout, and orchestrate TaskFns with a small, predictable API.
 
-Works in browser and Node.js (17+) with no dependencies.
+- Curried combinators that compose cleanly with `pipe`.
+- Abort-aware behavior across retries and timeouts.
+- Parallel and sequential orchestration utilities.
+- Works in browser and Node.js with no dependencies.
 
 ## Installation
 
@@ -10,18 +13,25 @@ Works in browser and Node.js (17+) with no dependencies.
 npm install @gantryland/task-combinators
 ```
 
+## Contents
+
+- [Quick start](#quick-start)
+- [Design goals](#design-goals)
+- [When to use task-combinators](#when-to-use-task-combinators)
+- [When not to use task-combinators](#when-not-to-use-task-combinators)
+- [Core concepts](#core-concepts)
+- [Flow](#flow)
+- [API](#api)
+- [Common patterns](#common-patterns)
+- [Integrations](#integrations)
+- [Related packages](#related-packages)
+- [Tests](#tests)
+
 ## Quick start
 
 ```typescript
 import { Task } from "@gantryland/task";
-import {
-  pipe,
-  map,
-  retry,
-  timeout,
-  tapError,
-  TimeoutError,
-} from "@gantryland/task-combinators";
+import { pipe, map, retry, timeout, tapError, TimeoutError } from "@gantryland/task-combinators";
 
 const task = new Task(
   pipe(
@@ -42,6 +52,25 @@ const task = new Task(
 await task.run();
 ```
 
+This example shows a TaskFn pipeline with transforms, retries, and timeouts.
+
+## Design goals
+
+- Keep operators tiny and composable.
+- Treat AbortError as a first-class cancellation signal.
+- Make orchestration (parallel/sequence) ergonomic without new abstractions.
+
+## When to use task-combinators
+
+- You want reusable TaskFn pipelines.
+- You need retries, timeouts, or error shaping.
+- You want to coordinate multiple TaskFns without a framework.
+
+## When not to use task-combinators
+
+- You need a full reactive stream library.
+- You need persistent caching without composition.
+
 ## Core concepts
 
 ### TaskFn
@@ -61,7 +90,50 @@ const withRetry = retry(2)(fetchUsers);
 const withPipeline = pipe(fetchUsers, retry(2), timeout(5000));
 ```
 
-## API overview
+### AbortError behavior
+
+AbortError is treated as cancellation and is not transformed or swallowed by error operators.
+
+## Flow
+
+```text
+TaskFn -> map/flatMap -> retry/backoff -> timeout -> catchError
+```
+
+Order matters. Use `pipe` to make intent explicit.
+
+## API
+
+### API at a glance
+
+| Member | Purpose | Returns |
+| --- | --- | --- |
+| **Composition** |  |  |
+| [`pipe`](#pipe) | Compose operators left-to-right | `TaskFn` |
+| **Transforms** |  |  |
+| [`map`](#map) | Transform result | `(taskFn) => TaskFn` |
+| [`flatMap`](#flatmap) | Chain async work | `(taskFn) => TaskFn` |
+| [`tap`](#tap) | Side effect on success | `(taskFn) => TaskFn` |
+| [`tapError`](#taperror) | Side effect on error | `(taskFn) => TaskFn` |
+| [`mapError`](#maperror) | Transform error | `(taskFn) => TaskFn` |
+| [`catchError`](#catcherror) | Recover with fallback | `(taskFn) => TaskFn` |
+| **Retry/Backoff** |  |  |
+| [`retry`](#retry) | Retry with fixed attempts | `(taskFn) => TaskFn` |
+| [`retryWhen`](#retrywhen) | Retry while predicate passes | `(taskFn) => TaskFn` |
+| [`backoff`](#backoff) | Retry with delays | `(taskFn) => TaskFn` |
+| **Timeouts** |  |  |
+| [`timeout`](#timeout) | Fail after duration | `(taskFn) => TaskFn` |
+| [`timeoutWith`](#timeoutwith) | Fallback on timeout | `(taskFn) => TaskFn` |
+| [`TimeoutError`](#timeouterror) | Timeout error class | `Error` |
+| **Orchestration** |  |  |
+| [`zip`](#zip) | Parallel tuple results | `TaskFn` |
+| [`all`](#all) | Parallel array results | `TaskFn` |
+| [`race`](#race) | First-to-settle | `TaskFn` |
+| [`sequence`](#sequence) | Sequential results | `TaskFn` |
+| [`concat`](#concat) | Alias for sequence | `TaskFn` |
+| **Factories** |  |  |
+| [`defer`](#defer) | Defer TaskFn creation | `TaskFn` |
+| [`lazy`](#lazy) | Alias for defer | `TaskFn` |
 
 ### pipe
 
@@ -146,7 +218,7 @@ backoff({ attempts: 3, delayMs: (attempt) => attempt * 250 })
 
 ### timeout
 
-Fail after duration. Respects abort signal; does not abort the underlying task. Rejects with `TimeoutError`.
+Fail after duration. Respects abort signal and rejects with `TimeoutError`.
 
 ```typescript
 timeout(5000)
@@ -184,7 +256,7 @@ Resolve or reject with the first TaskFn to settle.
 race(fetchPrimary, fetchReplica)
 ```
 
-### sequence / concat
+### sequence
 
 Run TaskFns sequentially and return all results. `concat` is an alias.
 
@@ -192,12 +264,28 @@ Run TaskFns sequentially and return all results. `concat` is an alias.
 sequence(fetchUser, fetchTeams)
 ```
 
-### defer / lazy
+### concat
 
-Defer creation of a TaskFn until run time. `lazy` is an alias.
+Alias for `sequence`.
+
+```typescript
+concat(fetchUser, fetchTeams)
+```
+
+### defer
+
+Defer creation of a TaskFn until run time.
 
 ```typescript
 defer(() => fetchUserTaskFn(id))
+```
+
+### lazy
+
+Alias for `defer`.
+
+```typescript
+lazy(() => fetchUserTaskFn(id))
 ```
 
 ### TimeoutError
@@ -208,7 +296,20 @@ Error type used by `timeout`.
 new TimeoutError()
 ```
 
-## Practical examples
+### Guarantees
+
+- AbortError is never swallowed by error operators.
+- `retry` and `retryWhen` check the signal between attempts.
+- `timeout` cleans up on abort and rejects with `TimeoutError`.
+
+### Gotchas
+
+- `timeout` does not abort the underlying TaskFn.
+- `catchError` fallbacks are synchronous.
+
+## Common patterns
+
+Use these patterns for most usage.
 
 ### Error handling pipeline
 
@@ -294,6 +395,10 @@ const taskFn = timeoutWith(3000, fetchCachedUsers)(
 );
 ```
 
+## Integrations
+
+Compose with other Gantryland utilities. This section shows common pairings.
+
 ### Use with task-cache
 
 ```typescript
@@ -334,13 +439,6 @@ export function UserPanel() {
   return <UserCard user={data} />;
 }
 ```
-
-## Notes
-
-- All combinators respect AbortError; they do not swallow or transform it.
-- `retry` and `retryWhen` check the signal between attempts.
-- `timeout` cleans up on abort and rejects with `TimeoutError`.
-- `timeout` does not abort the underlying TaskFn.
 
 ## Related packages
 

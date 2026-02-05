@@ -1,14 +1,31 @@
 # @gantryland/task
 
-Minimal async task with reactive state. The Task instance is the identity: share it to share state across modules and UI.
+Minimal async task with reactive state, designed for ergonomic data flows in apps and libraries. A Task instance is the identity: share it to share state across modules and UI.
 
-Works in browser and Node.js (17+) with no dependencies.
+- Simple `TaskFn` contract with AbortSignal cancellation.
+- Reactive state you can render directly.
+- Composable with retries, caching, validation, and scheduling utilities.
+- Works in browser and Node.js with no dependencies.
 
 ## Installation
 
 ```bash
 npm install @gantryland/task
 ```
+
+## Contents
+
+- [Quick start](#quick-start)
+- [Design goals](#design-goals)
+- [When to use task](#when-to-use-task)
+- [When not to use task](#when-not-to-use-task)
+- [Core concepts](#core-concepts)
+- [Flow](#flow)
+- [API](#api)
+- [Common patterns](#common-patterns)
+- [Integrations](#integrations)
+- [Related packages](#related-packages)
+- [Tests](#tests)
 
 ## Quick start
 
@@ -37,11 +54,31 @@ unsub();
 userTask.dispose();
 ```
 
+This example shows a shared Task instance across a view and its data loader.
+
+## Design goals
+
+- Small API surface that reads well in UI and service layers.
+- Deterministic state transitions with cancellation and last-write-wins behavior.
+- Composable with the rest of the Gantryland ecosystem.
+
+## When to use task
+
+- Share async state across modules or UI.
+- Need cancellation and latest-request-wins semantics.
+- Prefer a minimal, dependency-free reactive state model.
+
+## When not to use task
+
+- Only need a one-off Promise with no shared state.
+- Need multi-emission streams (use observables instead).
+- Want built-in caching or scheduling without composing utilities (use a higher-level data layer).
+
 ## Core concepts
 
 ### TaskFn
 
-The async function signature. Receives an optional `AbortSignal` for cancellation.
+The async function signature. Receives an optional `AbortSignal` and resolves to your data.
 
 ```typescript
 type TaskFn<T> = (signal?: AbortSignal) => Promise<T>;
@@ -58,7 +95,22 @@ type TaskState<T> = {
 };
 ```
 
-`isStale` is true until the first run starts. Together with `isLoading`, this is enough to model empty and loading states.
+- `data`: last successful result.
+- `error`: last failure (if any).
+- `isLoading`: true while a run is in-flight.
+- `isStale`: true before the first run.
+
+## Flow
+
+```text
+stale (initial) -> run() -> loading -> data | error
+```
+
+- `isStale` flips to false on the first run.
+- `run()` sets `isLoading` true until completion.
+- `resolve()` updates `data` without loading.
+- `reset()` returns to the initial stale snapshot.
+- `cancel()` clears `isLoading` but keeps current `data`.
 
 ## API
 
@@ -68,26 +120,137 @@ type TaskState<T> = {
 new Task<T>(fn: TaskFn<T>)
 ```
 
+### API at a glance
+
+| Member | Purpose | Returns |
+| --- | --- | --- |
+| **Create** |  |  |
+| [`new Task(fn)`](#constructor) | Create a task instance | `Task<T>` |
+| **Read/Observe** |  |  |
+| [`getState()`](#taskgetstate) | Read current snapshot | `TaskState<T>` |
+| [`subscribe(fn)`](#tasksubscribe) | Listen to state changes | `Unsubscribe` |
+| **Run/Update** |  |  |
+| [`run()`](#taskrun) | Execute TaskFn | `Promise<void>` |
+| [`resolve(data)`](#taskresolve) | Set data without running | `void` |
+| [`setFn(fn)`](#tasksetfn) | Replace TaskFn | `void` |
+| **Control/Cleanup** |  |  |
+| [`cancel()`](#taskcancel) | Abort in-flight run | `void` |
+| [`reset()`](#taskreset) | Return to initial state | `void` |
+| [`dispose()`](#taskdispose) | Clear subscribers + abort | `void` |
+
 ### Methods
+
+#### task.getState
 
 ```typescript
 task.getState(): TaskState<T>
+```
+
+Snapshot read without subscribing.
+
+```typescript
+const { data, isLoading } = task.getState();
+```
+
+#### task.subscribe
+
+```typescript
 task.subscribe((state) => void): Unsubscribe
+```
+
+Subscribes to state changes and immediately emits the current state. Returns an unsubscribe function.
+
+```typescript
+const unsubscribe = task.subscribe((state) => console.log(state));
+```
+
+#### task.run
+
+```typescript
 await task.run(): Promise<void>
+```
+
+Runs the TaskFn and updates state on completion.
+
+```typescript
+await task.run();
+```
+
+#### task.setFn
+
+```typescript
 task.setFn(fn: TaskFn<T>): void
+```
+
+Replaces the TaskFn for subsequent runs.
+
+```typescript
+task.setFn((signal) => fetch("/api/users/42", { signal }).then((r) => r.json()));
+```
+
+#### task.resolve
+
+```typescript
 task.resolve(data: T): void
+```
+
+Sets `data` immediately without running the TaskFn.
+
+```typescript
+task.resolve({ id: "42", name: "Ada" });
+```
+
+#### task.cancel
+
+```typescript
 task.cancel(): void
+```
+
+Cancels the in-flight run via `AbortSignal` if one exists.
+
+```typescript
+task.cancel();
+```
+
+#### task.reset
+
+```typescript
 task.reset(): void
+```
+
+Resets state back to the initial stale snapshot.
+
+```typescript
+task.reset();
+```
+
+#### task.dispose
+
+```typescript
 task.dispose(): void
 ```
 
-Behavior notes:
+Clears subscribers and aborts any in-flight run.
+
+```typescript
+task.dispose();
+```
+
+### Guarantees
 
 - Latest request wins; older responses are ignored.
 - Abort clears `isLoading` while preserving current data.
-- Listener errors are isolated.
+- Listener errors are isolated from Task state.
 
-## Practical examples
+### Gotchas
+
+- `subscribe` emits the current state immediately.
+- `setFn` changes behavior for the next `run()` only.
+- `resolve` skips loading and does not invoke the TaskFn.
+
+## Common patterns
+
+Use these patterns for most usage.
 
 ### Shared singleton
 
@@ -145,6 +308,10 @@ const task = new Task((signal) =>
 task.run();
 task.cancel();
 ```
+
+## Integrations
+
+Compose with other Gantryland utilities. This section shows common pairings.
 
 ### Compose TaskFn with task-combinators
 

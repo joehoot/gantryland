@@ -2,13 +2,30 @@
 
 Logging utilities for Task and task-cache. Capture TaskFn execution timing, Task state transitions, and cache events with a consistent logger interface.
 
-Works in browser and Node.js with no dependencies.
+- Structured log events with customizable logger backends.
+- TaskFn wrappers and Task state subscriptions.
+- Cache event logging with optional labels.
+- Works in browser and Node.js with no dependencies.
 
 ## Installation
 
 ```bash
 npm install @gantryland/task-logger
 ```
+
+## Contents
+
+- [Quick start](#quick-start)
+- [Design goals](#design-goals)
+- [When to use task-logger](#when-to-use-task-logger)
+- [When not to use task-logger](#when-not-to-use-task-logger)
+- [Core concepts](#core-concepts)
+- [Flow](#flow)
+- [API](#api)
+- [Common patterns](#common-patterns)
+- [Integrations](#integrations)
+- [Related packages](#related-packages)
+- [Tests](#tests)
 
 ## Quick start
 
@@ -38,6 +55,25 @@ unsubscribeTask();
 unsubscribeCache();
 ```
 
+This example shows TaskFn execution, Task state transitions, and cache events.
+
+## Design goals
+
+- Make logging opt-in and composable.
+- Keep log payloads structured and consistent.
+- Avoid coupling to specific logging vendors.
+
+## When to use task-logger
+
+- You want structured logs for Task execution.
+- You need cache event logging.
+- You want minimal instrumentation overhead.
+
+## When not to use task-logger
+
+- You need full tracing with distributed context.
+- You do not want logging in production at all.
+
 ## Core concepts
 
 ### Logger and LogEvent
@@ -59,7 +95,32 @@ type Logger = (event: LogEvent) => void;
 - `logTask` wraps a TaskFn and logs start/success/error/abort with duration.
 - `logTaskState` subscribes to a Task instance and logs state transitions.
 
+### Cache logging
+
+`logCache` listens to CacheStore events and logs them. It requires a store that implements `subscribe`.
+
+## Flow
+
+```text
+logTask: TaskFn -> start -> success/error/abort
+logTaskState: Task -> subscribe -> transitions
+logCache: CacheStore -> subscribe -> events
+```
+
 ## API
+
+### API at a glance
+
+| Member | Purpose | Returns |
+| --- | --- | --- |
+| **Loggers** |  |  |
+| [`consoleLogger`](#consolelogger) | Console logger backend | `Logger` |
+| [`createLogger`](#createlogger) | Prefix and wrap a logger | `Logger` |
+| **Task logging** |  |  |
+| [`logTask`](#logtask) | Log TaskFn execution | `(taskFn) => TaskFn` |
+| [`logTaskState`](#logtaskstate) | Log Task state transitions | `() => void` |
+| **Cache logging** |  |  |
+| [`logCache`](#logcache) | Log cache events | `() => void` |
 
 ### consoleLogger
 
@@ -101,7 +162,20 @@ Subscribe to cache events and log them. Returns an unsubscribe function.
 const unsubscribe = logCache(store, { label: "cache", logger });
 ```
 
-## Practical examples
+### Guarantees
+
+- `logTask` always rethrows errors after logging.
+- AbortError is logged as `debug` with an `abort` message.
+- `logCache` is a no-op if the store does not support `subscribe`.
+
+### Gotchas
+
+- `logTaskState` infers aborts from state changes; it does not inspect AbortSignal.
+- Logging adds minimal overhead, but it is still I/O.
+
+## Common patterns
+
+Use these patterns for most usage.
 
 ### Custom logger with structured output
 
@@ -184,11 +258,21 @@ await task.run();
 unsubscribeCache();
 ```
 
-## Notes
+## Integrations
 
-- `logTask` is for TaskFn composition and logs duration metadata.
-- `logTaskState` attaches to a Task instance and infers start/success/error/abort from state transitions.
-- Cache logging requires a store that supports `subscribe` (MemoryCacheStore and StorageCacheStore do).
+Compose with other Gantryland utilities. This section shows common pairings.
+
+### Use with task-cache
+
+```typescript
+import { MemoryCacheStore, cache } from "@gantryland/task-cache";
+import { logCache } from "@gantryland/task-logger";
+
+const store = new MemoryCacheStore();
+const unsubscribe = logCache(store, { label: "cache" });
+
+// Wrap TaskFns with cache(...) and logTask(...) as needed.
+```
 
 ## Related packages
 
