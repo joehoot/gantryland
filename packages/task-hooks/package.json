@@ -1,6 +1,6 @@
 {
   "name": "@gantryland/task-hooks",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "React hooks for @gantryland/task",
   "keywords": [
     "react",
@@ -36,7 +36,7 @@
   },
   "homepage": "https://github.com/joehoot/gantryland/tree/main/packages/task-hooks#readme",
   "dependencies": {
-    "@gantryland/task": "^0.2.0"
+    "@gantryland/task": "^0.2.1"
   },
   "peerDependencies": {
     "react": ">=18"

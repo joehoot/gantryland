@@ -1,6 +1,6 @@
 {
   "name": "@gantryland/task-observable",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "Minimal observable primitives for @gantryland/task",
   "keywords": [
     "task",
@@ -35,6 +35,6 @@
   },
   "homepage": "https://github.com/joehoot/gantryland/tree/main/packages/task-observable#readme",
   "dependencies": {
-    "@gantryland/task": "^0.2.0"
+    "@gantryland/task": "^0.2.1"
   }
 }
