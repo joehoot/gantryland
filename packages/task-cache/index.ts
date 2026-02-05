@@ -1,7 +1,13 @@
 import type { TaskFn } from "@gantryland/task";
 
+/**
+ * Supported cache key types.
+ */
 export type CacheKey = string | number | symbol;
 
+/**
+ * Cache entry payload with metadata.
+ */
 export type CacheEntry<T> = {
   value: T;
   createdAt: number;
@@ -9,6 +15,9 @@ export type CacheEntry<T> = {
   tags?: string[];
 };
 
+/**
+ * Cache event names emitted by stores.
+ */
 export type CacheEventType =
   | "hit"
   | "miss"
@@ -18,12 +27,18 @@ export type CacheEventType =
   | "clear"
   | "revalidate";
 
+/**
+ * Cache event payload.
+ */
 export type CacheEvent = {
   type: CacheEventType;
   key?: CacheKey;
   entry?: CacheEntry<unknown>;
 };
 
+/**
+ * Minimal cache store interface.
+ */
 export type CacheStore = {
   get<T>(key: CacheKey): CacheEntry<T> | undefined;
   set<T>(key: CacheKey, entry: CacheEntry<T>): void;
@@ -36,15 +51,24 @@ export type CacheStore = {
   invalidateTags?(tags: string[]): void;
 };
 
+/**
+ * In-memory CacheStore with tag support.
+ */
 export class MemoryCacheStore implements CacheStore {
   private store = new Map<CacheKey, CacheEntry<unknown>>();
   private tagIndex = new Map<string, Set<CacheKey>>();
   private listeners = new Set<(event: CacheEvent) => void>();
 
+  /**
+   * Get a cache entry by key.
+   */
   get<T>(key: CacheKey): CacheEntry<T> | undefined {
     return this.store.get(key) as CacheEntry<T> | undefined;
   }
 
+  /**
+   * Set a cache entry by key.
+   */
   set<T>(key: CacheKey, entry: CacheEntry<T>): void {
     const existing = this.store.get(key);
     if (existing?.tags) this.removeTags(key, existing.tags);
@@ -53,6 +77,9 @@ export class MemoryCacheStore implements CacheStore {
     this.emit({ type: "set", key, entry });
   }
 
+  /**
+   * Delete a cache entry by key.
+   */
   delete(key: CacheKey): void {
     const existing = this.store.get(key);
     if (existing?.tags) this.removeTags(key, existing.tags);
@@ -60,25 +87,40 @@ export class MemoryCacheStore implements CacheStore {
     this.emit({ type: "invalidate", key, entry: existing });
   }
 
+  /**
+   * Clear all entries.
+   */
   clear(): void {
     this.store.clear();
     this.tagIndex.clear();
     this.emit({ type: "clear" });
   }
 
+  /**
+   * Check whether a key exists.
+   */
   has(key: CacheKey): boolean {
     return this.store.has(key);
   }
 
+  /**
+   * List all keys.
+   */
   keys(): Iterable<CacheKey> {
     return this.store.keys();
   }
 
+  /**
+   * Subscribe to cache events.
+   */
   subscribe(listener: (event: CacheEvent) => void): () => void {
     this.listeners.add(listener);
     return () => this.listeners.delete(listener);
   }
 
+  /**
+   * Emit a cache event to listeners.
+   */
   emit(event: CacheEvent): void {
     for (const listener of this.listeners) {
       try {
@@ -89,6 +131,9 @@ export class MemoryCacheStore implements CacheStore {
     }
   }
 
+  /**
+   * Invalidate entries matching any tag.
+   */
   invalidateTags(tags: string[]): void {
     for (const tag of tags) {
       const keys = this.tagIndex.get(tag);
@@ -116,6 +161,9 @@ export class MemoryCacheStore implements CacheStore {
   }
 }
 
+/**
+ * Options for cache and stale-while-revalidate.
+ */
 export type CacheOptions = {
   ttl?: number;
   staleTtl?: number;
@@ -238,6 +286,9 @@ export const staleWhileRevalidate =
     return resolveWithDedupe(key, store, taskFn, signal, options, entry);
   };
 
+/**
+ * Target(s) to invalidate after a task resolves.
+ */
 export type InvalidateTarget<T> =
   | CacheKey
   | CacheKey[]

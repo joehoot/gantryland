@@ -44,6 +44,9 @@ const sleep = (ms: number, signal?: AbortSignal): Promise<void> =>
     signal?.addEventListener("abort", onAbort, { once: true });
   });
 
+/**
+ * Error thrown when a task exceeds the timeout window.
+ */
 export class TimeoutError extends Error {
   constructor(message = "Timeout") {
     super(message);
