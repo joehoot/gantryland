@@ -4,6 +4,7 @@
     { "path": "packages/task" },
     { "path": "packages/task-cache" },
     { "path": "packages/task-combinators" },
-    { "path": "packages/task-hooks" }
+    { "path": "packages/task-hooks" },
+    { "path": "packages/task-storage" }
   ]
 }

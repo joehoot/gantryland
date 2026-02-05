@@ -115,3 +115,7 @@ cacheKey("user", userId)
 - `staleWhileRevalidate` returns stale data during the stale window and refreshes in the background.
 - In-flight dedupe is enabled by default (`dedupe: false` to opt out).
 - Tag invalidation requires a store that supports `invalidateTags` (MemoryCacheStore does).
+
+## See also
+
+- [task-storage](../task-storage/) - Persistent CacheStore implementations
