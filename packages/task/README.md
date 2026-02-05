@@ -117,7 +117,7 @@ stale (initial) -> run() -> loading -> data | error
 ### Constructor
 
 ```typescript
-new Task<T, Args>(fn: TaskFn<T, Args>)
+new Task<T, Args>(fn?: TaskFn<T, Args>)
 ```
 
 ### API at a glance
@@ -132,7 +132,7 @@ new Task<T, Args>(fn: TaskFn<T, Args>)
 | **Run/Update** |  |  |
 | [`run(...args)`](#taskrun) | Execute TaskFn | `Promise<void>` |
 | [`resolve(data)`](#taskresolve) | Set data without running | `void` |
-| [`setFn(fn)`](#tasksetfn) | Replace TaskFn | `void` |
+| [`define(fn)`](#taskdefine) | Replace TaskFn | `void` |
 | **Control/Cleanup** |  |  |
 | [`cancel()`](#taskcancel) | Abort in-flight run | `void` |
 | [`reset()`](#taskreset) | Return to initial state | `void` |
@@ -177,16 +177,24 @@ await task.run();
 await task.run(userId, includeFlags);
 ```
 
-#### task.setFn
+#### task.define
 
 ```typescript
-task.setFn(fn: TaskFn<T, Args>): void
+task.define(fn: TaskFn<T, Args>): void
 ```
 
 Replaces the TaskFn for subsequent runs.
 
+You can also create a blank Task and provide the TaskFn later:
+
 ```typescript
-task.setFn((signal) => fetch("/api/users/42", { signal }).then((r) => r.json()));
+const task = new Task<User>();
+task.define((signal) => fetch("/api/users/42", { signal }).then((r) => r.json()));
+await task.run();
+```
+
+```typescript
+task.define((signal) => fetch("/api/users/42", { signal }).then((r) => r.json()));
 ```
 
 #### task.resolve
@@ -246,7 +254,7 @@ task.dispose();
 ### Gotchas
 
 - `subscribe` emits the current state immediately.
-- `setFn` changes behavior for the next `run()` only.
+- `define` changes behavior for the next `run()` only.
 - `resolve` skips loading and does not invoke the TaskFn.
 
 ## Common patterns
@@ -264,7 +272,7 @@ export const userTask = new Task<User>((signal) =>
 );
 ```
 
-### Parameterized task with setFn
+### Parameterized task with define
 
 ```typescript
 import { Task } from "@gantryland/task";
@@ -274,7 +282,7 @@ const userTask = new Task<User>((signal) =>
 );
 
 export async function runUserTask(id: string) {
-  userTask.setFn((signal) =>
+  userTask.define((signal) =>
     fetch(`/api/users/${id}`, { signal }).then((r) => r.json())
   );
   await userTask.run();

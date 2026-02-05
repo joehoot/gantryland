@@ -156,7 +156,7 @@ describe("useTaskError", () => {
     const { result } = renderHook(() => useTaskError(task));
 
     const error = new Error("boom");
-    task.setFn(async () => {
+    task.define(async () => {
       throw error;
     });
 

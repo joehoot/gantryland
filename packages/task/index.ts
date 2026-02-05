@@ -85,15 +85,15 @@ export class Task<T, Args extends unknown[] = []> {
   private readonly listeners = new Set<Listener<T>>();
   private abortController: AbortController | null = null;
   private requestId = 0;
-  private fn: TaskFn<T, Args>;
+  private fn: TaskFn<T, Args> | null;
 
   /**
    * Creates a new Task instance.
    *
-   * @param fn - TaskFn to execute. Can be replaced later with setFn().
+   * @param fn - TaskFn to execute. Can be replaced later with define().
    */
-  constructor(fn: TaskFn<T, Args>) {
-    this.fn = fn;
+  constructor(fn?: TaskFn<T, Args>) {
+    this.fn = fn ?? null;
   }
 
   private _notify() {
@@ -116,11 +116,11 @@ export class Task<T, Args extends unknown[] = []> {
    * const task = new Task<User>((signal) =>
    *   fetch("/api/users/me", { signal }).then(r => r.json())
    * );
-   * task.setFn((signal) => fetch(`/api/users/${id}`, { signal }).then(r => r.json()));
+   * task.define((signal) => fetch(`/api/users/${id}`, { signal }).then(r => r.json()));
    * await task.run();
    * ```
    */
-  setFn(fn: TaskFn<T, Args>) {
+  define(fn: TaskFn<T, Args>) {
     this.cancel();
     this.fn = fn;
   }
@@ -141,6 +141,9 @@ export class Task<T, Args extends unknown[] = []> {
    * ```
    */
   private async runInternal(args: Args): Promise<void> {
+    if (!this.fn) {
+      throw new Error("TaskFn is not set. Call define() before run().");
+    }
     const currentRequestId = ++this.requestId;
     this.abortController?.abort();
     this.abortController = new AbortController();

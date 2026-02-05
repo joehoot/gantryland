@@ -58,13 +58,18 @@ describe("Task", () => {
     expect(task.getState().data).toBe("7:ok");
   });
 
+  it("throws when run is called without a TaskFn", async () => {
+    const task = new Task<string>();
+    await expect(task.run()).rejects.toThrow("TaskFn is not set");
+  });
+
   it("preserves data when run fails", async () => {
     const task = new Task(async () => "initial");
     await task.run();
     expect(task.getState().data).toBe("initial");
 
     const error = new Error("boom");
-    task.setFn(async () => {
+    task.define(async () => {
       throw error;
     });
 
@@ -144,14 +149,14 @@ describe("Task", () => {
     });
   });
 
-  it("setFn cancels in-flight work and uses the latest function", async () => {
+  it("define cancels in-flight work and uses the latest function", async () => {
     const first = createDeferred<string>();
     const task = new Task(() => first.promise);
 
     const firstRun = task.run();
     expect(task.getState().isLoading).toBe(true);
 
-    task.setFn(async () => "second");
+    task.define(async () => "second");
     first.resolve("first");
     await firstRun;
 
