@@ -1,5 +1,13 @@
 # @gantryland/task-validate
 
+## 0.2.3
+
+### Patch Changes
+
+- 6ba1f3e: - Documentation updates and release workflow prep scripts.
+- Updated dependencies [6ba1f3e]
+  - @gantryland/task@0.2.3
+
 ## 0.2.2
 
 ### Patch Changes

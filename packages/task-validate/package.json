@@ -1,6 +1,6 @@
 {
   "name": "@gantryland/task-validate",
-  "version": "0.2.2",
+  "version": "0.2.3",
   "description": "Validation combinators for @gantryland/task",
   "keywords": [
     "task",
@@ -36,6 +36,6 @@
   },
   "homepage": "https://github.com/joehoot/gantryland/tree/main/packages/task-validate#readme",
   "dependencies": {
-    "@gantryland/task": "^0.2.2"
+    "@gantryland/task": "^0.2.3"
   }
 }

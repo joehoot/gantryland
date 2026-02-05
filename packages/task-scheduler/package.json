@@ -1,6 +1,6 @@
 {
   "name": "@gantryland/task-scheduler",
-  "version": "0.2.2",
+  "version": "0.2.3",
   "description": "Scheduling utilities and combinators for @gantryland/task",
   "keywords": [
     "task",
@@ -37,6 +37,6 @@
   },
   "homepage": "https://github.com/joehoot/gantryland/tree/main/packages/task-scheduler#readme",
   "dependencies": {
-    "@gantryland/task": "^0.2.2"
+    "@gantryland/task": "^0.2.3"
   }
 }
