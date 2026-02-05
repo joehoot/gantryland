@@ -36,7 +36,7 @@ npm run build
 ## Pre Publishing
 
 ```bash
-npm run release:prepare
+npm run release:ready
 ```
 
 Each package is configured with `publishConfig.access=public` for scoped npm publishing.
@@ -47,6 +47,7 @@ Each package is configured with `publishConfig.access=public` for scoped npm pub
 npm run release:changeset
 npm run release:changelog
 npm run release:check
+npm run release:ready
 npm publish --workspaces
 ```
 

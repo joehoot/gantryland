@@ -20,6 +20,7 @@
     "release:changelog": "npm run changeset:version",
     "release:check": "npm run build && npm test",
     "release:prepare": "npm run release:changelog && npm run release:check",
+    "release:ready": "changeset status --since main && npm run release:prepare",
     "test": "vitest run",
     "changeset:version": "changeset version",
     "changeset:publish": "changeset publish"
