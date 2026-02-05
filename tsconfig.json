@@ -8,6 +8,7 @@
     { "path": "packages/task-storage" },
     { "path": "packages/task-scheduler" },
     { "path": "packages/task-observable" },
-    { "path": "packages/task-logger" }
+    { "path": "packages/task-logger" },
+    { "path": "packages/task-validate" }
   ]
 }

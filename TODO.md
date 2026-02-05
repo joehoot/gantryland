@@ -18,7 +18,7 @@ Task ecosystem expansion ideas:
 - @gantryland/task-logger (done)
   - Instrumentation: debug logs, timings, cache events, task lifecycle metrics
 
-- @gantryland/task-validate
+- @gantryland/task-validate (done)
   - Validation combinator; optional zod/io-ts/valibot adapters
 
 - @gantryland/task-react-native

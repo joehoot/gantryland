@@ -117,3 +117,4 @@ export async function runUserTask(id: string) {
 - [task-scheduler](../task-scheduler/) - Scheduling utilities and combinators
 - [task-observable](../task-observable/) - Minimal observable interop
 - [task-logger](../task-logger/) - Logging utilities
+- [task-validate](../task-validate/) - Validation combinators
