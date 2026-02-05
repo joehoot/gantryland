@@ -20,6 +20,3 @@ Task ecosystem expansion ideas:
 
 - @gantryland/task-validate (done)
   - Validation combinator; optional zod/io-ts/valibot adapters
-
-- @gantryland/task-react-native
-  - React Native-specific hooks/lifecycle support
