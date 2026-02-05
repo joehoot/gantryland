@@ -237,7 +237,8 @@ export class Task<T, Args extends unknown[] = []> {
 
   /**
    * Short-circuits with provided data. Aborts any in-flight request and
-   * immediately settles the task with the given data.
+   * immediately settles the task with the given data, clearing error and
+   * loading state, and marking the task as no longer stale.
    *
    * @param data - The data to resolve with
    *
@@ -245,13 +246,13 @@ export class Task<T, Args extends unknown[] = []> {
    * ```typescript
    * // Skip fetch if we already have the data
    * if (cachedUser) {
-   *   task.resolve(cachedUser);
+   *   task.resolveWith(cachedUser);
    * } else {
    *   await task.run();
    * }
    * ```
    */
-  resolve(data: T): void {
+  resolveWith(data: T): void {
     this.requestId += 1;
     this.abortController?.abort();
     this._state = {

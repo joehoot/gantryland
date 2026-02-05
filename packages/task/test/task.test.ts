@@ -99,14 +99,14 @@ describe("Task", () => {
     expect(task.getState().error).toBe(undefined);
   });
 
-  it("resolve settles immediately and ignores in-flight work", async () => {
+  it("resolveWith settles immediately and ignores in-flight work", async () => {
     const deferred = createDeferred<string>();
     const task = new Task(() => deferred.promise);
 
     const runPromise = task.run();
     expect(task.getState().isLoading).toBe(true);
 
-    task.resolve("cached");
+    task.resolveWith("cached");
     expect(task.getState().isLoading).toBe(false);
     expect(task.getState().data).toBe("cached");
 
@@ -184,7 +184,7 @@ describe("Task", () => {
         signal?.addEventListener("abort", () => reject(createAbortError()), { once: true });
       })
     );
-    pending.resolve("cached");
+    pending.resolveWith("cached");
     const runPromise = pending.run();
     expect(pending.getState().isLoading).toBe(true);
     pending.cancel();

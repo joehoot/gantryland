@@ -57,7 +57,7 @@ describe("useTaskOnce", () => {
 
   it("does not run when already settled", async () => {
     const task = new Task(async () => "ok");
-    task.resolve("cached");
+    task.resolveWith("cached");
     const runSpy = vi.spyOn(task, "run").mockResolvedValue();
 
     renderHook(() => useTaskOnce(task));
@@ -128,7 +128,7 @@ describe("useTaskState", () => {
 
     expect(result.current.isStale).toBe(true);
     act(() => {
-      task.resolve("value");
+      task.resolveWith("value");
     });
 
     expect(result.current.data).toBe("value");

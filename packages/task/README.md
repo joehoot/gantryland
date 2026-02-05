@@ -108,7 +108,7 @@ stale (initial) -> run() -> loading -> data | error
 
 - `isStale` flips to false on the first run.
 - `run()` sets `isLoading` true until completion.
-- `resolve()` updates `data` without loading.
+- `resolveWith(data)` updates `data`, clears `error`, sets `isLoading` false, and marks `isStale` false.
 - `reset()` returns to the initial stale snapshot.
 - `cancel()` clears `isLoading` but keeps current `data`.
 
@@ -131,7 +131,7 @@ new Task<T, Args>(fn?: TaskFn<T, Args>)
 | [`subscribe(fn)`](#tasksubscribe) | Listen to state changes | `Unsubscribe` |
 | **Run/Update** |  |  |
 | [`run(...args)`](#taskrun) | Execute TaskFn | `Promise<void>` |
-| [`resolve(data)`](#taskresolve) | Set data without running | `void` |
+| [`resolveWith(data)`](#taskresolvewith) | Set data without running | `void` |
 | [`define(fn)`](#taskdefine) | Replace TaskFn | `void` |
 | **Control/Cleanup** |  |  |
 | [`cancel()`](#taskcancel) | Abort in-flight run | `void` |
@@ -197,16 +197,17 @@ await task.run();
 task.define((signal) => fetch("/api/users/42", { signal }).then((r) => r.json()));
 ```
 
-#### task.resolve
+#### task.resolveWith
 
 ```typescript
-task.resolve(data: T): void
+task.resolveWith(data: T): void
 ```
 
-Sets `data` immediately without running the TaskFn.
+Sets `data` immediately without running the TaskFn. Clears `error`, sets
+`isLoading` to false, and marks `isStale` false.
 
 ```typescript
-task.resolve({ id: "42", name: "Ada" });
+task.resolveWith({ id: "42", name: "Ada" });
 ```
 
 #### task.cancel
@@ -255,7 +256,7 @@ task.dispose();
 
 - `subscribe` emits the current state immediately.
 - `define` changes behavior for the next `run()` only.
-- `resolve` skips loading and does not invoke the TaskFn.
+- `resolveWith` skips loading and does not invoke the TaskFn.
 
 ## Common patterns
 
@@ -289,7 +290,7 @@ export async function runUserTask(id: string) {
 }
 ```
 
-### Optimistic resolve with fallback fetch
+### Optimistic resolveWith and fallback fetch
 
 ```typescript
 import { Task } from "@gantryland/task";
@@ -300,7 +301,7 @@ const profileTask = new Task<Profile>((signal) =>
 
 export async function loadProfile(cached: Profile | null) {
   if (cached) {
-    profileTask.resolve(cached);
+    profileTask.resolveWith(cached);
     return;
   }
   await profileTask.run();
