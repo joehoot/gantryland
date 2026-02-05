@@ -16,8 +16,10 @@ import {
   retryWhen,
   sequence,
   tap,
+  tapAbort,
   tapError,
   timeout,
+  timeoutAbort,
   timeoutWith,
   zip,
 } from "../index";
@@ -84,6 +86,16 @@ describe("task-combinators", () => {
     expect(errors).toEqual([]);
   });
 
+  it("tapAbort runs only on AbortError", async () => {
+    const errors: unknown[] = [];
+    const taskFn = tapAbort((error) => errors.push(error))(async () => {
+      throw createAbortError();
+    });
+
+    await expect(taskFn()).rejects.toMatchObject({ name: "AbortError" });
+    expect(errors).toHaveLength(1);
+  });
+
   it("mapError transforms non-abort errors", async () => {
     const taskFn = mapError(() => new Error("wrapped"))(async () => {
       throw new Error("boom");
@@ -108,6 +120,14 @@ describe("task-combinators", () => {
     await expect(taskFn()).resolves.toBe("fallback:boom");
   });
 
+  it("catchError supports async fallbacks", async () => {
+    const taskFn = catchError(async (err) => `async:${(err as Error).message}`)(async () => {
+      throw new Error("boom");
+    });
+
+    await expect(taskFn()).resolves.toBe("async:boom");
+  });
+
   it("catchError skips AbortError", async () => {
     const taskFn = catchError("fallback")(async () => {
       throw createAbortError();
@@ -126,6 +146,21 @@ describe("task-combinators", () => {
 
     await expect(taskFn()).resolves.toBe("ok");
     expect(attempts).toBe(3);
+  });
+
+  it("retry calls onRetry for each failure", async () => {
+    const errors: unknown[] = [];
+    let attempts = 0;
+    const taskFn = retry(2, {
+      onRetry: (err) => errors.push(err),
+    })(async () => {
+      attempts += 1;
+      if (attempts < 3) throw new Error("fail");
+      return "ok";
+    });
+
+    await expect(taskFn()).resolves.toBe("ok");
+    expect(errors).toHaveLength(2);
   });
 
   it("retry treats negative attempts as zero", async () => {
@@ -169,6 +204,35 @@ describe("task-combinators", () => {
     vi.useRealTimers();
   });
 
+  it("timeoutAbort aborts the task and rejects with TimeoutError", async () => {
+    vi.useFakeTimers();
+    const taskFn = timeoutAbort(10)(async (signal) => {
+      return new Promise<string>((_, reject) => {
+        signal?.addEventListener("abort", () => reject(createAbortError()), { once: true });
+      });
+    });
+
+    const promise = taskFn();
+    const rejection = expect(promise).rejects.toBeInstanceOf(TimeoutError);
+    await vi.advanceTimersByTimeAsync(10);
+    await rejection;
+    vi.useRealTimers();
+  });
+
+  it("timeoutAbort propagates external abort", async () => {
+    const controller = new AbortController();
+    const taskFn = timeoutAbort(10)(async (signal) => {
+      return new Promise<string>((_, reject) => {
+        signal?.addEventListener("abort", () => reject(createAbortError()), { once: true });
+      });
+    });
+
+    const promise = taskFn(controller.signal);
+    controller.abort();
+
+    await expect(promise).rejects.toMatchObject({ name: "AbortError" });
+  });
+
   it("timeout rejects with AbortError when aborted", async () => {
     vi.useFakeTimers();
     const controller = new AbortController();
@@ -187,6 +251,20 @@ describe("task-combinators", () => {
     await vi.advanceTimersByTimeAsync(10);
     await expect(promise).resolves.toBe("fallback");
     vi.useRealTimers();
+  });
+
+  it("timeoutWith skips AbortError", async () => {
+    const controller = new AbortController();
+    const taskFn = timeoutWith(10, async () => "fallback")(async (signal) => {
+      return new Promise<string>((_, reject) => {
+        signal?.addEventListener("abort", () => reject(createAbortError()), { once: true });
+      });
+    });
+
+    const promise = taskFn(controller.signal);
+    controller.abort();
+
+    await expect(promise).rejects.toMatchObject({ name: "AbortError" });
   });
 
   it("timeoutWith rethrows non-timeout errors", async () => {
@@ -220,6 +298,16 @@ describe("task-combinators", () => {
     const promise = taskFn();
     second.resolve("second");
     await expect(promise).resolves.toBe("second");
+  });
+
+  it("race accepts an array of task functions", async () => {
+    const first = createDeferred<string>();
+    const second = createDeferred<string>();
+    const taskFn = race([() => first.promise, () => second.promise]);
+
+    const promise = taskFn();
+    first.resolve("first");
+    await expect(promise).resolves.toBe("first");
   });
 
   it("sequence runs tasks sequentially", async () => {
@@ -271,6 +359,22 @@ describe("task-combinators", () => {
 
     await expect(taskFn()).resolves.toBe("ok");
     expect(attempts).toBe(3);
+  });
+
+  it("retryWhen calls onRetry when retrying", async () => {
+    const errors: unknown[] = [];
+    let attempts = 0;
+    const taskFn = retryWhen(
+      () => true,
+      { maxAttempts: 2, onRetry: (err) => errors.push(err) }
+    )(async () => {
+      attempts += 1;
+      if (attempts < 3) throw new Error("fail");
+      return "ok";
+    });
+
+    await expect(taskFn()).resolves.toBe("ok");
+    expect(errors).toHaveLength(2);
   });
 
   it("retryWhen stops when predicate returns false", async () => {

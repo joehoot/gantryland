@@ -115,6 +115,7 @@ Order matters. Use `pipe` to make intent explicit.
 | [`flatMap`](#flatmap) | Chain async work | `(taskFn) => TaskFn` |
 | [`tap`](#tap) | Side effect on success | `(taskFn) => TaskFn` |
 | [`tapError`](#taperror) | Side effect on error | `(taskFn) => TaskFn` |
+| [`tapAbort`](#tapabort) | Side effect on abort | `(taskFn) => TaskFn` |
 | [`mapError`](#maperror) | Transform error | `(taskFn) => TaskFn` |
 | [`catchError`](#catcherror) | Recover with fallback | `(taskFn) => TaskFn` |
 | **Retry/Backoff** |  |  |
@@ -123,6 +124,7 @@ Order matters. Use `pipe` to make intent explicit.
 | [`backoff`](#backoff) | Retry with delays | `(taskFn) => TaskFn` |
 | **Timeouts** |  |  |
 | [`timeout`](#timeout) | Fail after duration | `(taskFn) => TaskFn` |
+| [`timeoutAbort`](#timeoutabort) | Fail and abort task | `(taskFn) => TaskFn` |
 | [`timeoutWith`](#timeoutwith) | Fallback on timeout | `(taskFn) => TaskFn` |
 | [`TimeoutError`](#timeouterror) | Timeout error class | `Error` |
 | **Orchestration** |  |  |
@@ -175,6 +177,14 @@ Side effect on error (skips AbortError), rethrows.
 tapError((err) => reportError(err))
 ```
 
+### tapAbort
+
+Side effect on AbortError, rethrows.
+
+```typescript
+tapAbort((err) => logAbort(err))
+```
+
 ### mapError
 
 Transform error before rethrowing (skips AbortError). Mapper must return an Error.
@@ -185,19 +195,23 @@ mapError((err) => new CustomError("request failed", { cause: err }))
 
 ### catchError
 
-Recover with a fallback value (skips AbortError). Fallbacks are synchronous.
+Recover with a fallback value (skips AbortError). Fallbacks may be synchronous or async.
 
 ```typescript
 catchError([])
 catchError((err) => defaultValue)
+catchError(async (err) => await loadFallback(err))
 ```
 
 ### retry
 
 Retry on failure. `retry(2)` means 3 total attempts.
 
+`onRetry` runs after each failed attempt.
+
 ```typescript
 retry(2)
+retry(2, { onRetry: (err, attempt) => console.warn("retry", attempt, err) })
 ```
 
 ### retryWhen
@@ -206,6 +220,7 @@ Retry while a predicate returns true.
 
 ```typescript
 retryWhen((err, attempt) => attempt < 3)
+retryWhen((err) => err instanceof Error, { onRetry: (err, attempt) => log(err, attempt) })
 ```
 
 ### backoff
@@ -224,9 +239,17 @@ Fail after duration. Respects abort signal and rejects with `TimeoutError`.
 timeout(5000)
 ```
 
+### timeoutAbort
+
+Fail after duration and abort the underlying task.
+
+```typescript
+timeoutAbort(5000)
+```
+
 ### timeoutWith
 
-Fallback TaskFn on timeout.
+Fallback TaskFn on timeout. AbortError is rethrown and does not trigger fallback.
 
 ```typescript
 timeoutWith(3000, () => fetchCachedUsers())
@@ -251,6 +274,7 @@ all([fetchUser, fetchTeams])
 ### race
 
 Resolve or reject with the first TaskFn to settle.
+Accepts either varargs or an array of TaskFns.
 
 ```typescript
 race(fetchPrimary, fetchReplica)
@@ -301,11 +325,13 @@ new TimeoutError()
 - AbortError is never swallowed by error operators.
 - `retry` and `retryWhen` check the signal between attempts.
 - `timeout` cleans up on abort and rejects with `TimeoutError`.
+- `timeoutAbort` aborts the underlying task.
 
 ### Gotchas
 
 - `timeout` does not abort the underlying TaskFn.
-- `catchError` fallbacks are synchronous.
+- `catchError` does not run for AbortError.
+- `timeoutWith` does not run fallback for AbortError.
 
 ## Common patterns
 

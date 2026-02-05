@@ -153,6 +153,23 @@ export const tapError =
     });
 
 /**
+ * Executes a side effect on AbortError without modifying the error.
+ * Always rethrows the error.
+ *
+ * @template T - The data type
+ * @param fn - Side effect function for abort handling
+ * @returns A combinator that performs the side effect and rethrows
+ */
+export const tapAbort =
+  <T, Args extends unknown[] = []>(fn: (error: unknown) => void) =>
+  (taskFn: TaskFn<T, Args>): TaskFn<T, Args> =>
+  (signal?: AbortSignal, ...args: Args) =>
+    taskFn(signal, ...args).catch((err) => {
+      if (isAbortError(err)) fn(err);
+      throw err;
+    });
+
+/**
  * Transforms an error before rethrowing. Useful for wrapping errors
  * in custom error classes. Skips AbortError.
  *
@@ -198,15 +215,20 @@ export const mapError =
  * ```
  */
 export const catchError =
-  <T, Args extends unknown[] = []>(fallback: T | ((err: unknown) => T)) =>
+  <T, Args extends unknown[] = []>(
+    fallback: T | Promise<T> | ((err: unknown) => T | Promise<T>),
+  ) =>
   (taskFn: TaskFn<T, Args>): TaskFn<T, Args> =>
-  (signal?: AbortSignal, ...args: Args) =>
-    taskFn(signal, ...args).catch((err) => {
+  async (signal?: AbortSignal, ...args: Args) => {
+    try {
+      return await taskFn(signal, ...args);
+    } catch (err) {
       if (isAbortError(err)) throw err;
       return typeof fallback === "function"
-        ? (fallback as (err: unknown) => T)(err)
-        : fallback;
-    });
+        ? await (fallback as (err: unknown) => T | Promise<T>)(err)
+        : await fallback;
+    }
+  };
 
 /**
  * Retries on failure. `retry(2)` means 3 total attempts (1 + 2 retries).
@@ -227,7 +249,10 @@ export const catchError =
  * ```
  */
 export const retry =
-  <T, Args extends unknown[] = []>(attempts: number) =>
+  <T, Args extends unknown[] = []>(
+    attempts: number,
+    options: { onRetry?: (err: unknown, attempt: number) => void } = {},
+  ) =>
   (taskFn: TaskFn<T, Args>): TaskFn<T, Args> =>
   async (signal?: AbortSignal, ...args: Args) => {
     const maxAttempts = Math.max(0, attempts);
@@ -238,6 +263,7 @@ export const retry =
         return await taskFn(signal, ...args);
       } catch (err) {
         if (isAbortError(err)) throw err;
+        options.onRetry?.(err, i + 1);
         lastError = err;
       }
     }
@@ -292,6 +318,58 @@ export const timeout =
     });
 
 /**
+ * Fails if the TaskFn doesn't resolve within the specified duration.
+ * Aborts the underlying task on timeout.
+ */
+export const timeoutAbort =
+  <T, Args extends unknown[] = []>(ms: number) =>
+  (taskFn: TaskFn<T, Args>): TaskFn<T, Args> =>
+  (signal?: AbortSignal, ...args: Args) =>
+    new Promise((resolve, reject) => {
+      if (signal?.aborted) {
+        reject(createAbortError());
+        return;
+      }
+
+      const controller = new AbortController();
+      let settled = false;
+      let timedOut = false;
+
+      const finish = (fn: () => void) => {
+        if (settled) return;
+        settled = true;
+        fn();
+      };
+
+      const onAbort = () => {
+        controller.abort();
+        finish(() => reject(createAbortError()));
+      };
+
+      const timer = setTimeout(() => {
+        timedOut = true;
+        controller.abort();
+        finish(() => reject(new TimeoutError()));
+      }, ms);
+
+      signal?.addEventListener("abort", onAbort, { once: true });
+
+      taskFn(controller.signal, ...args)
+        .then((value) => finish(() => resolve(value)))
+        .catch((err) => {
+          if (timedOut && isAbortError(err)) {
+            finish(() => reject(new TimeoutError()));
+            return;
+          }
+          finish(() => reject(err));
+        })
+        .finally(() => {
+          clearTimeout(timer);
+          signal?.removeEventListener("abort", onAbort);
+        });
+    });
+
+/**
  * Fails after the specified duration, then runs a fallback TaskFn.
  * Does not abort the original task.
  *
@@ -305,6 +383,7 @@ export const timeoutWith =
   (taskFn: TaskFn<T, Args>): TaskFn<T, Args> =>
   (signal?: AbortSignal, ...args: Args) =>
     timeout<T, Args>(ms)(taskFn)(signal, ...args).catch((err) => {
+      if (isAbortError(err)) throw err;
       if (err instanceof TimeoutError) return fallback(signal, ...args);
       throw err;
     });
@@ -312,63 +391,62 @@ export const timeoutWith =
 /**
  * Runs TaskFns in parallel and resolves with a tuple of results.
  */
-export function zip<A, B, Args extends unknown[] = []>(
-  a: TaskFn<A, Args>,
-  b: TaskFn<B, Args>
-): TaskFn<[A, B], Args>;
-export function zip<A, B, C, Args extends unknown[] = []>(
-  a: TaskFn<A, Args>,
-  b: TaskFn<B, Args>,
-  c: TaskFn<C, Args>
-): TaskFn<[A, B, C], Args>;
-export function zip<A, B, C, D, Args extends unknown[] = []>(
-  a: TaskFn<A, Args>,
-  b: TaskFn<B, Args>,
-  c: TaskFn<C, Args>,
-  d: TaskFn<D, Args>
-): TaskFn<[A, B, C, D], Args>;
-export function zip<A, B, C, D, E, Args extends unknown[] = []>(
-  a: TaskFn<A, Args>,
-  b: TaskFn<B, Args>,
-  c: TaskFn<C, Args>,
-  d: TaskFn<D, Args>,
-  e: TaskFn<E, Args>
-): TaskFn<[A, B, C, D, E], Args>;
-export function zip<Args extends unknown[]>(
-  ...taskFns: TaskFn<unknown, Args>[]
+export const zip =
+  <T extends unknown[], Args extends unknown[] = []>(
+    ...taskFns: { [K in keyof T]: TaskFn<T[K], Args> }
+  ): TaskFn<T, Args> =>
+  (signal?: AbortSignal, ...args: Args) =>
+    Promise.all(taskFns.map((fn) => fn(signal, ...args))) as Promise<T>;
+
+/**
+ * Runs TaskFns in parallel and resolves with an array of results.
+ */
+export function all<T, Args extends unknown[] = []>(
+  taskFns: TaskFn<T, Args>[]
+): TaskFn<T[], Args>;
+export function all<T extends readonly unknown[], Args extends unknown[] = []>(
+  taskFns: { [K in keyof T]: TaskFn<T[K], Args> }
+): TaskFn<T, Args>;
+export function all<Args extends unknown[]>(
+  taskFns: TaskFn<unknown, Args>[]
 ): TaskFn<unknown[], Args> {
   return (signal?: AbortSignal, ...args: Args) =>
     Promise.all(taskFns.map((fn) => fn(signal, ...args)));
 }
 
 /**
- * Runs TaskFns in parallel and resolves with an array of results.
- */
-export const all =
-  <T, Args extends unknown[] = []>(taskFns: TaskFn<T, Args>[]): TaskFn<T[], Args> =>
-  (signal?: AbortSignal, ...args: Args) =>
-    Promise.all(taskFns.map((fn) => fn(signal, ...args)));
-
-/**
  * Resolves or rejects with the first TaskFn to settle.
  */
-export const race =
-  <T, Args extends unknown[] = []>(...taskFns: TaskFn<T, Args>[]): TaskFn<T, Args> =>
-  (signal?: AbortSignal, ...args: Args) =>
+export function race<T, Args extends unknown[] = []>(
+  taskFns: TaskFn<T, Args>[]
+): TaskFn<T, Args>;
+export function race<T extends unknown[], Args extends unknown[] = []>(
+  ...taskFns: { [K in keyof T]: TaskFn<T[K], Args> }
+): TaskFn<T[number], Args>;
+export function race<Args extends unknown[]>(
+  ...taskFnsOrArray: [TaskFn<unknown, Args>[]] | TaskFn<unknown, Args>[]
+): TaskFn<unknown, Args> {
+  const taskFns = (
+    Array.isArray(taskFnsOrArray[0]) ? taskFnsOrArray[0] : taskFnsOrArray
+  ) as TaskFn<unknown, Args>[];
+  return (signal?: AbortSignal, ...args: Args) =>
     Promise.race(taskFns.map((fn) => fn(signal, ...args)));
+}
 
 /**
  * Runs TaskFns sequentially and resolves with all results.
  */
 export const sequence =
-  <T, Args extends unknown[] = []>(...taskFns: TaskFn<T, Args>[]): TaskFn<T[], Args> =>
+  <T extends unknown[], Args extends unknown[] = []>(
+    ...taskFns: { [K in keyof T]: TaskFn<T[K], Args> }
+  ): TaskFn<T, Args> =>
   async (signal?: AbortSignal, ...args: Args) => {
-    const results: T[] = [];
+    const results: unknown[] = [];
     for (const fn of taskFns) {
       if (signal?.aborted) throw createAbortError();
       results.push(await fn(signal, ...args));
     }
-    return results;
+    return results as T;
   };
 
 /**
@@ -392,6 +470,7 @@ export const lazy = defer;
 type RetryWhenOptions = {
   maxAttempts?: number;
   delayMs?: (attempt: number, err: unknown) => number;
+  onRetry?: (err: unknown, attempt: number) => void;
 };
 
 /**
@@ -416,6 +495,7 @@ export const retryWhen =
         if (attempt > maxAttempts) throw err;
         const should = await shouldRetry(err, attempt);
         if (!should) throw err;
+        options.onRetry?.(err, attempt);
         const delay = options.delayMs?.(attempt, err) ?? 0;
         if (delay > 0) await sleep(delay, signal);
       }
@@ -469,51 +549,20 @@ export const backoff =
  * const task = new Task(fetchActiveUsers);
  * ```
  */
-export function pipe<A, B>(a: A, ab: (a: A) => B): B;
-export function pipe<A, B, C>(a: A, ab: (a: A) => B, bc: (b: B) => C): C;
-export function pipe<A, B, C, D>(
-  a: A,
-  ab: (a: A) => B,
-  bc: (b: B) => C,
-  cd: (c: C) => D,
-): D;
-export function pipe<A, B, C, D, E>(
-  a: A,
-  ab: (a: A) => B,
-  bc: (b: B) => C,
-  cd: (c: C) => D,
-  de: (d: D) => E,
-): E;
-export function pipe<A, B, C, D, E, F>(
-  a: A,
-  ab: (a: A) => B,
-  bc: (b: B) => C,
-  cd: (c: C) => D,
-  de: (d: D) => E,
-  ef: (e: E) => F,
-): F;
-export function pipe<A, B, C, D, E, F, G>(
-  a: A,
-  ab: (a: A) => B,
-  bc: (b: B) => C,
-  cd: (c: C) => D,
-  de: (d: D) => E,
-  ef: (e: E) => F,
-  fg: (f: F) => G,
-): G;
-export function pipe<A, B, C, D, E, F, G, H>(
-  a: A,
-  ab: (a: A) => B,
-  bc: (b: B) => C,
-  cd: (c: C) => D,
-  de: (d: D) => E,
-  ef: (e: E) => F,
-  fg: (f: F) => G,
-  gh: (g: G) => H,
-): H;
-export function pipe(
-  initial: unknown,
-  ...fns: ((arg: unknown) => unknown)[]
-): unknown {
+type AnyFn = (arg: any) => any;
+
+type PipeResult<Input, Fns extends AnyFn[]> = Fns extends []
+  ? Input
+  : Fns extends [(arg: Input) => infer R, ...infer Rest]
+    ? Rest extends AnyFn[]
+      ? PipeResult<R, Rest>
+      : R
+    : never;
+
+export function pipe<T, Fns extends AnyFn[]>(
+  initial: T,
+  ...fns: Fns
+): PipeResult<T, Fns>;
+export function pipe(initial: unknown, ...fns: AnyFn[]): unknown {
   return fns.reduce((acc, fn) => fn(acc), initial);
 }
