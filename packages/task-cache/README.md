@@ -9,25 +9,6 @@ Cache primitives and combinators for `@gantryland/task`. Compose caching into Ta
 - Stale-while-revalidate and dedupe support out of the box.
 - Works in browser and Node.js with no dependencies.
 
-## At a glance
-
-```typescript
-import { Task } from "@gantryland/task";
-import { MemoryCacheStore, cache } from "@gantryland/task-cache";
-import { pipe } from "@gantryland/task-combinators";
-
-const store = new MemoryCacheStore();
-
-const task = new Task(
-  pipe(
-    (signal) => fetch("/api/users", { signal }).then((r) => r.json()),
-    cache("users", store, { ttl: 60_000 })
-  )
-);
-
-await task.run();
-```
-
 ## Installation
 
 ```bash
@@ -37,8 +18,8 @@ npm install @gantryland/task-cache
 ## Contents
 
 - [Highlights](#highlights)
-- [At a glance](#at-a-glance)
 - [Quick start](#quick-start)
+- [At a glance](#at-a-glance)
 - [Design goals](#design-goals)
 - [When to use task-cache](#when-to-use-task-cache)
 - [When not to use task-cache](#when-not-to-use-task-cache)
@@ -72,6 +53,25 @@ await usersTask.run(); // cache hit
 ```
 
 This example shows `cache` reuse for fresh data.
+
+## At a glance
+
+```typescript
+import { Task } from "@gantryland/task";
+import { MemoryCacheStore, cache } from "@gantryland/task-cache";
+import { pipe } from "@gantryland/task-combinators";
+
+const store = new MemoryCacheStore();
+
+const task = new Task(
+  pipe(
+    (signal) => fetch("/api/users", { signal }).then((r) => r.json()),
+    cache("users", store, { ttl: 60_000 })
+  )
+);
+
+await task.run();
+```
 
 ## Design goals
 
