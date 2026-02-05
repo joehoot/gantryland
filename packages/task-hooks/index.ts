@@ -1,5 +1,12 @@
-import { Task, createDefaultTaskState, type TaskState } from "@gantryland/task";
+import { Task, type TaskState } from "@gantryland/task";
 import { useRef, useEffect, useSyncExternalStore, useState } from "react";
+
+const DEFAULT_TASK_STATE = {
+  data: undefined,
+  error: undefined,
+  isLoading: false,
+  isStale: true,
+} as const satisfies TaskState<unknown>;
 
 /**
  * Runs a task on mount if it's stale and not already loading.
@@ -32,7 +39,7 @@ export const useTaskOnce = <T>(task: Task<T>): void => {
  * @template T - The type of the task's resolved data
  * @param task - The Task instance to subscribe to, or null/undefined
  * @param fallbackState - Optional state to use when task is null/undefined.
- *                        Defaults to createDefaultTaskState().
+ *                        Defaults to a stale state.
  * @returns The current TaskState
  *
  * @example
@@ -53,7 +60,7 @@ export const useTaskState = <T>(
   fallbackState?: TaskState<T>
 ): TaskState<T> => {
   const getSnapshot = () =>
-    task ? task.getState() : fallbackState ?? createDefaultTaskState<T>();
+    task ? task.getState() : fallbackState ?? (DEFAULT_TASK_STATE as TaskState<T>);
 
   return useSyncExternalStore(
     (onStoreChange) => (task ? task.subscribe(onStoreChange) : () => {}),
@@ -68,7 +75,6 @@ export const useTaskState = <T>(
  *
  * @template T - The type of the task's resolved data
  * @param create - Factory function that creates the Task. Called once on mount.
- *                 Defaults to creating an empty Task.
  * @returns A tuple of [Task, TaskState]
  *
  * @example
@@ -95,7 +101,7 @@ export const useTaskState = <T>(
  * ```
  */
 export const useTask = <T>(
-  create: () => Task<T> = () => new Task<T>()
+  create: () => Task<T>
 ): [Task<T>, TaskState<T>] => {
   const [task] = useState(create);
   const state = useTaskState(task);
