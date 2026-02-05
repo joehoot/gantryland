@@ -115,3 +115,4 @@ export async function runUserTask(id: string) {
 - [task-cache](../task-cache/) - Caching primitives and combinators
 - [task-storage](../task-storage/) - Persistent CacheStore implementations
 - [task-scheduler](../task-scheduler/) - Scheduling utilities and combinators
+- [task-observable](../task-observable/) - Minimal observable interop

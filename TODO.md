@@ -2,7 +2,7 @@
 
 Task ecosystem expansion ideas:
 
-- @gantryland/task-observable
+- @gantryland/task-observable (done)
   - RxJS interop or minimal observable adapter (fromTask/toTask)
 
 - @gantryland/task-scheduler (done)
