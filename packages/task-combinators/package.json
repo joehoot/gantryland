@@ -1,8 +1,13 @@
 {
   "name": "@gantryland/task-combinators",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Composable operators for @gantryland/task",
-  "keywords": ["task", "combinators", "async", "retry"],
+  "keywords": [
+    "task",
+    "combinators",
+    "async",
+    "retry"
+  ],
   "type": "module",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
@@ -13,7 +18,10 @@
     },
     "./package.json": "./package.json"
   },
-  "files": ["dist", "README.md"],
+  "files": [
+    "dist",
+    "README.md"
+  ],
   "sideEffects": false,
   "license": "MIT",
   "publishConfig": {
@@ -28,6 +36,6 @@
   },
   "homepage": "https://github.com/joehoot/gantryland/tree/main/packages/task-combinators#readme",
   "dependencies": {
-    "@gantryland/task": "^0.1.0"
+    "@gantryland/task": "^0.2.0"
   }
 }

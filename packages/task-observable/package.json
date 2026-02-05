@@ -1,8 +1,12 @@
 {
   "name": "@gantryland/task-observable",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Minimal observable primitives for @gantryland/task",
-  "keywords": ["task", "observable", "stream"],
+  "keywords": [
+    "task",
+    "observable",
+    "stream"
+  ],
   "type": "module",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
@@ -13,7 +17,10 @@
     },
     "./package.json": "./package.json"
   },
-  "files": ["dist", "README.md"],
+  "files": [
+    "dist",
+    "README.md"
+  ],
   "sideEffects": false,
   "license": "MIT",
   "publishConfig": {
@@ -28,6 +35,6 @@
   },
   "homepage": "https://github.com/joehoot/gantryland/tree/main/packages/task-observable#readme",
   "dependencies": {
-    "@gantryland/task": "^0.1.0"
+    "@gantryland/task": "^0.2.0"
   }
 }

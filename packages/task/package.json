@@ -1,8 +1,13 @@
 {
   "name": "@gantryland/task",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Minimal async task with reactive state",
-  "keywords": ["task", "async", "state", "abort"],
+  "keywords": [
+    "task",
+    "async",
+    "state",
+    "abort"
+  ],
   "type": "module",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
@@ -13,7 +18,10 @@
     },
     "./package.json": "./package.json"
   },
-  "files": ["dist", "README.md"],
+  "files": [
+    "dist",
+    "README.md"
+  ],
   "sideEffects": false,
   "license": "MIT",
   "publishConfig": {
