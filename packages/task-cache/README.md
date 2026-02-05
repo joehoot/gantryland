@@ -2,10 +2,31 @@
 
 Cache primitives and combinators for `@gantryland/task`. Compose caching into TaskFn pipelines with minimal surface area and predictable behavior.
 
+## Highlights
+
 - Works with any TaskFn, no framework coupling.
 - Built-in in-memory store with tag invalidation and events.
 - Stale-while-revalidate and dedupe support out of the box.
 - Works in browser and Node.js with no dependencies.
+
+## At a glance
+
+```typescript
+import { Task } from "@gantryland/task";
+import { MemoryCacheStore, cache } from "@gantryland/task-cache";
+import { pipe } from "@gantryland/task-combinators";
+
+const store = new MemoryCacheStore();
+
+const task = new Task(
+  pipe(
+    (signal) => fetch("/api/users", { signal }).then((r) => r.json()),
+    cache("users", store, { ttl: 60_000 })
+  )
+);
+
+await task.run();
+```
 
 ## Installation
 
@@ -15,12 +36,15 @@ npm install @gantryland/task-cache
 
 ## Contents
 
+- [Highlights](#highlights)
+- [At a glance](#at-a-glance)
 - [Quick start](#quick-start)
 - [Design goals](#design-goals)
 - [When to use task-cache](#when-to-use-task-cache)
 - [When not to use task-cache](#when-not-to-use-task-cache)
 - [Core concepts](#core-concepts)
 - [Flow](#flow)
+- [Run semantics](#run-semantics)
 - [API](#api)
 - [Common patterns](#common-patterns)
 - [Integrations](#integrations)
@@ -117,6 +141,27 @@ staleWhileRevalidate(): fresh -> return
 staleWhileRevalidate(): stale -> return stale -> revalidate in background
 staleWhileRevalidate(): miss -> fetch -> store -> return
 ```
+
+## Run semantics
+
+### cache
+
+- Fresh hit returns cached data and emits `hit`.
+- Miss or stale fetches, stores on resolve, and emits `miss` or `stale` then `set`.
+- Dedupe is on by default; concurrent calls for the same key share one promise.
+- If the task rejects (including AbortError), the cache is not updated.
+
+### staleWhileRevalidate
+
+- Fresh hit returns cached data and emits `hit`.
+- Stale within the window returns cached data, emits `stale` then `revalidate`, and revalidates in the background.
+- Background revalidation does not use the caller's AbortSignal and errors are ignored.
+- Miss or beyond the stale window fetches and stores on resolve.
+
+### invalidateOnResolve
+
+- Invalidates keys or tags only after the task resolves.
+- If the task rejects (including AbortError), no invalidation happens.
 
 ## API
 

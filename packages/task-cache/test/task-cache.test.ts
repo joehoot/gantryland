@@ -17,6 +17,8 @@ const createDeferred = <T,>() => {
   return { promise, resolve: resolve!, reject: reject! };
 };
 
+const createAbortError = () => Object.assign(new Error("Aborted"), { name: "AbortError" });
+
 describe("MemoryCacheStore", () => {
   it("stores and retrieves entries", () => {
     const store = new MemoryCacheStore();
@@ -85,6 +87,24 @@ describe("cache", () => {
     vi.useRealTimers();
   });
 
+  it("does not cache when aborted", async () => {
+    const store = new MemoryCacheStore();
+    const controller = new AbortController();
+    const taskFn = cache("key", store)(async (signal) => {
+      return new Promise<string>((_, reject) => {
+        if (!signal) return reject(new Error("missing signal"));
+        if (signal.aborted) return reject(createAbortError());
+        signal.addEventListener("abort", () => reject(createAbortError()));
+      });
+    });
+
+    const promise = taskFn(controller.signal);
+    controller.abort();
+
+    await expect(promise).rejects.toHaveProperty("name", "AbortError");
+    expect(store.get("key")).toBeUndefined();
+  });
+
   it("refetches when stale", async () => {
     const store = new MemoryCacheStore();
     const taskFn = cache("key", store, { ttl: 10 })(async () => "new");
@@ -141,6 +161,31 @@ describe("staleWhileRevalidate", () => {
 
     vi.setSystemTime(new Date("2024-01-01T00:00:00.040Z"));
     await expect(taskFn()).resolves.toBe("data");
+    vi.useRealTimers();
+  });
+
+  it("ignores background revalidation errors", async () => {
+    const store = new MemoryCacheStore();
+    const seed = staleWhileRevalidate("key", store, { ttl: 10, staleTtl: 30 })(
+      async () => "initial"
+    );
+
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2024-01-01T00:00:00.000Z"));
+    await seed();
+
+    const deferred = createDeferred<string>();
+    const taskFn = staleWhileRevalidate("key", store, { ttl: 10, staleTtl: 30 })(
+      () => deferred.promise
+    );
+
+    vi.setSystemTime(new Date("2024-01-01T00:00:00.020Z"));
+    await expect(taskFn()).resolves.toBe("initial");
+
+    deferred.reject(new Error("boom"));
+    await deferred.promise.catch(() => {});
+
+    expect(store.get<string>("key")?.value).toBe("initial");
     vi.useRealTimers();
   });
 

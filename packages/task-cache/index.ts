@@ -165,9 +165,21 @@ export class MemoryCacheStore implements CacheStore {
  * Options for cache and stale-while-revalidate.
  */
 export type CacheOptions = {
+  /**
+   * Time-to-live in milliseconds. When undefined, entries are always fresh.
+   */
   ttl?: number;
+  /**
+   * Additional stale window in milliseconds after ttl expires.
+   */
   staleTtl?: number;
+  /**
+   * Tags to associate with stored entries for invalidation.
+   */
   tags?: string[];
+  /**
+   * Dedupe in-flight requests for the same key. Defaults to true.
+   */
   dedupe?: boolean;
 };
 
@@ -247,6 +259,11 @@ const resolveWithDedupe = async <T, Args extends unknown[] = []>(
 
 /**
  * Cache combinator. Returns cached data if fresh, otherwise fetches and caches.
+ *
+ * - Resolves to cached data on hit.
+ * - Fetches on miss or stale and stores the resolved value.
+ * - Dedupe is enabled by default; concurrent calls share the same promise.
+ * - If the task rejects (including AbortError), the cache is not updated.
  */
 export const cache =
   <T, Args extends unknown[] = []>(key: CacheKey, store: CacheStore, options: CacheOptions = {}) =>
@@ -265,6 +282,11 @@ export const cache =
 /**
  * Stale-while-revalidate combinator. Returns cached data immediately if stale
  * within the stale window, and revalidates in the background.
+ *
+ * - Fresh entries are returned immediately.
+ * - Stale entries within the stale window return cached data and revalidate.
+ * - Background revalidation does not use the caller's AbortSignal.
+ * - Background errors are ignored and do not update the cache.
  */
 export const staleWhileRevalidate =
   <T, Args extends unknown[] = []>(key: CacheKey, store: CacheStore, options: CacheOptions = {}) =>
@@ -279,7 +301,9 @@ export const staleWhileRevalidate =
     if (entry && isWithinStale(entry, options.ttl, options.staleTtl)) {
       store.emit?.({ type: "stale", key, entry });
       store.emit?.({ type: "revalidate", key, entry });
-      void resolveWithDedupe(key, store, taskFn, undefined, args, options, entry);
+      void resolveWithDedupe(key, store, taskFn, undefined, args, options, entry).catch(() => {
+        // Background revalidation errors are ignored.
+      });
       return entry.value;
     }
 
@@ -298,6 +322,8 @@ export type InvalidateTarget<T> =
 
 /**
  * Invalidates cache entries after a TaskFn resolves.
+ *
+ * If the task rejects (including AbortError), no invalidation happens.
  */
 export const invalidateOnResolve =
   <T, Args extends unknown[] = []>(target: InvalidateTarget<T>, store: CacheStore) =>
