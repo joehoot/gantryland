@@ -79,6 +79,18 @@ describe("Task", () => {
     expect(task.getState().isLoading).toBe(false);
   });
 
+  it("normalizes non-Error failures", async () => {
+    const task = new Task(async () => {
+      throw "boom";
+    });
+
+    await task.run();
+
+    const { error } = task.getState();
+    expect(error).toBeInstanceOf(Error);
+    expect(error?.message).toBe("boom");
+  });
+
   it("clears loading without error on abort", async () => {
     const task = new Task((signal) =>
       new Promise<string>((_, reject) => {
@@ -97,6 +109,27 @@ describe("Task", () => {
 
     expect(task.getState().isLoading).toBe(false);
     expect(task.getState().error).toBe(undefined);
+  });
+
+  it("ignores AbortError thrown by the TaskFn", async () => {
+    const task = new Task(async () => {
+      throw createAbortError();
+    });
+
+    const result = await task.run();
+
+    expect(result).toBe(undefined);
+    expect(task.getState().error).toBe(undefined);
+  });
+
+  it("resolves undefined on error", async () => {
+    const task = new Task(async () => {
+      throw new Error("boom");
+    });
+
+    const result = await task.run();
+
+    expect(result).toBe(undefined);
   });
 
   it("resolveWith settles immediately and ignores in-flight work", async () => {
@@ -133,6 +166,24 @@ describe("Task", () => {
     await secondRun;
 
     expect(task.getState().data).toBe("second");
+  });
+
+  it("resolves undefined for superseded runs", async () => {
+    const deferreds: Array<ReturnType<typeof createDeferred<string>>> = [];
+    const task = new Task(() => {
+      const deferred = createDeferred<string>();
+      deferreds.push(deferred);
+      return deferred.promise;
+    });
+
+    const firstRun = task.run();
+    const secondRun = task.run();
+
+    deferreds[0].resolve("first");
+    deferreds[1].resolve("second");
+
+    await expect(firstRun).resolves.toBe(undefined);
+    await expect(secondRun).resolves.toBe("second");
   });
 
   it("reset returns to the initial state", async () => {

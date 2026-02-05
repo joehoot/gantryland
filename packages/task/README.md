@@ -108,14 +108,14 @@ type TaskFn<T, Args extends unknown[] = []> = (signal?: AbortSignal, ...args: Ar
 ```typescript
 type TaskState<T> = {
   data: T | undefined;
-  error: unknown | undefined;
+  error: Error | undefined;
   isLoading: boolean;
   isStale: boolean;
 };
 ```
 
 - `data`: last successful result, or `undefined` before any success.
-- `error`: last error, or `undefined` if none.
+- `error`: last error, or `undefined` if none. AbortError is not stored.
 - `isLoading`: true while a run is in-flight.
 - `isStale`: true before the first run.
 
@@ -134,7 +134,7 @@ stale (initial) -> run() -> loading -> data | error
 ## Run semantics
 
 - Latest run wins; older results are ignored.
-- Abort errors do not set `error`.
+- AbortError is swallowed and does not set `error`.
 - Failures preserve existing `data` and set `error`.
 - `run(...args)` resolves with `T` on success and `undefined` on error/abort/superseded.
 

@@ -4,7 +4,7 @@
  * @template T - The type of the resolved data
  *
  * @property data - Last successful result, or undefined before any success
- * @property error - Last error, or undefined if none
+ * @property error - Last error, or undefined if none (AbortError is not stored)
  * @property isLoading - True while a run is in-flight
  * @property isStale - True before the first run starts
  */
@@ -151,6 +151,8 @@ export class Task<T, Args extends unknown[] = []> {
    * - On success: sets data, clears error, sets isLoading false
    * - On error: preserves data, sets error, sets isLoading false
    * - On abort: preserves data, sets isLoading false, no error
+   * - Superseded runs resolve undefined and do not update state
+   * - AbortError is swallowed and not stored
    *
    * @param args - Arguments forwarded to the TaskFn
    * @returns Resolved data on success, otherwise undefined
