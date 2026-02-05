@@ -428,7 +428,7 @@ type BackoffOptions = {
 export const backoff =
   <T>(options: BackoffOptions) =>
   (taskFn: TaskFn<T>): TaskFn<T> =>
-    retryWhen(
+    retryWhen<T>(
       (err) => (options.shouldRetry ? options.shouldRetry(err) : true),
       {
         maxAttempts: options.attempts,
