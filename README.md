@@ -46,8 +46,8 @@ Each package is configured with `publishConfig.access=public` for scoped npm pub
 ```bash
 npm run release:changeset
 npm run release:changelog
-npm run release:prepare
-npm publish -ws
+npm run release:check
+npm publish --workspaces
 ```
 
 See `CONTRIBUTING.md` for release guidance.
