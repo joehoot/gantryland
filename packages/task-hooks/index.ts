@@ -1,5 +1,12 @@
-import { Task, type TaskState } from "@gantryland/task";
-import { useRef, useEffect, useSyncExternalStore, useState } from "react";
+import { Task, type TaskFn, type TaskState } from "@gantryland/task";
+import {
+  type DependencyList,
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+  useSyncExternalStore,
+} from "react";
 
 const DEFAULT_TASK_STATE = {
   data: undefined,
@@ -14,6 +21,7 @@ const DEFAULT_TASK_STATE = {
  *
  * @template T - The type of the task's resolved data
  * @param task - The Task instance to run
+ * @param options - Optional options
  *
  * @example
  * ```typescript
@@ -21,15 +29,50 @@ const DEFAULT_TASK_STATE = {
  * useTaskOnce(task); // runs on mount if stale
  * ```
  */
-export const useTaskOnce = <T>(task: Task<T>): void => {
+type UseTaskOnceOptions<T> = {
+  enabled?: boolean;
+  when?: (state: TaskState<T>) => boolean;
+};
+
+export const useTaskOnce = <T>(
+  task: Task<T>,
+  options: UseTaskOnceOptions<T> = {}
+): void => {
   const taskRef = useRef(task);
+  const optionsRef = useRef(options);
+
+  optionsRef.current = options;
 
   useEffect(() => {
     const state = taskRef.current.getState();
-    if (state.isStale && !state.isLoading) {
+    const { enabled = true, when } = optionsRef.current;
+    if (enabled && (when ? when(state) : state.isStale && !state.isLoading)) {
       void taskRef.current.run();
     }
   }, []);
+};
+
+type UseTaskRunOptions = {
+  auto?: boolean;
+  deps?: DependencyList;
+};
+
+/**
+ * Returns a stable run() callback. Optionally auto-runs when deps change.
+ */
+export const useTaskRun = <T>(
+  task: Task<T> | null | undefined,
+  options: UseTaskRunOptions = {}
+): (() => Promise<void>) => {
+  const { auto = false, deps = [] } = options;
+  const run = useCallback(() => (task ? task.run() : Promise.resolve()), [task]);
+
+  useEffect(() => {
+    if (!auto || !task) return;
+    void task.run();
+  }, [task, auto, ...deps]);
+
+  return run;
 };
 
 /**
@@ -40,6 +83,7 @@ export const useTaskOnce = <T>(task: Task<T>): void => {
  * @param task - The Task instance to subscribe to, or null/undefined
  * @param fallbackState - Optional state to use when task is null/undefined.
  *                        Defaults to a stale state.
+ * @param select - Optional selector to derive a value from state.
  * @returns The current TaskState
  *
  * @example
@@ -55,32 +99,81 @@ export const useTaskOnce = <T>(task: Task<T>): void => {
  * const state = useTaskState(task, { data: [], error: undefined, isLoading: false, isStale: false });
  * ```
  */
-export const useTaskState = <T>(
+type UseTaskStateOptions<T, U> = {
+  fallbackState?: TaskState<T>;
+  select?: (state: TaskState<T>) => U;
+};
+
+export function useTaskState<T>(
+  task: Task<T> | null | undefined
+): TaskState<T>;
+export function useTaskState<T, U>(
   task: Task<T> | null | undefined,
-  fallbackState?: TaskState<T>
-): TaskState<T> => {
-  const getSnapshot = () =>
-    task ? task.getState() : fallbackState ?? (DEFAULT_TASK_STATE as TaskState<T>);
+  options: UseTaskStateOptions<T, U>
+): U;
+export function useTaskState<T, U>(
+  task: Task<T> | null | undefined,
+  options?: UseTaskStateOptions<T, U>
+): TaskState<T> | U {
+  const getState = () =>
+    task ? task.getState() : options?.fallbackState ?? (DEFAULT_TASK_STATE as TaskState<T>);
+
+  const getSnapshot = () => {
+    const state = getState();
+    return options?.select ? options.select(state) : state;
+  };
 
   return useSyncExternalStore(
     (onStoreChange) => (task ? task.subscribe(onStoreChange) : () => {}),
     getSnapshot,
     getSnapshot
   );
-};
+}
+
+/**
+ * Convenience wrapper for useTaskState.
+ */
+export const useTaskResult = <T>(
+  task: Task<T> | null | undefined,
+  options?: { fallbackState?: TaskState<T> }
+): TaskState<T> =>
+  useTaskState<T, TaskState<T>>(task, {
+    fallbackState: options?.fallbackState,
+    select: (state) => state,
+  });
+
+/**
+ * Subscribes to just the error field.
+ */
+export const useTaskError = <T>(
+  task: Task<T> | null | undefined,
+  options?: { fallbackState?: TaskState<T> }
+): unknown | undefined =>
+  useTaskState(task, {
+    fallbackState: options?.fallbackState,
+    select: (state) => state.error,
+  });
+
+/**
+ * Returns a stable cancel() callback.
+ */
+export const useTaskAbort = <T>(
+  task: Task<T> | null | undefined
+): (() => void) => useCallback(() => task?.cancel(), [task]);
 
 /**
  * Creates a Task instance and subscribes to its state.
  * The task instance is stable across renders.
  *
  * @template T - The type of the task's resolved data
- * @param create - Factory function that creates the Task. Called once on mount.
+ * @param arg - TaskFn or factory function that creates the Task. Called once on mount.
+ * @param options - Optional options. Use { mode: "factory" } when passing a factory.
  * @returns A tuple of [Task, TaskState]
  *
  * @example
  * ```typescript
  * // Create task with TaskFn
- * const [task, { data, isLoading }] = useTask(() => new Task(fetchUsers));
+ * const [task, { data, isLoading }] = useTask(fetchUsers);
  *
  * // Run on mount
  * useTaskOnce(task);
@@ -89,21 +182,30 @@ export const useTaskState = <T>(
  * const handleRefresh = () => task.run();
  *
  * // With pipe combinators
- * const [task, state] = useTask(() =>
- *   new Task(
- *     pipe(
- *       fetchUsers,
- *       retry(2),
- *       timeout(5000)
- *     )
- *   )
+ * const [task, state] = useTask(
+ *   () =>
+ *     new Task(
+ *       pipe(
+ *         fetchUsers,
+ *         retry(2),
+ *         timeout(5000)
+ *       )
+ *     ),
+ *   { mode: "factory" }
  * );
  * ```
  */
-export const useTask = <T>(
-  create: () => Task<T>
-): [Task<T>, TaskState<T>] => {
-  const [task] = useState(create);
-  const state = useTaskState(task);
-  return [task, state];
+type UseTaskOptions = {
+  mode?: "fn" | "factory";
 };
+
+export function useTask<T>(fn: TaskFn<T>, options?: UseTaskOptions): [Task<T>, TaskState<T>];
+export function useTask<T>(create: () => Task<T>, options: UseTaskOptions): [Task<T>, TaskState<T>];
+export function useTask<T>(arg: TaskFn<T> | (() => Task<T>), options: UseTaskOptions = {}) {
+  const [task] = useState(() => {
+    if (options.mode === "factory") return (arg as () => Task<T>)();
+    return new Task(arg as TaskFn<T>);
+  });
+  const state = useTaskState(task);
+  return [task, state] as const;
+}
