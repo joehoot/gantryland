@@ -10,7 +10,7 @@ Gantryland is a suite of modern, composable tools for async workflows. Packages 
 
 - [Packages](#packages)
 - [Development](#development)
-- [Publishing](#publishing)
+- [Pre Publishing](#pre-publishing)
 - [Release process](#release-process)
 
 ## Packages
@@ -33,10 +33,10 @@ npm install
 npm run build
 ```
 
-## Publishing
+## Pre Publishing
 
 ```bash
-npm publish -ws
+npm run release:prepare
 ```
 
 Each package is configured with `publishConfig.access=public` for scoped npm publishing.
@@ -45,9 +45,9 @@ Each package is configured with `publishConfig.access=public` for scoped npm pub
 
 ```bash
 npx changeset
-npx changeset version
-npm run build
-npx changeset publish
+npm run release:changelog
+npm run release:prepare
+npm publish -ws
 ```
 
 See `CONTRIBUTING.md` for release guidance.

@@ -16,6 +16,8 @@
     "clean": "tsc -b --clean",
     "prepublishOnly": "npm run build",
     "publish": "npm publish -ws",
+    "release:prepare": "npm run changeset:version && npm run build && npm test",
+    "release:changelog": "npm run changeset:version",
     "test": "vitest run",
     "changeset": "changeset",
     "changeset:version": "changeset version",
