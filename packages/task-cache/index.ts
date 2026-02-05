@@ -216,11 +216,12 @@ const setEntry = <T>(
   return entry;
 };
 
-const resolveWithDedupe = async <T>(
+const resolveWithDedupe = async <T, Args extends unknown[] = []>(
   key: CacheKey,
   store: CacheStore,
-  taskFn: TaskFn<T>,
-  signal?: AbortSignal,
+  taskFn: TaskFn<T, Args>,
+  signal: AbortSignal | undefined,
+  args: Args,
   options: CacheOptions = {},
   previous?: CacheEntry<T>
 ): Promise<T> => {
@@ -231,7 +232,7 @@ const resolveWithDedupe = async <T>(
     if (inFlight) return inFlight;
   }
 
-  const promise = taskFn(signal)
+  const promise = taskFn(signal, ...args)
     .then((value) => {
       setEntry(store, key, value, options.tags, previous);
       return value;
@@ -248,9 +249,9 @@ const resolveWithDedupe = async <T>(
  * Cache combinator. Returns cached data if fresh, otherwise fetches and caches.
  */
 export const cache =
-  <T>(key: CacheKey, store: CacheStore, options: CacheOptions = {}) =>
-  (taskFn: TaskFn<T>): TaskFn<T> =>
-  async (signal?: AbortSignal) => {
+  <T, Args extends unknown[] = []>(key: CacheKey, store: CacheStore, options: CacheOptions = {}) =>
+  (taskFn: TaskFn<T, Args>): TaskFn<T, Args> =>
+  async (signal?: AbortSignal, ...args: Args) => {
     const entry = store.get<T>(key);
     if (entry && isFresh(entry, options.ttl)) {
       store.emit?.({ type: "hit", key, entry });
@@ -258,7 +259,7 @@ export const cache =
     }
 
     store.emit?.({ type: entry ? "stale" : "miss", key, entry });
-    return resolveWithDedupe(key, store, taskFn, signal, options, entry);
+    return resolveWithDedupe(key, store, taskFn, signal, args, options, entry);
   };
 
 /**
@@ -266,9 +267,9 @@ export const cache =
  * within the stale window, and revalidates in the background.
  */
 export const staleWhileRevalidate =
-  <T>(key: CacheKey, store: CacheStore, options: CacheOptions = {}) =>
-  (taskFn: TaskFn<T>): TaskFn<T> =>
-  async (signal?: AbortSignal) => {
+  <T, Args extends unknown[] = []>(key: CacheKey, store: CacheStore, options: CacheOptions = {}) =>
+  (taskFn: TaskFn<T, Args>): TaskFn<T, Args> =>
+  async (signal?: AbortSignal, ...args: Args) => {
     const entry = store.get<T>(key);
     if (entry && isFresh(entry, options.ttl)) {
       store.emit?.({ type: "hit", key, entry });
@@ -278,12 +279,12 @@ export const staleWhileRevalidate =
     if (entry && isWithinStale(entry, options.ttl, options.staleTtl)) {
       store.emit?.({ type: "stale", key, entry });
       store.emit?.({ type: "revalidate", key, entry });
-      void resolveWithDedupe(key, store, taskFn, undefined, options, entry);
+      void resolveWithDedupe(key, store, taskFn, undefined, args, options, entry);
       return entry.value;
     }
 
     store.emit?.({ type: "miss", key, entry });
-    return resolveWithDedupe(key, store, taskFn, signal, options, entry);
+    return resolveWithDedupe(key, store, taskFn, signal, args, options, entry);
   };
 
 /**
@@ -299,10 +300,10 @@ export type InvalidateTarget<T> =
  * Invalidates cache entries after a TaskFn resolves.
  */
 export const invalidateOnResolve =
-  <T>(target: InvalidateTarget<T>, store: CacheStore) =>
-  (taskFn: TaskFn<T>): TaskFn<T> =>
-  async (signal?: AbortSignal) => {
-    const result = await taskFn(signal);
+  <T, Args extends unknown[] = []>(target: InvalidateTarget<T>, store: CacheStore) =>
+  (taskFn: TaskFn<T, Args>): TaskFn<T, Args> =>
+  async (signal?: AbortSignal, ...args: Args) => {
+    const result = await taskFn(signal, ...args);
     const resolved = typeof target === "function" ? target(result) : target;
     if (typeof resolved === "object" && !Array.isArray(resolved) && "tags" in resolved) {
       store.invalidateTags?.(resolved.tags);

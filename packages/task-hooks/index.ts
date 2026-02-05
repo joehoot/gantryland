@@ -34,8 +34,8 @@ type UseTaskOnceOptions<T> = {
   when?: (state: TaskState<T>) => boolean;
 };
 
-export const useTaskOnce = <T>(
-  task: Task<T>,
+export const useTaskOnce = <T, Args extends unknown[] = []>(
+  task: Task<T, Args>,
   options: UseTaskOnceOptions<T> = {}
 ): void => {
   const taskRef = useRef(task);
@@ -47,29 +47,34 @@ export const useTaskOnce = <T>(
     const state = taskRef.current.getState();
     const { enabled = true, when } = optionsRef.current;
     if (enabled && (when ? when(state) : state.isStale && !state.isLoading)) {
-      void taskRef.current.run();
+      void taskRef.current.run(...([] as unknown as Args));
     }
   }, []);
 };
 
-type UseTaskRunOptions = {
+type UseTaskRunOptions<Args extends unknown[]> = {
   auto?: boolean;
   deps?: DependencyList;
+  args?: Args;
 };
 
 /**
  * Returns a stable run() callback. Optionally auto-runs when deps change.
  */
-export const useTaskRun = <T>(
-  task: Task<T> | null | undefined,
-  options: UseTaskRunOptions = {}
-): (() => Promise<void>) => {
-  const { auto = false, deps = [] } = options;
-  const run = useCallback(() => (task ? task.run() : Promise.resolve()), [task]);
+export const useTaskRun = <T, Args extends unknown[] = []>(
+  task: Task<T, Args> | null | undefined,
+  options: UseTaskRunOptions<Args> = {}
+): ((...args: Args) => Promise<void>) => {
+  const { auto = false, deps = [], args } = options;
+  const run = useCallback(
+    (...runArgs: Args) => (task ? task.run(...runArgs) : Promise.resolve()),
+    [task]
+  );
 
   useEffect(() => {
     if (!auto || !task) return;
-    void task.run();
+    const autoArgs = (args ?? ([] as unknown as Args)) as Args;
+    void task.run(...autoArgs);
   }, [task, auto, ...deps]);
 
   return run;
@@ -104,15 +109,15 @@ type UseTaskStateOptions<T, U> = {
   select?: (state: TaskState<T>) => U;
 };
 
-export function useTaskState<T>(
-  task: Task<T> | null | undefined
+export function useTaskState<T, Args extends unknown[] = []>(
+  task: Task<T, Args> | null | undefined
 ): TaskState<T>;
-export function useTaskState<T, U>(
-  task: Task<T> | null | undefined,
+export function useTaskState<T, U, Args extends unknown[] = []>(
+  task: Task<T, Args> | null | undefined,
   options: UseTaskStateOptions<T, U>
 ): U;
-export function useTaskState<T, U>(
-  task: Task<T> | null | undefined,
+export function useTaskState<T, U, Args extends unknown[] = []>(
+  task: Task<T, Args> | null | undefined,
   options?: UseTaskStateOptions<T, U>
 ): TaskState<T> | U {
   const getState = () =>
@@ -133,11 +138,11 @@ export function useTaskState<T, U>(
 /**
  * Convenience wrapper for useTaskState.
  */
-export const useTaskResult = <T>(
-  task: Task<T> | null | undefined,
+export const useTaskResult = <T, Args extends unknown[] = []>(
+  task: Task<T, Args> | null | undefined,
   options?: { fallbackState?: TaskState<T> }
 ): TaskState<T> =>
-  useTaskState<T, TaskState<T>>(task, {
+  useTaskState<T, TaskState<T>, Args>(task, {
     fallbackState: options?.fallbackState,
     select: (state) => state,
   });
@@ -145,8 +150,8 @@ export const useTaskResult = <T>(
 /**
  * Subscribes to just the error field.
  */
-export const useTaskError = <T>(
-  task: Task<T> | null | undefined,
+export const useTaskError = <T, Args extends unknown[] = []>(
+  task: Task<T, Args> | null | undefined,
   options?: { fallbackState?: TaskState<T> }
 ): unknown | undefined =>
   useTaskState(task, {
@@ -157,8 +162,8 @@ export const useTaskError = <T>(
 /**
  * Returns a stable cancel() callback.
  */
-export const useTaskAbort = <T>(
-  task: Task<T> | null | undefined
+export const useTaskAbort = <T, Args extends unknown[] = []>(
+  task: Task<T, Args> | null | undefined
 ): (() => void) => useCallback(() => task?.cancel(), [task]);
 
 /**
@@ -199,12 +204,21 @@ type UseTaskOptions = {
   mode?: "fn" | "factory";
 };
 
-export function useTask<T>(fn: TaskFn<T>, options?: UseTaskOptions): [Task<T>, TaskState<T>];
-export function useTask<T>(create: () => Task<T>, options: UseTaskOptions): [Task<T>, TaskState<T>];
-export function useTask<T>(arg: TaskFn<T> | (() => Task<T>), options: UseTaskOptions = {}) {
+export function useTask<T, Args extends unknown[] = []>(
+  fn: TaskFn<T, Args>,
+  options?: UseTaskOptions
+): [Task<T, Args>, TaskState<T>];
+export function useTask<T, Args extends unknown[] = []>(
+  create: () => Task<T, Args>,
+  options: UseTaskOptions
+): [Task<T, Args>, TaskState<T>];
+export function useTask<T, Args extends unknown[] = []>(
+  arg: TaskFn<T, Args> | (() => Task<T, Args>),
+  options: UseTaskOptions = {}
+) {
   const [task] = useState(() => {
-    if (options.mode === "factory") return (arg as () => Task<T>)();
-    return new Task(arg as TaskFn<T>);
+    if (options.mode === "factory") return (arg as () => Task<T, Args>)();
+    return new Task(arg as TaskFn<T, Args>);
   });
   const state = useTaskState(task);
   return [task, state] as const;

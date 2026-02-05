@@ -92,7 +92,7 @@ const [taskB] = useTask(() => new Task(fetchUsers), { mode: "factory" });
 
 ```text
 useTask -> subscribe -> render
-useTaskOnce/useTaskRun -> run() when conditions match
+useTaskOnce/useTaskRun -> run when conditions match
 ```
 
 ## API
@@ -105,7 +105,7 @@ useTaskOnce/useTaskRun -> run() when conditions match
 | [`useTask`](#usetask) | Create Task and subscribe | `[Task, TaskState]` |
 | [`useTaskOnce`](#usetaskonce) | Run on mount if stale | `void` |
 | [`useTaskState`](#usetaskstate) | Subscribe to state or slice | `TaskState` or selected value |
-| [`useTaskRun`](#usetaskrun) | Stable run callback | `() => Promise<void>` |
+| [`useTaskRun`](#usetaskrun) | Stable run callback | `(...args) => Promise<void>` |
 | [`useTaskResult`](#usetaskresult) | Full TaskState | `TaskState` |
 | [`useTaskError`](#usetaskerror) | Error-only selector | `unknown | undefined` |
 | [`useTaskAbort`](#usetaskabort) | Stable cancel callback | `() => void` |
@@ -151,7 +151,7 @@ Returns a stable `run()` callback. Optionally auto-runs when dependencies change
 
 ```tsx
 const run = useTaskRun(task);
-const runUser = useTaskRun(task, { auto: true, deps: [userId] });
+const runUser = useTaskRun(task, { auto: true, deps: [userId], args: [userId] });
 ```
 
 ### useTaskResult

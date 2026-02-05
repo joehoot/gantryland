@@ -71,9 +71,9 @@ export const createLogger = (options: { prefix?: string; logger?: Logger } = {})
  * Log TaskFn execution start/success/error/abort.
  */
 export const logTask =
-  <T>(options: TaskLoggerOptions = {}) =>
-  (taskFn: TaskFn<T>): TaskFn<T> =>
-  async (signal?: AbortSignal) => {
+  <T, Args extends unknown[] = []>(options: TaskLoggerOptions = {}) =>
+  (taskFn: TaskFn<T, Args>): TaskFn<T, Args> =>
+  async (signal?: AbortSignal, ...args: Args) => {
     const logger = options.logger ?? consoleLogger;
     const label = options.label ?? "task";
     const now = options.now ?? Date.now;
@@ -82,7 +82,7 @@ export const logTask =
     logger({ level: "info", message: `${label} start` });
 
     try {
-      const result = await taskFn(signal);
+      const result = await taskFn(signal, ...args);
       const durationMs = now() - start;
       logger({
         level: "info",
@@ -112,8 +112,8 @@ export const logTask =
 /**
  * Subscribe to a Task and log lifecycle transitions.
  */
-export const logTaskState = <T>(
-  task: Task<T>,
+export const logTaskState = <T, Args extends unknown[] = []>(
+  task: Task<T, Args>,
   options: TaskSubscriptionLoggerOptions = {}
 ): (() => void) => {
   const logger = options.logger ?? consoleLogger;

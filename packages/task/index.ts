@@ -23,6 +23,7 @@ type Unsubscribe = () => void;
  *
  * @template T - The type of the resolved data
  * @param signal - Optional AbortSignal for cancellation support
+ * @param args - Additional arguments forwarded by run
  * @returns A promise that resolves to the data
  *
  * @example
@@ -31,7 +32,10 @@ type Unsubscribe = () => void;
  *   fetch('/api/user', { signal }).then(r => r.json());
  * ```
  */
-export type TaskFn<T> = (signal?: AbortSignal) => Promise<T>;
+export type TaskFn<T, Args extends unknown[] = []> = (
+  signal?: AbortSignal,
+  ...args: Args
+) => Promise<T>;
 
 const isAbortError = (err: unknown): boolean =>
   (err as Error).name === "AbortError";
@@ -76,19 +80,19 @@ const createDefaultTaskState = <T>(): TaskState<T> => ({
  * await userTask.run();
  * ```
  */
-export class Task<T> {
+export class Task<T, Args extends unknown[] = []> {
   private _state: TaskState<T> = createDefaultTaskState<T>();
   private readonly listeners = new Set<Listener<T>>();
   private abortController: AbortController | null = null;
   private requestId = 0;
-  private fn: TaskFn<T>;
+  private fn: TaskFn<T, Args>;
 
   /**
    * Creates a new Task instance.
    *
    * @param fn - TaskFn to execute. Can be replaced later with setFn().
    */
-  constructor(fn: TaskFn<T>) {
+  constructor(fn: TaskFn<T, Args>) {
     this.fn = fn;
   }
 
@@ -116,7 +120,7 @@ export class Task<T> {
    * await task.run();
    * ```
    */
-  setFn(fn: TaskFn<T>) {
+  setFn(fn: TaskFn<T, Args>) {
     this.cancel();
     this.fn = fn;
   }
@@ -136,7 +140,7 @@ export class Task<T> {
    * await task.run(); // aborts previous, fetches again
    * ```
    */
-  async run(): Promise<void> {
+  private async runInternal(args: Args): Promise<void> {
     const currentRequestId = ++this.requestId;
     this.abortController?.abort();
     this.abortController = new AbortController();
@@ -150,7 +154,7 @@ export class Task<T> {
     this._notify();
 
     try {
-      const data = await this.fn(this.abortController.signal);
+      const data = await this.fn(this.abortController.signal, ...args);
       if (currentRequestId !== this.requestId) return;
       this._state = {
         data,
@@ -172,6 +176,21 @@ export class Task<T> {
     }
 
     this._notify();
+  }
+
+  /**
+   * Executes the TaskFn and updates state reactively.
+   *
+   * @param args - Arguments forwarded to the TaskFn
+   *
+   * @example
+   * ```typescript
+   * await task.run();
+   * await task.run(userId, includeFlags);
+   * ```
+   */
+  async run(...args: Args): Promise<void> {
+    return this.runInternal(args);
   }
 
   /**

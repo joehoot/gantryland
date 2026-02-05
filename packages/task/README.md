@@ -78,10 +78,10 @@ This example shows a shared Task instance across a view and its data loader.
 
 ### TaskFn
 
-The async function signature. Receives an optional `AbortSignal` and resolves to your data.
+The async function signature. Receives an optional `AbortSignal` and any Task arguments.
 
 ```typescript
-type TaskFn<T> = (signal?: AbortSignal) => Promise<T>;
+type TaskFn<T, Args extends unknown[] = []> = (signal?: AbortSignal, ...args: Args) => Promise<T>;
 ```
 
 ### TaskState
@@ -117,7 +117,7 @@ stale (initial) -> run() -> loading -> data | error
 ### Constructor
 
 ```typescript
-new Task<T>(fn: TaskFn<T>)
+new Task<T, Args>(fn: TaskFn<T, Args>)
 ```
 
 ### API at a glance
@@ -130,7 +130,7 @@ new Task<T>(fn: TaskFn<T>)
 | [`getState()`](#taskgetstate) | Read current snapshot | `TaskState<T>` |
 | [`subscribe(fn)`](#tasksubscribe) | Listen to state changes | `Unsubscribe` |
 | **Run/Update** |  |  |
-| [`run()`](#taskrun) | Execute TaskFn | `Promise<void>` |
+| [`run(...args)`](#taskrun) | Execute TaskFn | `Promise<void>` |
 | [`resolve(data)`](#taskresolve) | Set data without running | `void` |
 | [`setFn(fn)`](#tasksetfn) | Replace TaskFn | `void` |
 | **Control/Cleanup** |  |  |
@@ -167,19 +167,20 @@ const unsubscribe = task.subscribe((state) => console.log(state));
 #### task.run
 
 ```typescript
-await task.run(): Promise<void>
+await task.run(...args): Promise<void>
 ```
 
 Runs the TaskFn and updates state on completion.
 
 ```typescript
 await task.run();
+await task.run(userId, includeFlags);
 ```
 
 #### task.setFn
 
 ```typescript
-task.setFn(fn: TaskFn<T>): void
+task.setFn(fn: TaskFn<T, Args>): void
 ```
 
 Replaces the TaskFn for subsequent runs.

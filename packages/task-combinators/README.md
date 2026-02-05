@@ -78,7 +78,7 @@ This example shows a TaskFn pipeline with transforms, retries, and timeouts.
 All combinators work with a TaskFn from `@gantryland/task`.
 
 ```typescript
-type TaskFn<T> = (signal?: AbortSignal) => Promise<T>;
+type TaskFn<T, Args extends unknown[] = []> = (signal?: AbortSignal, ...args: Args) => Promise<T>;
 ```
 
 ### Combinators are curried

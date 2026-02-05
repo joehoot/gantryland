@@ -16,11 +16,11 @@ export type RouteMatch = {
 /**
  * A Task wrapper that tracks route params.
  */
-export type RouteTask<T> = {
-  task: Task<T>;
+export type RouteTask<T, Args extends unknown[] = []> = {
+  task: Task<T, Args>;
   getParams: () => RouteParams;
   setParams: (params: RouteParams) => void;
-  run: (params?: RouteParams) => Promise<void>;
+  run: (params?: RouteParams, ...args: Args) => Promise<void>;
 };
 
 /**
@@ -65,12 +65,14 @@ export const buildPath = (pattern: string, params: RouteParams): string => {
 /**
  * Create a Task that reads params from a mutable source.
  */
-export const createRouteTask = <T>(
-  taskForParams: (params: RouteParams) => TaskFn<T>,
+export const createRouteTask = <T, Args extends unknown[] = []>(
+  taskForParams: (params: RouteParams) => TaskFn<T, Args>,
   initialParams: RouteParams = {}
-): RouteTask<T> => {
+): RouteTask<T, Args> => {
   let currentParams = { ...initialParams };
-  const task = new Task<T>((signal) => taskForParams(currentParams)(signal));
+  const task = new Task<T, Args>((signal, ...args) =>
+    taskForParams(currentParams)(signal, ...args)
+  );
 
   const setParams = (params: RouteParams) => {
     currentParams = { ...params };
@@ -78,9 +80,9 @@ export const createRouteTask = <T>(
 
   const getParams = () => ({ ...currentParams });
 
-  const run = async (params?: RouteParams) => {
+  const run = async (params?: RouteParams, ...args: Args) => {
     if (params) setParams(params);
-    await task.run();
+    await task.run(...args);
   };
 
   return { task, getParams, setParams, run };
@@ -89,20 +91,20 @@ export const createRouteTask = <T>(
 /**
  * Create a RouteTask from a path pattern.
  */
-export const createPathTask = <T>(
+export const createPathTask = <T, Args extends unknown[] = []>(
   pattern: string,
-  taskForParams: (params: RouteParams) => TaskFn<T>,
+  taskForParams: (params: RouteParams) => TaskFn<T, Args>,
   initialPath?: string
-): RouteTask<T> & {
-  runPath: (path: string) => Promise<void>;
+): RouteTask<T, Args> & {
+  runPath: (path: string, ...args: Args) => Promise<void>;
 } => {
   const initialMatch = initialPath ? matchRoute(pattern, initialPath) : null;
   const routeTask = createRouteTask(taskForParams, initialMatch?.params ?? {});
 
-  const runPath = async (path: string) => {
+  const runPath = async (path: string, ...args: Args) => {
     const match = matchRoute(pattern, path);
     if (!match) throw new Error(`Path does not match pattern: ${pattern}`);
-    await routeTask.run(match.params);
+    await routeTask.run(match.params, ...args);
   };
 
   return { ...routeTask, runPath };

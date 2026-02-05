@@ -32,7 +32,11 @@ export type QueueOptions = {
 /**
  * Start polling a Task on an interval. Returns a stop function.
  */
-export const pollTask = <T>(task: Task<T>, options: PollOptions): (() => void) => {
+export const pollTask = <T, Args extends unknown[] = []>(
+  task: Task<T, Args>,
+  options: PollOptions,
+  ...args: Args
+): (() => void) => {
   let timer: ReturnType<typeof setTimeout> | null = null;
   let stopped = false;
 
@@ -43,7 +47,7 @@ export const pollTask = <T>(task: Task<T>, options: PollOptions): (() => void) =
 
   const tick = async () => {
     if (stopped) return;
-    await task.run();
+    await task.run(...args);
     if (stopped) return;
     timer = setTimeout(tick, options.intervalMs);
   };
@@ -61,15 +65,17 @@ export const pollTask = <T>(task: Task<T>, options: PollOptions): (() => void) =
  * Debounce a TaskFn. Only the last call within the window executes.
  */
 export const debounce =
-  <T>(options: DebounceOptions) =>
-  (taskFn: TaskFn<T>): TaskFn<T> => {
+  <T, Args extends unknown[] = []>(options: DebounceOptions) =>
+  (taskFn: TaskFn<T, Args>): TaskFn<T, Args> => {
     let timer: ReturnType<typeof setTimeout> | null = null;
     let pendingRejects: Array<(err: Error) => void> = [];
     let pendingCleanups: Array<() => void> = [];
     let lastSignal: AbortSignal | undefined;
+    let lastArgs: Args = [] as unknown as Args;
 
-    return (signal?: AbortSignal) => {
+    return (signal?: AbortSignal, ...args: Args) => {
       lastSignal = signal;
+      lastArgs = args;
       if (timer) clearTimeout(timer);
 
       for (const reject of pendingRejects) reject(createAbortError());
@@ -87,11 +93,12 @@ export const debounce =
           timer = null;
           signal?.removeEventListener("abort", onAbort);
           const activeSignal = lastSignal;
+          const activeArgs = lastArgs;
           if (activeSignal?.aborted) {
             reject(createAbortError());
             return;
           }
-          void taskFn(activeSignal)
+          void taskFn(activeSignal, ...activeArgs)
             .then(resolve)
             .catch(reject)
             .finally(() => {
@@ -106,17 +113,17 @@ export const debounce =
  * Throttle a TaskFn. Executes at most once per window.
  */
 export const throttle =
-  <T>(options: ThrottleOptions) =>
-  (taskFn: TaskFn<T>): TaskFn<T> => {
+  <T, Args extends unknown[] = []>(options: ThrottleOptions) =>
+  (taskFn: TaskFn<T, Args>): TaskFn<T, Args> => {
     let lastRun = 0;
     let inFlight: Promise<T> | null = null;
 
-    return (signal?: AbortSignal) => {
+    return (signal?: AbortSignal, ...args: Args) => {
       const now = Date.now();
       if (inFlight && now - lastRun < options.windowMs) return inFlight;
 
       lastRun = now;
-      inFlight = taskFn(signal).finally(() => {
+      inFlight = taskFn(signal, ...args).finally(() => {
         inFlight = null;
       });
 
@@ -128,8 +135,8 @@ export const throttle =
  * Queue a TaskFn with limited concurrency.
  */
 export const queue =
-  <T>(options: QueueOptions = {}) =>
-  (taskFn: TaskFn<T>): TaskFn<T> => {
+  <T, Args extends unknown[] = []>(options: QueueOptions = {}) =>
+  (taskFn: TaskFn<T, Args>): TaskFn<T, Args> => {
     const concurrency = Math.max(1, options.concurrency ?? 1);
     const pending: Array<() => void> = [];
     let active = 0;
@@ -141,7 +148,7 @@ export const queue =
       next();
     };
 
-    return (signal?: AbortSignal) =>
+    return (signal?: AbortSignal, ...args: Args) =>
       new Promise<T>((resolve, reject) => {
         const onAbort = () => reject(createAbortError());
         signal?.addEventListener("abort", onAbort, { once: true });
@@ -153,7 +160,7 @@ export const queue =
             return;
           }
           active += 1;
-          void taskFn(signal)
+          void taskFn(signal, ...args)
             .then(resolve)
             .catch(reject)
             .finally(() => {

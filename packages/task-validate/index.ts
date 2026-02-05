@@ -24,9 +24,10 @@ export type Validator<T> = {
  * Lightweight validate combinator for a TaskFn.
  */
 export const validate =
-  <T>(validator: Validator<T>) =>
-  (taskFn: TaskFn<unknown>): TaskFn<T> =>
-  async (signal?: AbortSignal) => validator.parse(await taskFn(signal));
+  <T, Args extends unknown[] = []>(validator: Validator<T>) =>
+  (taskFn: TaskFn<unknown, Args>): TaskFn<T, Args> =>
+  async (signal?: AbortSignal, ...args: Args) =>
+    validator.parse(await taskFn(signal, ...args));
 
 /**
  * Create a validator from a safeParse-style API (zod/io-ts/valibot style).

@@ -62,7 +62,7 @@ This example shows a debounced TaskFn and a polled Task.
 
 ### Task vs TaskFn utilities
 
-- `pollTask` works on a Task instance and calls `task.run()` on an interval.
+- `pollTask` works on a Task instance and calls `task.run(...args)` on an interval.
 - `debounce`, `throttle`, and `queue` wrap TaskFn and return a new TaskFn.
 
 ### Abort behavior
@@ -73,7 +73,7 @@ Debounced and queued TaskFns respect `AbortSignal`. Debounce rejects superseded 
 
 ```text
 TaskFn -> debounce/throttle/queue -> Task
-Task -> pollTask -> run() on interval
+Task -> pollTask -> run(...args) on interval
 ```
 
 ## API
@@ -123,7 +123,7 @@ queue({ concurrency: 2 })
 
 ### Guarantees
 
-- `pollTask` calls `task.run()` on each interval tick.
+- `pollTask` calls `task.run(...args)` on each interval tick.
 - Debounce rejects superseded calls with AbortError.
 - Queue respects configured concurrency.
 

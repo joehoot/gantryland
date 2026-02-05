@@ -42,13 +42,15 @@ export const createObservable = <T>(
 /**
  * Convert a Task into an Observable of TaskState.
  */
-export const fromTaskState = <T>(task: Task<T>): Observable<TaskState<T>> =>
+export const fromTaskState = <T, Args extends unknown[] = []>(
+  task: Task<T, Args>
+): Observable<TaskState<T>> =>
   createObservable((observer) => task.subscribe(observer.next));
 
 /**
  * Convert a Task into an Observable of resolved data.
  */
-export const fromTask = <T>(task: Task<T>): Observable<T> =>
+export const fromTask = <T, Args extends unknown[] = []>(task: Task<T, Args>): Observable<T> =>
   createObservable((observer) => {
     let last: T | undefined;
     return task.subscribe((state) => {
@@ -68,8 +70,10 @@ export const fromTask = <T>(task: Task<T>): Observable<T> =>
 /**
  * Convert an Observable into a TaskFn. Only the first value is used.
  */
-export const toTask = <T>(observable: Observable<T>): TaskFn<T> =>
-  (signal?: AbortSignal) =>
+export const toTask = <T, Args extends unknown[] = []>(
+  observable: Observable<T>
+): TaskFn<T, Args> =>
+  (signal?: AbortSignal, ..._args: Args) =>
     new Promise<T>((resolve, reject) => {
       if (signal?.aborted) {
         reject(createAbortError());

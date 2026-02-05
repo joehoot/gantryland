@@ -73,10 +73,10 @@ export class TimeoutError extends Error {
  * ```
  */
 export const map =
-  <T, U>(fn: (data: T) => U) =>
-  (taskFn: TaskFn<T>): TaskFn<U> =>
-  (signal?: AbortSignal) =>
-    taskFn(signal).then(fn);
+  <T, U, Args extends unknown[] = []>(fn: (data: T) => U) =>
+  (taskFn: TaskFn<T, Args>): TaskFn<U, Args> =>
+  (signal?: AbortSignal, ...args: Args) =>
+    taskFn(signal, ...args).then(fn);
 
 /**
  * Chains to another async operation. The inner function receives the
@@ -96,10 +96,10 @@ export const map =
  * ```
  */
 export const flatMap =
-  <T, U>(fn: (data: T, signal?: AbortSignal) => Promise<U>) =>
-  (taskFn: TaskFn<T>): TaskFn<U> =>
-  (signal?: AbortSignal) =>
-    taskFn(signal).then((data) => fn(data, signal));
+  <T, U, Args extends unknown[] = []>(fn: (data: T, signal?: AbortSignal) => Promise<U>) =>
+  (taskFn: TaskFn<T, Args>): TaskFn<U, Args> =>
+  (signal?: AbortSignal, ...args: Args) =>
+    taskFn(signal, ...args).then((data) => fn(data, signal));
 
 /**
  * Executes a side effect on success without modifying the data.
@@ -117,10 +117,10 @@ export const flatMap =
  * ```
  */
 export const tap =
-  <T>(fn: (data: T) => void) =>
-  (taskFn: TaskFn<T>): TaskFn<T> =>
-  (signal?: AbortSignal) =>
-    taskFn(signal).then((data) => {
+  <T, Args extends unknown[] = []>(fn: (data: T) => void) =>
+  (taskFn: TaskFn<T, Args>): TaskFn<T, Args> =>
+  (signal?: AbortSignal, ...args: Args) =>
+    taskFn(signal, ...args).then((data) => {
       fn(data);
       return data;
     });
@@ -144,10 +144,10 @@ export const tap =
  * ```
  */
 export const tapError =
-  <T>(fn: (error: unknown) => void) =>
-  (taskFn: TaskFn<T>): TaskFn<T> =>
-  (signal?: AbortSignal) =>
-    taskFn(signal).catch((err) => {
+  <T, Args extends unknown[] = []>(fn: (error: unknown) => void) =>
+  (taskFn: TaskFn<T, Args>): TaskFn<T, Args> =>
+  (signal?: AbortSignal, ...args: Args) =>
+    taskFn(signal, ...args).catch((err) => {
       if (!isAbortError(err)) fn(err);
       throw err;
     });
@@ -169,10 +169,10 @@ export const tapError =
  * ```
  */
 export const mapError =
-  <T>(fn: (error: unknown) => Error) =>
-  (taskFn: TaskFn<T>): TaskFn<T> =>
-  (signal?: AbortSignal) =>
-    taskFn(signal).catch((err) => {
+  <T, Args extends unknown[] = []>(fn: (error: unknown) => Error) =>
+  (taskFn: TaskFn<T, Args>): TaskFn<T, Args> =>
+  (signal?: AbortSignal, ...args: Args) =>
+    taskFn(signal, ...args).catch((err) => {
       if (isAbortError(err)) throw err;
       throw fn(err);
     });
@@ -198,10 +198,10 @@ export const mapError =
  * ```
  */
 export const catchError =
-  <T>(fallback: T | ((err: unknown) => T)) =>
-  (taskFn: TaskFn<T>): TaskFn<T> =>
-  (signal?: AbortSignal) =>
-    taskFn(signal).catch((err) => {
+  <T, Args extends unknown[] = []>(fallback: T | ((err: unknown) => T)) =>
+  (taskFn: TaskFn<T, Args>): TaskFn<T, Args> =>
+  (signal?: AbortSignal, ...args: Args) =>
+    taskFn(signal, ...args).catch((err) => {
       if (isAbortError(err)) throw err;
       return typeof fallback === "function"
         ? (fallback as (err: unknown) => T)(err)
@@ -227,15 +227,15 @@ export const catchError =
  * ```
  */
 export const retry =
-  <T>(attempts: number) =>
-  (taskFn: TaskFn<T>): TaskFn<T> =>
-  async (signal?: AbortSignal) => {
+  <T, Args extends unknown[] = []>(attempts: number) =>
+  (taskFn: TaskFn<T, Args>): TaskFn<T, Args> =>
+  async (signal?: AbortSignal, ...args: Args) => {
     const maxAttempts = Math.max(0, attempts);
     let lastError: unknown;
     for (let i = 0; i <= maxAttempts; i++) {
       if (signal?.aborted) throw createAbortError();
       try {
-        return await taskFn(signal);
+        return await taskFn(signal, ...args);
       } catch (err) {
         if (isAbortError(err)) throw err;
         lastError = err;
@@ -262,9 +262,9 @@ export const retry =
  * ```
  */
 export const timeout =
-  <T>(ms: number) =>
-  (taskFn: TaskFn<T>): TaskFn<T> =>
-  (signal?: AbortSignal) =>
+  <T, Args extends unknown[] = []>(ms: number) =>
+  (taskFn: TaskFn<T, Args>): TaskFn<T, Args> =>
+  (signal?: AbortSignal, ...args: Args) =>
     new Promise((resolve, reject) => {
       if (signal?.aborted) {
         reject(createAbortError());
@@ -282,7 +282,7 @@ export const timeout =
 
       signal?.addEventListener("abort", onAbort, { once: true });
 
-      taskFn(signal)
+      taskFn(signal, ...args)
         .then(resolve)
         .catch(reject)
         .finally(() => {
@@ -301,69 +301,72 @@ export const timeout =
  * @returns A combinator that resolves with the original or fallback result
  */
 export const timeoutWith =
-  <T>(ms: number, fallback: TaskFn<T>) =>
-  (taskFn: TaskFn<T>): TaskFn<T> =>
-  (signal?: AbortSignal) =>
-    timeout<T>(ms)(taskFn)(signal).catch((err) => {
-      if (err instanceof TimeoutError) return fallback(signal);
+  <T, Args extends unknown[] = []>(ms: number, fallback: TaskFn<T, Args>) =>
+  (taskFn: TaskFn<T, Args>): TaskFn<T, Args> =>
+  (signal?: AbortSignal, ...args: Args) =>
+    timeout<T, Args>(ms)(taskFn)(signal, ...args).catch((err) => {
+      if (err instanceof TimeoutError) return fallback(signal, ...args);
       throw err;
     });
 
 /**
  * Runs TaskFns in parallel and resolves with a tuple of results.
  */
-export function zip<A, B>(a: TaskFn<A>, b: TaskFn<B>): TaskFn<[A, B]>;
-export function zip<A, B, C>(
-  a: TaskFn<A>,
-  b: TaskFn<B>,
-  c: TaskFn<C>,
-): TaskFn<[A, B, C]>;
-export function zip<A, B, C, D>(
-  a: TaskFn<A>,
-  b: TaskFn<B>,
-  c: TaskFn<C>,
-  d: TaskFn<D>,
-): TaskFn<[A, B, C, D]>;
-export function zip<A, B, C, D, E>(
-  a: TaskFn<A>,
-  b: TaskFn<B>,
-  c: TaskFn<C>,
-  d: TaskFn<D>,
-  e: TaskFn<E>,
-): TaskFn<[A, B, C, D, E]>;
-export function zip(
-  ...taskFns: TaskFn<unknown>[]
-): TaskFn<unknown[]> {
-  return (signal?: AbortSignal) =>
-    Promise.all(taskFns.map((fn) => fn(signal)));
+export function zip<A, B, Args extends unknown[] = []>(
+  a: TaskFn<A, Args>,
+  b: TaskFn<B, Args>
+): TaskFn<[A, B], Args>;
+export function zip<A, B, C, Args extends unknown[] = []>(
+  a: TaskFn<A, Args>,
+  b: TaskFn<B, Args>,
+  c: TaskFn<C, Args>
+): TaskFn<[A, B, C], Args>;
+export function zip<A, B, C, D, Args extends unknown[] = []>(
+  a: TaskFn<A, Args>,
+  b: TaskFn<B, Args>,
+  c: TaskFn<C, Args>,
+  d: TaskFn<D, Args>
+): TaskFn<[A, B, C, D], Args>;
+export function zip<A, B, C, D, E, Args extends unknown[] = []>(
+  a: TaskFn<A, Args>,
+  b: TaskFn<B, Args>,
+  c: TaskFn<C, Args>,
+  d: TaskFn<D, Args>,
+  e: TaskFn<E, Args>
+): TaskFn<[A, B, C, D, E], Args>;
+export function zip<Args extends unknown[]>(
+  ...taskFns: TaskFn<unknown, Args>[]
+): TaskFn<unknown[], Args> {
+  return (signal?: AbortSignal, ...args: Args) =>
+    Promise.all(taskFns.map((fn) => fn(signal, ...args)));
 }
 
 /**
  * Runs TaskFns in parallel and resolves with an array of results.
  */
 export const all =
-  <T>(taskFns: TaskFn<T>[]): TaskFn<T[]> =>
-  (signal?: AbortSignal) =>
-    Promise.all(taskFns.map((fn) => fn(signal)));
+  <T, Args extends unknown[] = []>(taskFns: TaskFn<T, Args>[]): TaskFn<T[], Args> =>
+  (signal?: AbortSignal, ...args: Args) =>
+    Promise.all(taskFns.map((fn) => fn(signal, ...args)));
 
 /**
  * Resolves or rejects with the first TaskFn to settle.
  */
 export const race =
-  <T>(...taskFns: TaskFn<T>[]): TaskFn<T> =>
-  (signal?: AbortSignal) =>
-    Promise.race(taskFns.map((fn) => fn(signal)));
+  <T, Args extends unknown[] = []>(...taskFns: TaskFn<T, Args>[]): TaskFn<T, Args> =>
+  (signal?: AbortSignal, ...args: Args) =>
+    Promise.race(taskFns.map((fn) => fn(signal, ...args)));
 
 /**
  * Runs TaskFns sequentially and resolves with all results.
  */
 export const sequence =
-  <T>(...taskFns: TaskFn<T>[]): TaskFn<T[]> =>
-  async (signal?: AbortSignal) => {
+  <T, Args extends unknown[] = []>(...taskFns: TaskFn<T, Args>[]): TaskFn<T[], Args> =>
+  async (signal?: AbortSignal, ...args: Args) => {
     const results: T[] = [];
     for (const fn of taskFns) {
       if (signal?.aborted) throw createAbortError();
-      results.push(await fn(signal));
+      results.push(await fn(signal, ...args));
     }
     return results;
   };
@@ -377,9 +380,9 @@ export const concat = sequence;
  * Defers creation of a TaskFn until run time.
  */
 export const defer =
-  <T>(factory: () => TaskFn<T>): TaskFn<T> =>
-  (signal?: AbortSignal) =>
-    factory()(signal);
+  <T, Args extends unknown[] = []>(factory: () => TaskFn<T, Args>): TaskFn<T, Args> =>
+  (signal?: AbortSignal, ...args: Args) =>
+    factory()(signal, ...args);
 
 /**
  * Alias for defer.
@@ -395,18 +398,18 @@ type RetryWhenOptions = {
  * Retries while the predicate returns true. Skips AbortError.
  */
 export const retryWhen =
-  <T>(
+  <T, Args extends unknown[] = []>(
     shouldRetry: (err: unknown, attempt: number) => boolean | Promise<boolean>,
     options: RetryWhenOptions = {},
   ) =>
-  (taskFn: TaskFn<T>): TaskFn<T> =>
-  async (signal?: AbortSignal) => {
+  (taskFn: TaskFn<T, Args>): TaskFn<T, Args> =>
+  async (signal?: AbortSignal, ...args: Args) => {
     const maxAttempts = Math.max(0, options.maxAttempts ?? Infinity);
     let attempt = 0;
     while (true) {
       if (signal?.aborted) throw createAbortError();
       try {
-        return await taskFn(signal);
+        return await taskFn(signal, ...args);
       } catch (err) {
         if (isAbortError(err)) throw err;
         attempt += 1;
@@ -429,9 +432,9 @@ type BackoffOptions = {
  * Retries with a fixed or computed delay between attempts.
  */
 export const backoff =
-  <T>(options: BackoffOptions) =>
-  (taskFn: TaskFn<T>): TaskFn<T> =>
-    retryWhen<T>(
+  <T, Args extends unknown[] = []>(options: BackoffOptions) =>
+  (taskFn: TaskFn<T, Args>): TaskFn<T, Args> =>
+    retryWhen<T, Args>(
       (err) => (options.shouldRetry ? options.shouldRetry(err) : true),
       {
         maxAttempts: options.attempts,

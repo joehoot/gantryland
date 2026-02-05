@@ -192,7 +192,8 @@ describe("useTask", () => {
     });
 
     const [task] = result.current;
-    rerender({ taskFn: async () => "changed" });
+    const nextFn = vi.fn(async () => "changed");
+    rerender({ taskFn: nextFn });
     expect(result.current[0]).toBe(task);
   });
 

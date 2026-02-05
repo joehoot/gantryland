@@ -48,6 +48,16 @@ describe("Task", () => {
     unsub();
   });
 
+  it("passes args to run", async () => {
+    const task = new Task<string, [number, string]>(async (_signal, id, label) =>
+      Promise.resolve(`${id}:${label}`)
+    );
+
+    await task.run(7, "ok");
+
+    expect(task.getState().data).toBe("7:ok");
+  });
+
   it("preserves data when run fails", async () => {
     const task = new Task(async () => "initial");
     await task.run();
