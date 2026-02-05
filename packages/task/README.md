@@ -112,4 +112,4 @@ export async function runUserTask(id: string) {
 
 - [task-combinators](../task-combinators/) - Composable operators for TaskFn
 - [task-hooks](../task-hooks/) - React bindings
-- [task-cache](../task-cache/) - Caching combinator
+- [task-cache](../task-cache/) - Caching primitives and combinators

@@ -9,6 +9,7 @@ React hooks for the Task library. Requires React 18+ (uses `useSyncExternalStore
 Creates a Task instance and subscribes to its state. Accepts a TaskFn or a factory.
 
 ```typescript
+import { Task } from "@gantryland/task";
 import { useTask } from "@gantryland/task-hooks";
 
 const [task, state] = useTask(() => new Task(fetchUser), { mode: "factory" });
@@ -25,7 +26,7 @@ When passing a factory, set `{ mode: "factory" }` so it doesn't get treated as a
 Runs a task on mount if it's stale and not already loading. You can gate it with options.
 
 ```typescript
-import { useTaskOnce } from "@gantryland/task-hooks";
+import { useTask, useTaskOnce } from "@gantryland/task-hooks";
 
 const [task] = useTask(fetchUser);
 useTaskOnce(task, { enabled: true });
@@ -111,6 +112,8 @@ return <UserList users={data} />;
 ### Shared task instance
 
 ```typescript
+import { Task } from "@gantryland/task";
+
 // tasks/user.ts
 export const userTask = new Task<User>(fetchUser);
 
