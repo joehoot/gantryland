@@ -195,11 +195,11 @@ export const mapError =
     });
 
 /**
- * Recovers from errors with a fallback value. Skips AbortError
+ * Recovers from errors with a fallback value or promise. Skips AbortError
  * (cancellations should propagate, not be caught).
  *
  * @template T - The data type
- * @param fallback - A value or function that computes the fallback
+ * @param fallback - A value, promise, or function that computes the fallback
  * @returns A combinator that catches errors and returns the fallback
  *
  * @example
@@ -211,6 +211,12 @@ export const mapError =
  * pipe(fetchUsers, catchError((err) => {
  *   console.warn('Using cached data due to:', err);
  *   return cachedUsers;
+ * }))
+ *
+ * // Async fallback
+ * pipe(fetchUsers, catchError(async (err) => {
+ *   await reportError(err);
+ *   return await loadCachedUsers();
  * }))
  * ```
  */
@@ -237,6 +243,7 @@ export const catchError =
  *
  * @template T - The data type
  * @param attempts - Number of retry attempts (not total attempts)
+ * @param options - Optional hooks for retry behavior
  * @returns A combinator that retries the TaskFn on failure
  *
  * @example
@@ -244,6 +251,7 @@ export const catchError =
  * pipe(
  *   fetchUsers,
  *   retry(2), // 3 total attempts
+ *   retry(2, { onRetry: (err, attempt) => console.warn('retry', attempt, err) }),
  *   timeout(5000)
  * )
  * ```
@@ -320,6 +328,9 @@ export const timeout =
 /**
  * Fails if the TaskFn doesn't resolve within the specified duration.
  * Aborts the underlying task on timeout.
+ *
+ * If the task rejects with AbortError due to the timeout, the combinator
+ * normalizes this to TimeoutError for consistent handling.
  */
 export const timeoutAbort =
   <T, Args extends unknown[] = []>(ms: number) =>
@@ -371,7 +382,7 @@ export const timeoutAbort =
 
 /**
  * Fails after the specified duration, then runs a fallback TaskFn.
- * Does not abort the original task.
+ * Does not abort the original task. AbortError is rethrown.
  *
  * @template T - The data type
  * @param ms - Timeout in milliseconds
@@ -475,6 +486,7 @@ type RetryWhenOptions = {
 
 /**
  * Retries while the predicate returns true. Skips AbortError.
+ * Optional onRetry is called before any delay.
  */
 export const retryWhen =
   <T, Args extends unknown[] = []>(
@@ -531,7 +543,7 @@ export const backoff =
  * Composes functions left to right. Pass a value and a series of
  * functions to transform it through.
  *
- * @param a - The initial value (typically a TaskFn)
+ * @param initial - The initial value (typically a TaskFn)
  * @param fns - Functions to apply in sequence
  * @returns The result of piping through all functions
  *
