@@ -1,92 +1,117 @@
 # Task Cache
 
-Cache combinator for Task. Skip fetches when data is fresh.
+Cache primitives and combinators for Task. Designed to compose with
+`@gantryland/task` and `@gantryland/task-combinators`.
 
 Works in browser and Node.js with no dependencies.
 
 ## Quick start
 
 ```typescript
-import { CacheStore, cached } from "@gantryland/task-cache";
+import { MemoryCacheStore, cache, staleWhileRevalidate } from "@gantryland/task-cache";
 import { Task } from "@gantryland/task";
 import { pipe } from "@gantryland/task-combinators";
 
-const cache = new CacheStore();
+const store = new MemoryCacheStore();
 
 const task = new Task(
   pipe(
     () => fetch("/api/users").then((r) => r.json()),
-    cached("users", cache, 60_000) // skip fetch if cached within 1 min
+    cache("users", store, { ttl: 60_000 })
   )
 );
 
 await task.run(); // fetches
-await task.run(); // cache hit, no fetch
+await task.run(); // cache hit
 
-cache.invalidate("users");
-await task.run(); // fetches again
+const swrTask = new Task(
+  pipe(
+    () => fetch("/api/users").then((r) => r.json()),
+    staleWhileRevalidate("users", store, { ttl: 30_000, staleTtl: 60_000 })
+  )
+);
 ```
 
 ## API
 
 ### CacheStore
 
-```typescript
-const cache = new CacheStore();
-
-cache.get<T>(key, maxAge?): T | undefined
-cache.peek<T>(key): T | undefined
-cache.set(key, data): void
-cache.has(key, maxAge?): boolean
-cache.invalidate(key?): void  // no key = clear all
-cache.delete(key): void  // alias for invalidate(key)
-```
-
-### cached combinator
+Minimal interface for cache backends.
 
 ```typescript
-cached<T>(key: string, store: CacheStore, maxAge?: number)
-```
-
-Wraps a TaskFn. Returns cached data if fresh, otherwise fetches and caches.
-
-Concurrent requests for the same key share the in-flight result.
-
-## Patterns
-
-### Shared cache across tasks
-
-```typescript
-import { pipe, map } from "@gantryland/task-combinators";
-
-const cache = new CacheStore();
-
-const usersTask = new Task(pipe(fetchUsers, cached("users", cache)));
-const activeUsersTask = new Task(
-  pipe(fetchUsers, cached("users", cache), map(u => u.filter(x => x.active)))
-);
-// Both hit the same cache entry
-```
-
-### Invalidate on mutation
-
-```typescript
-async function deleteUser(id: string) {
-  await api.deleteUser(id);
-  cache.invalidate("users");
-  await usersTask.run();
+type CacheStore = {
+  get<T>(key: CacheKey): CacheEntry<T> | undefined
+  set<T>(key: CacheKey, entry: CacheEntry<T>): void
+  delete(key: CacheKey): void
+  clear(): void
+  has(key: CacheKey): boolean
+  keys?(): Iterable<CacheKey>
+  subscribe?(listener: (event: CacheEvent) => void): () => void
+  emit?(event: CacheEvent): void
+  invalidateTags?(tags: string[]): void
 }
 ```
 
-### TTL-based freshness
+### MemoryCacheStore
+
+In-memory store with tag invalidation and event emission.
 
 ```typescript
-// Cache for 5 minutes
-cached("users", cache, 5 * 60 * 1000)
-
-// Cache forever (until manual invalidation)
-cached("users", cache)
-
-// Cache expires immediately (always stale)
-cached("users", cache, 0)
+const store = new MemoryCacheStore();
+store.invalidateTags(["users"]);
+store.subscribe((event) => console.log(event.type));
 ```
+
+Events include: `hit`, `miss`, `stale`, `set`, `invalidate`, `clear`, `revalidate`.
+
+### cache
+
+Return cached data if fresh, otherwise fetch and cache.
+
+```typescript
+cache("users", store, { ttl: 60_000, tags: ["users"] })
+```
+
+Options:
+
+```typescript
+type CacheOptions = {
+  ttl?: number
+  staleTtl?: number
+  tags?: string[]
+  dedupe?: boolean
+}
+```
+
+### staleWhileRevalidate
+
+Return stale data if within the stale window and refresh in the background.
+
+```typescript
+staleWhileRevalidate("users", store, { ttl: 30_000, staleTtl: 60_000 })
+```
+
+### invalidateOnResolve
+
+Invalidate keys or tags after a TaskFn resolves.
+
+```typescript
+invalidateOnResolve("users", store)
+invalidateOnResolve({ tags: ["users"] }, store)
+invalidateOnResolve((result) => ["users", `user:${result.id}`], store)
+```
+
+### cacheKey
+
+Helper for consistent cache keys.
+
+```typescript
+cacheKey("user", userId)
+```
+
+## Notes
+
+- `cache` is strict: expired entries are re-fetched.
+- `staleWhileRevalidate` returns stale data during the stale window and refreshes in the background.
+- In-flight dedupe is enabled by default (`dedupe: false` to opt out).
+- Tag invalidation requires a store that supports `invalidateTags` (MemoryCacheStore does).
