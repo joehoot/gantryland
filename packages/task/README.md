@@ -130,9 +130,9 @@ new Task<T, Args>(fn?: TaskFn<T, Args>)
 | [`getState()`](#taskgetstate) | Read current snapshot | `TaskState<T>` |
 | [`subscribe(fn)`](#tasksubscribe) | Listen to state changes | `Unsubscribe` |
 | **Run/Update** |  |  |
-| [`run(...args)`](#taskrun) | Execute TaskFn | `Promise<void>` |
+| [`run(...args)`](#taskrun) | Execute TaskFn | `Promise<T | undefined>` |
 | [`resolveWith(data)`](#taskresolvewith) | Set data without running | `void` |
-| [`define(fn)`](#taskdefine) | Replace TaskFn | `void` |
+| [`define(fn)`](#taskdefine) | Replace TaskFn | `Task<T, Args>` |
 | **Control/Cleanup** |  |  |
 | [`cancel()`](#taskcancel) | Abort in-flight run | `void` |
 | [`reset()`](#taskreset) | Return to initial state | `void` |
@@ -167,10 +167,11 @@ const unsubscribe = task.subscribe((state) => console.log(state));
 #### task.run
 
 ```typescript
-await task.run(...args): Promise<void>
+await task.run(...args): Promise<T | undefined>
 ```
 
-Runs the TaskFn and updates state on completion.
+Runs the TaskFn and updates state on completion. Resolves with data on success,
+or `undefined` on error, abort, or when superseded by a newer run.
 
 ```typescript
 await task.run();
@@ -180,10 +181,10 @@ await task.run(userId, includeFlags);
 #### task.define
 
 ```typescript
-task.define(fn: TaskFn<T, Args>): void
+task.define(fn: TaskFn<T, Args>): Task<T, Args>
 ```
 
-Replaces the TaskFn for subsequent runs.
+Replaces the TaskFn for subsequent runs and returns the task.
 
 You can also create a blank Task and provide the TaskFn later:
 

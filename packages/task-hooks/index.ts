@@ -64,10 +64,10 @@ type UseTaskRunOptions<Args extends unknown[]> = {
 export const useTaskRun = <T, Args extends unknown[] = []>(
   task: Task<T, Args> | null | undefined,
   options: UseTaskRunOptions<Args> = {}
-): ((...args: Args) => Promise<void>) => {
+): ((...args: Args) => Promise<T | undefined>) => {
   const { auto = false, deps = [], args } = options;
   const run = useCallback(
-    (...runArgs: Args) => (task ? task.run(...runArgs) : Promise.resolve()),
+    (...runArgs: Args) => (task ? task.run(...runArgs) : Promise.resolve(undefined)),
     [task]
   );
 

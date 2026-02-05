@@ -75,7 +75,7 @@ type RouteTask<T> = {
   task: Task<T>;
   getParams: () => RouteParams;
   setParams: (params: RouteParams) => void;
-  run: (params?: RouteParams) => Promise<void>;
+  run: (params?: RouteParams) => Promise<T | undefined>;
 };
 ```
 

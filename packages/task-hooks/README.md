@@ -105,7 +105,7 @@ useTaskOnce/useTaskRun -> run when conditions match
 | [`useTask`](#usetask) | Create Task and subscribe | `[Task, TaskState]` |
 | [`useTaskOnce`](#usetaskonce) | Run on mount if stale | `void` |
 | [`useTaskState`](#usetaskstate) | Subscribe to state or slice | `TaskState` or selected value |
-| [`useTaskRun`](#usetaskrun) | Stable run callback | `(...args) => Promise<void>` |
+| [`useTaskRun`](#usetaskrun) | Stable run callback | `(...args) => Promise<T | undefined>` |
 | [`useTaskResult`](#usetaskresult) | Full TaskState | `TaskState` |
 | [`useTaskError`](#usetaskerror) | Error-only selector | `unknown | undefined` |
 | [`useTaskAbort`](#usetaskabort) | Stable cancel callback | `() => void` |
@@ -147,7 +147,8 @@ Accepts `null` or `undefined` and returns a default stale state. You can provide
 
 ### useTaskRun
 
-Returns a stable `run()` callback. Optionally auto-runs when dependencies change.
+Returns a stable `run()` callback. Resolves with data on success or `undefined`
+on error, abort, or when superseded. Optionally auto-runs when dependencies change.
 
 ```tsx
 const run = useTaskRun(task);

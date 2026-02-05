@@ -96,6 +96,16 @@ export class Task<T, Args extends unknown[] = []> {
     this.fn = fn ?? null;
   }
 
+  private setState(state: TaskState<T>): void {
+    this._state = state;
+    this._notify();
+  }
+
+  private updateState(partial: Partial<TaskState<T>>): void {
+    this._state = { ...this._state, ...partial };
+    this._notify();
+  }
+
   private _notify() {
     for (const listener of this.listeners) {
       try {
@@ -120,9 +130,10 @@ export class Task<T, Args extends unknown[] = []> {
    * await task.run();
    * ```
    */
-  define(fn: TaskFn<T, Args>) {
+  define(fn: TaskFn<T, Args>): this {
     this.cancel();
     this.fn = fn;
+    return this;
   }
 
   /**
@@ -140,51 +151,11 @@ export class Task<T, Args extends unknown[] = []> {
    * await task.run(); // aborts previous, fetches again
    * ```
    */
-  private async runInternal(args: Args): Promise<void> {
-    if (!this.fn) {
-      throw new Error("TaskFn is not set. Call define() before run().");
-    }
-    const currentRequestId = ++this.requestId;
-    this.abortController?.abort();
-    this.abortController = new AbortController();
-
-    this._state = {
-      ...this._state,
-      isLoading: true,
-      isStale: false,
-      error: undefined,
-    };
-    this._notify();
-
-    try {
-      const data = await this.fn(this.abortController.signal, ...args);
-      if (currentRequestId !== this.requestId) return;
-      this._state = {
-        data,
-        error: undefined,
-        isLoading: false,
-        isStale: false,
-      };
-      this.abortController = null;
-    } catch (err) {
-      if (currentRequestId !== this.requestId) return;
-      if (isAbortError(err)) {
-        this._state = { ...this._state, isLoading: false };
-        this.abortController = null;
-        this._notify();
-        return;
-      }
-      this._state = { ...this._state, error: err, isLoading: false };
-      this.abortController = null;
-    }
-
-    this._notify();
-  }
-
   /**
    * Executes the TaskFn and updates state reactively.
    *
    * @param args - Arguments forwarded to the TaskFn
+   * @returns Resolved data when successful, otherwise undefined
    *
    * @example
    * ```typescript
@@ -192,8 +163,39 @@ export class Task<T, Args extends unknown[] = []> {
    * await task.run(userId, includeFlags);
    * ```
    */
-  async run(...args: Args): Promise<void> {
-    return this.runInternal(args);
+  async run(...args: Args): Promise<T | undefined> {
+    if (!this.fn) {
+      throw new Error("TaskFn is not set. Call define() before run().");
+    }
+    const currentRequestId = ++this.requestId;
+    this.abortController?.abort();
+    this.abortController = new AbortController();
+
+    this.updateState({ isLoading: true, isStale: false, error: undefined });
+
+    try {
+      const data = await this.fn(this.abortController.signal, ...args);
+      if (currentRequestId !== this.requestId) return undefined;
+      this.abortController = null;
+      this.setState({
+        data,
+        error: undefined,
+        isLoading: false,
+        isStale: false,
+      });
+      return data;
+    } catch (err) {
+      if (currentRequestId !== this.requestId) return undefined;
+      this.abortController = null;
+      if (isAbortError(err)) {
+        if (this._state.isLoading) {
+          this.updateState({ isLoading: false });
+        }
+        return undefined;
+      }
+      this.updateState({ error: err, isLoading: false });
+      return undefined;
+    }
   }
 
   /**
@@ -255,13 +257,13 @@ export class Task<T, Args extends unknown[] = []> {
   resolveWith(data: T): void {
     this.requestId += 1;
     this.abortController?.abort();
-    this._state = {
+    this.abortController = null;
+    this.setState({
       data,
       error: undefined,
       isLoading: false,
       isStale: false,
-    };
-    this._notify();
+    });
   }
 
   /**
@@ -280,8 +282,7 @@ export class Task<T, Args extends unknown[] = []> {
     this.abortController.abort();
     this.abortController = null;
     if (this._state.isLoading) {
-      this._state = { ...this._state, isLoading: false };
-      this._notify();
+      this.updateState({ isLoading: false });
     }
   }
 
@@ -299,8 +300,7 @@ export class Task<T, Args extends unknown[] = []> {
     this.requestId += 1;
     this.abortController?.abort();
     this.abortController = null;
-    this._state = createDefaultTaskState<T>();
-    this._notify();
+    this.setState(createDefaultTaskState<T>());
   }
 
   /**

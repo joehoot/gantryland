@@ -20,7 +20,7 @@ export type RouteTask<T, Args extends unknown[] = []> = {
   task: Task<T, Args>;
   getParams: () => RouteParams;
   setParams: (params: RouteParams) => void;
-  run: (params?: RouteParams, ...args: Args) => Promise<void>;
+  run: (params?: RouteParams, ...args: Args) => Promise<T | undefined>;
 };
 
 /**
@@ -82,7 +82,7 @@ export const createRouteTask = <T, Args extends unknown[] = []>(
 
   const run = async (params?: RouteParams, ...args: Args) => {
     if (params) setParams(params);
-    await task.run(...args);
+    return task.run(...args);
   };
 
   return { task, getParams, setParams, run };
@@ -96,7 +96,7 @@ export const createPathTask = <T, Args extends unknown[] = []>(
   taskForParams: (params: RouteParams) => TaskFn<T, Args>,
   initialPath?: string
 ): RouteTask<T, Args> & {
-  runPath: (path: string, ...args: Args) => Promise<void>;
+  runPath: (path: string, ...args: Args) => Promise<T | undefined>;
 } => {
   const initialMatch = initialPath ? matchRoute(pattern, initialPath) : null;
   const routeTask = createRouteTask(taskForParams, initialMatch?.params ?? {});
@@ -104,7 +104,7 @@ export const createPathTask = <T, Args extends unknown[] = []>(
   const runPath = async (path: string, ...args: Args) => {
     const match = matchRoute(pattern, path);
     if (!match) throw new Error(`Path does not match pattern: ${pattern}`);
-    await routeTask.run(match.params, ...args);
+    return routeTask.run(match.params, ...args);
   };
 
   return { ...routeTask, runPath };
