@@ -96,6 +96,22 @@ retry(2)
 
 Negative attempts are treated as 0.
 
+### retryWhen
+
+Retry while a predicate returns true.
+
+```typescript
+retryWhen((err, attempt) => attempt < 3)
+```
+
+### backoff
+
+Retry with a fixed or computed delay.
+
+```typescript
+backoff({ attempts: 3, delayMs: (attempt) => attempt * 250 })
+```
+
 ### timeout
 
 Fail after duration. Respects abort signal; does not abort the underlying task.
@@ -103,6 +119,70 @@ Rejects with `TimeoutError`.
 
 ```typescript
 timeout(5000)  // 5 seconds
+```
+
+### timeoutWith
+
+Fallback TaskFn on timeout.
+
+```typescript
+timeoutWith(3000, () => fetchCachedUsers())
+```
+
+### zip
+
+Run TaskFns in parallel and return a tuple of results.
+
+```typescript
+zip(fetchUser, fetchTeams)
+```
+
+### all
+
+Run TaskFns in parallel and return an array of results.
+
+```typescript
+all([fetchUser, fetchTeams])
+```
+
+### race
+
+Resolve or reject with the first TaskFn to settle.
+
+```typescript
+race(fetchPrimary, fetchReplica)
+```
+
+### sequence
+
+Run TaskFns sequentially and return all results.
+
+```typescript
+sequence(fetchUser, fetchTeams)
+```
+
+### concat
+
+Alias for `sequence`.
+
+```typescript
+concat(fetchUser, fetchTeams)
+```
+
+### defer
+
+Defer creation of a TaskFn until run time.
+
+```typescript
+defer(() => fetchUserTaskFn(id))
+```
+
+### lazy
+
+Alias for `defer`.
+
+```typescript
+lazy(() => fetchUserTaskFn(id))
 ```
 
 ### TimeoutError

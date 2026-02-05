@@ -7,6 +7,43 @@ const isAbortError = (err: unknown): boolean => {
   return (err as Error).name === "AbortError";
 };
 
+const createAbortError = (): Error => {
+  if (typeof DOMException !== "undefined") {
+    return new DOMException("Aborted", "AbortError");
+  }
+  const error = new Error("Aborted");
+  error.name = "AbortError";
+  return error;
+};
+
+const sleep = (ms: number, signal?: AbortSignal): Promise<void> =>
+  new Promise((resolve, reject) => {
+    if (signal?.aborted) {
+      reject(createAbortError());
+      return;
+    }
+
+    let settled = false;
+    const cleanup = () => {
+      if (settled) return;
+      settled = true;
+      signal?.removeEventListener("abort", onAbort);
+    };
+
+    const timer = setTimeout(() => {
+      cleanup();
+      resolve();
+    }, ms);
+
+    const onAbort = () => {
+      clearTimeout(timer);
+      cleanup();
+      reject(createAbortError());
+    };
+
+    signal?.addEventListener("abort", onAbort, { once: true });
+  });
+
 export class TimeoutError extends Error {
   constructor(message = "Timeout") {
     super(message);
@@ -193,7 +230,7 @@ export const retry =
     const maxAttempts = Math.max(0, attempts);
     let lastError: unknown;
     for (let i = 0; i <= maxAttempts; i++) {
-      if (signal?.aborted) throw new DOMException("Aborted", "AbortError");
+      if (signal?.aborted) throw createAbortError();
       try {
         return await taskFn(signal);
       } catch (err) {
@@ -227,7 +264,7 @@ export const timeout =
   (signal?: AbortSignal) =>
     new Promise((resolve, reject) => {
       if (signal?.aborted) {
-        reject(new DOMException("Aborted", "AbortError"));
+        reject(createAbortError());
         return;
       }
 
@@ -237,7 +274,7 @@ export const timeout =
 
       const onAbort = () => {
         clearTimeout(timer);
-        reject(new DOMException("Aborted", "AbortError"));
+        reject(createAbortError());
       };
 
       signal?.addEventListener("abort", onAbort, { once: true });
@@ -250,6 +287,157 @@ export const timeout =
           signal?.removeEventListener("abort", onAbort);
         });
     });
+
+/**
+ * Fails after the specified duration, then runs a fallback TaskFn.
+ * Does not abort the original task.
+ *
+ * @template T - The data type
+ * @param ms - Timeout in milliseconds
+ * @param fallback - TaskFn to run on timeout
+ * @returns A combinator that resolves with the original or fallback result
+ */
+export const timeoutWith =
+  <T>(ms: number, fallback: TaskFn<T>) =>
+  (taskFn: TaskFn<T>): TaskFn<T> =>
+  (signal?: AbortSignal) =>
+    timeout<T>(ms)(taskFn)(signal).catch((err) => {
+      if (err instanceof TimeoutError) return fallback(signal);
+      throw err;
+    });
+
+/**
+ * Runs TaskFns in parallel and resolves with a tuple of results.
+ */
+export function zip<A, B>(a: TaskFn<A>, b: TaskFn<B>): TaskFn<[A, B]>;
+export function zip<A, B, C>(
+  a: TaskFn<A>,
+  b: TaskFn<B>,
+  c: TaskFn<C>,
+): TaskFn<[A, B, C]>;
+export function zip<A, B, C, D>(
+  a: TaskFn<A>,
+  b: TaskFn<B>,
+  c: TaskFn<C>,
+  d: TaskFn<D>,
+): TaskFn<[A, B, C, D]>;
+export function zip<A, B, C, D, E>(
+  a: TaskFn<A>,
+  b: TaskFn<B>,
+  c: TaskFn<C>,
+  d: TaskFn<D>,
+  e: TaskFn<E>,
+): TaskFn<[A, B, C, D, E]>;
+export function zip(
+  ...taskFns: TaskFn<unknown>[]
+): TaskFn<unknown[]> {
+  return (signal?: AbortSignal) =>
+    Promise.all(taskFns.map((fn) => fn(signal)));
+}
+
+/**
+ * Runs TaskFns in parallel and resolves with an array of results.
+ */
+export const all =
+  <T>(taskFns: TaskFn<T>[]): TaskFn<T[]> =>
+  (signal?: AbortSignal) =>
+    Promise.all(taskFns.map((fn) => fn(signal)));
+
+/**
+ * Resolves or rejects with the first TaskFn to settle.
+ */
+export const race =
+  <T>(...taskFns: TaskFn<T>[]): TaskFn<T> =>
+  (signal?: AbortSignal) =>
+    Promise.race(taskFns.map((fn) => fn(signal)));
+
+/**
+ * Runs TaskFns sequentially and resolves with all results.
+ */
+export const sequence =
+  <T>(...taskFns: TaskFn<T>[]): TaskFn<T[]> =>
+  async (signal?: AbortSignal) => {
+    const results: T[] = [];
+    for (const fn of taskFns) {
+      if (signal?.aborted) throw createAbortError();
+      results.push(await fn(signal));
+    }
+    return results;
+  };
+
+/**
+ * Alias for sequence.
+ */
+export const concat = sequence;
+
+/**
+ * Defers creation of a TaskFn until run time.
+ */
+export const defer =
+  <T>(factory: () => TaskFn<T>): TaskFn<T> =>
+  (signal?: AbortSignal) =>
+    factory()(signal);
+
+/**
+ * Alias for defer.
+ */
+export const lazy = defer;
+
+type RetryWhenOptions = {
+  maxAttempts?: number;
+  delayMs?: (attempt: number, err: unknown) => number;
+};
+
+/**
+ * Retries while the predicate returns true. Skips AbortError.
+ */
+export const retryWhen =
+  <T>(
+    shouldRetry: (err: unknown, attempt: number) => boolean | Promise<boolean>,
+    options: RetryWhenOptions = {},
+  ) =>
+  (taskFn: TaskFn<T>): TaskFn<T> =>
+  async (signal?: AbortSignal) => {
+    const maxAttempts = Math.max(0, options.maxAttempts ?? Infinity);
+    let attempt = 0;
+    while (true) {
+      if (signal?.aborted) throw createAbortError();
+      try {
+        return await taskFn(signal);
+      } catch (err) {
+        if (isAbortError(err)) throw err;
+        attempt += 1;
+        if (attempt > maxAttempts) throw err;
+        const should = await shouldRetry(err, attempt);
+        if (!should) throw err;
+        const delay = options.delayMs?.(attempt, err) ?? 0;
+        if (delay > 0) await sleep(delay, signal);
+      }
+    }
+  };
+
+type BackoffOptions = {
+  attempts: number;
+  delayMs: number | ((attempt: number, err: unknown) => number);
+  shouldRetry?: (err: unknown) => boolean;
+};
+
+/**
+ * Retries with a fixed or computed delay between attempts.
+ */
+export const backoff =
+  <T>(options: BackoffOptions) =>
+  (taskFn: TaskFn<T>): TaskFn<T> =>
+    retryWhen(
+      (err) => (options.shouldRetry ? options.shouldRetry(err) : true),
+      {
+        maxAttempts: options.attempts,
+        delayMs: (attempt, err) =>
+          typeof options.delayMs === "function"
+            ? options.delayMs(attempt, err)
+            : options.delayMs,
+      },
+    )(taskFn);
 
 // Pipe
 
