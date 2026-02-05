@@ -4,6 +4,7 @@ Minimal async task with reactive state, designed for ergonomic data flows in app
 
 - Simple `TaskFn` contract with AbortSignal cancellation.
 - Reactive state you can render directly.
+- Latest-request-wins semantics built in.
 - Composable with retries, caching, validation, and scheduling utilities.
 - Works in browser and Node.js with no dependencies.
 
@@ -16,11 +17,13 @@ npm install @gantryland/task
 ## Contents
 
 - [Quick start](#quick-start)
+- [At a glance](#at-a-glance)
 - [Design goals](#design-goals)
 - [When to use task](#when-to-use-task)
 - [When not to use task](#when-not-to-use-task)
 - [Core concepts](#core-concepts)
 - [Flow](#flow)
+- [Run semantics](#run-semantics)
 - [API](#api)
 - [Common patterns](#common-patterns)
 - [Integrations](#integrations)
@@ -56,6 +59,22 @@ userTask.dispose();
 
 This example shows a shared Task instance across a view and its data loader.
 
+## At a glance
+
+```typescript
+import { Task, type TaskFn, type TaskState } from "@gantryland/task";
+
+type User = { id: string; name: string };
+
+const fetchUser: TaskFn<User, [string]> = (signal, id) =>
+  fetch(`/api/users/${id}`, { signal }).then((r) => r.json());
+
+const task = new Task(fetchUser);
+
+const state: TaskState<User> = task.getState();
+const user = await task.run("42");
+```
+
 ## Design goals
 
 - Small API surface that reads well in UI and service layers.
@@ -78,7 +97,7 @@ This example shows a shared Task instance across a view and its data loader.
 
 ### TaskFn
 
-The async function signature. Receives an optional `AbortSignal` and any Task arguments.
+Async function signature executed by a Task. Receives an optional `AbortSignal` and any run arguments.
 
 ```typescript
 type TaskFn<T, Args extends unknown[] = []> = (signal?: AbortSignal, ...args: Args) => Promise<T>;
@@ -95,8 +114,8 @@ type TaskState<T> = {
 };
 ```
 
-- `data`: last successful result.
-- `error`: last failure (if any).
+- `data`: last successful result, or `undefined` before any success.
+- `error`: last error, or `undefined` if none.
 - `isLoading`: true while a run is in-flight.
 - `isStale`: true before the first run.
 
@@ -106,11 +125,18 @@ type TaskState<T> = {
 stale (initial) -> run() -> loading -> data | error
 ```
 
-- `isStale` flips to false on the first run.
-- `run()` sets `isLoading` true until completion.
-- `resolveWith(data)` updates `data`, clears `error`, sets `isLoading` false, and marks `isStale` false.
+- `isStale` flips to false when a run starts.
+- `run()` sets `isLoading` true until completion and clears `error`.
+- `resolveWith(data)` settles immediately with `data` and clears `error`/`isLoading`/`isStale`.
 - `reset()` returns to the initial stale snapshot.
 - `cancel()` clears `isLoading` but keeps current `data`.
+
+## Run semantics
+
+- Latest run wins; older results are ignored.
+- Abort errors do not set `error`.
+- Failures preserve existing `data` and set `error`.
+- `run(...args)` resolves with `T` on success and `undefined` on error/abort/superseded.
 
 ## API
 
@@ -204,8 +230,13 @@ task.define((signal) => fetch("/api/users/42", { signal }).then((r) => r.json())
 task.resolveWith(data: T): void
 ```
 
-Sets `data` immediately without running the TaskFn. Clears `error`, sets
-`isLoading` to false, and marks `isStale` false.
+Short-circuits with provided data without running the TaskFn.
+
+State after resolve:
+- `data`: provided value
+- `error`: `undefined`
+- `isLoading`: `false`
+- `isStale`: `false`
 
 ```typescript
 task.resolveWith({ id: "42", name: "Ada" });
@@ -490,4 +521,29 @@ await userTask.runPath("/users/42");
 ```bash
 npm test
 npx vitest packages/task/test
+```
+### Using run return values
+
+```typescript
+const task = new Task(async () => "ok");
+
+const result = await task.run();
+if (result !== undefined) {
+  console.log("success", result);
+}
+```
+
+### Error handling
+
+```typescript
+const task = new Task(async () => {
+  throw new Error("boom");
+});
+
+await task.run();
+
+const { error } = task.getState();
+if (error) {
+  // report or recover
+}
 ```

@@ -1,12 +1,12 @@
 /**
- * Reactive state for a Task. Represents all possible states of an async operation.
+ * Reactive snapshot of a Task.
  *
  * @template T - The type of the resolved data
  *
- * @property data - The resolved data, or undefined if not yet resolved
- * @property error - The error if the task failed, or undefined if no error
- * @property isLoading - True while the task is in-flight
- * @property isStale - True until the first run starts. Use with isLoading to model empty states.
+ * @property data - Last successful result, or undefined before any success
+ * @property error - Last error, or undefined if none
+ * @property isLoading - True while a run is in-flight
+ * @property isStale - True before the first run starts
  */
 export type TaskState<T> = {
   data: T | undefined;
@@ -19,17 +19,18 @@ type Listener<T> = (state: TaskState<T>) => void;
 type Unsubscribe = () => void;
 
 /**
- * The async function signature for a Task.
+ * Async function signature executed by a Task.
  *
  * @template T - The type of the resolved data
- * @param signal - Optional AbortSignal for cancellation support
- * @param args - Additional arguments forwarded by run
+ * @template Args - Arguments forwarded by run
+ * @param signal - Optional AbortSignal for cancellation
+ * @param args - Arguments forwarded from run
  * @returns A promise that resolves to the data
  *
  * @example
  * ```typescript
  * const fetchUser: TaskFn<User> = (signal) =>
- *   fetch('/api/user', { signal }).then(r => r.json());
+ *   fetch("/api/user", { signal }).then((r) => r.json());
  * ```
  */
 export type TaskFn<T, Args extends unknown[] = []> = (
@@ -53,19 +54,20 @@ const createDefaultTaskState = <T>(): TaskState<T> => ({
 /**
  * Minimal async task with reactive state.
  *
- * The instance is the identity. Share the instance to share state across
- * components or modules. Works in browser and Node.js.
+ * The instance is the identity: share the instance to share state across
+ * modules or UI. Works in browser and Node.js.
  *
  * @template T - The type of the resolved data
+ * @template Args - Arguments forwarded by run
  *
  * @example
  * ```typescript
- * import { Task } from './task';
- * import { pipe, retry, timeout } from './task-combinators';
+ * import { Task } from "./task";
+ * import { pipe, retry, timeout } from "./task-combinators";
  *
  * const userTask = new Task(
  *   pipe(
- *     (signal) => fetch('/api/user', { signal }).then(r => r.json()),
+ *     (signal) => fetch("/api/user", { signal }).then((r) => r.json()),
  *     retry(2),
  *     timeout(5000)
  *   )
@@ -120,13 +122,14 @@ export class Task<T, Args extends unknown[] = []> {
    * Sets or replaces the TaskFn. Cancels any in-flight request.
    *
    * @param fn - The new TaskFn to use
+   * @returns The task instance
    *
    * @example
    * ```typescript
    * const task = new Task<User>((signal) =>
-   *   fetch("/api/users/me", { signal }).then(r => r.json())
+   *   fetch("/api/users/me", { signal }).then((r) => r.json())
    * );
-   * task.define((signal) => fetch(`/api/users/${id}`, { signal }).then(r => r.json()));
+   * task.define((signal) => fetch(`/api/users/${id}`, { signal }).then((r) => r.json()));
    * await task.run();
    * ```
    */
@@ -139,16 +142,20 @@ export class Task<T, Args extends unknown[] = []> {
   /**
    * Executes the TaskFn and updates state reactively.
    *
+   * Behavior:
    * - Aborts any previous in-flight request (latest wins)
-   * - Sets isLoading true, clears error
-   * - On success: updates data, clears error, sets isLoading false
+   * - Sets isLoading true and clears error
+   * - On success: sets data, clears error, sets isLoading false
    * - On error: preserves data, sets error, sets isLoading false
    * - On abort: preserves data, sets isLoading false, no error
    *
+   * @param args - Arguments forwarded to the TaskFn
+   * @returns Resolved data on success, otherwise undefined
+   *
    * @example
    * ```typescript
-   * await task.run(); // fetches and updates state
-   * await task.run(); // aborts previous, fetches again
+   * await task.run();
+   * await task.run(userId, includeFlags);
    * ```
    */
   /**
@@ -222,7 +229,7 @@ export class Task<T, Args extends unknown[] = []> {
    * @example
    * ```typescript
    * const unsub = task.subscribe((state) => {
-   *   console.log('State changed:', state);
+   *   console.log("State changed:", state);
    * });
    *
    * // Later...
@@ -239,8 +246,13 @@ export class Task<T, Args extends unknown[] = []> {
 
   /**
    * Short-circuits with provided data. Aborts any in-flight request and
-   * immediately settles the task with the given data, clearing error and
-   * loading state, and marking the task as no longer stale.
+   * immediately settles the task with the given data.
+   *
+   * State after resolve:
+   * - data: provided value
+   * - error: undefined
+   * - isLoading: false
+   * - isStale: false
    *
    * @param data - The data to resolve with
    *
