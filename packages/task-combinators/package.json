@@ -1,6 +1,6 @@
 {
   "name": "@gantryland/task-combinators",
-  "version": "0.2.1",
+  "version": "0.2.2",
   "description": "Composable operators for @gantryland/task",
   "keywords": [
     "task",
@@ -36,6 +36,6 @@
   },
   "homepage": "https://github.com/joehoot/gantryland/tree/main/packages/task-combinators#readme",
   "dependencies": {
-    "@gantryland/task": "^0.2.1"
+    "@gantryland/task": "^0.2.2"
   }
 }

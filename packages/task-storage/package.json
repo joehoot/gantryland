@@ -1,6 +1,6 @@
 {
   "name": "@gantryland/task-storage",
-  "version": "0.2.1",
+  "version": "0.2.2",
   "description": "Persistent cache stores for @gantryland/task-cache",
   "keywords": [
     "task",
@@ -36,6 +36,6 @@
   },
   "homepage": "https://github.com/joehoot/gantryland/tree/main/packages/task-storage#readme",
   "dependencies": {
-    "@gantryland/task-cache": "^0.2.1"
+    "@gantryland/task-cache": "^0.2.2"
   }
 }
