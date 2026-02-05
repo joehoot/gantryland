@@ -39,6 +39,8 @@ npm run build
 npm run release:ready
 ```
 
+If `release:ready` fails, fix the issue and rerun it. The changeset remains valid unless the scope of the release changes.
+
 Each package is configured with `publishConfig.access=public` for scoped npm publishing.
 
 ## Release process
@@ -50,5 +52,7 @@ npm run release:check
 npm run release:ready
 npm publish --workspaces
 ```
+
+If `release:ready` fails after generating versions/changelogs, keep those changes, fix the code, and rerun.
 
 See `CONTRIBUTING.md` for release guidance.
