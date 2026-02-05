@@ -2,6 +2,8 @@
 
 Composable operators for TaskFn. Transform results, handle errors, retry, timeout, and orchestrate TaskFns with a small, predictable API.
 
+## Highlights
+
 - Curried combinators that compose cleanly with `pipe`.
 - Abort-aware behavior across retries and timeouts.
 - Parallel and sequential orchestration utilities.
@@ -15,12 +17,15 @@ npm install @gantryland/task-combinators
 
 ## Contents
 
+- [Highlights](#highlights)
 - [Quick start](#quick-start)
+- [At a glance](#at-a-glance)
 - [Design goals](#design-goals)
 - [When to use task-combinators](#when-to-use-task-combinators)
 - [When not to use task-combinators](#when-not-to-use-task-combinators)
 - [Core concepts](#core-concepts)
 - [Flow](#flow)
+- [Run semantics](#run-semantics)
 - [API](#api)
 - [Common patterns](#common-patterns)
 - [Integrations](#integrations)
@@ -53,6 +58,19 @@ await task.run();
 ```
 
 This example shows a TaskFn pipeline with transforms, retries, and timeouts.
+
+## At a glance
+
+```typescript
+import { pipe, map, retry, timeout } from "@gantryland/task-combinators";
+
+const taskFn = pipe(
+  (signal?: AbortSignal) => fetch("/api/users", { signal }).then((r) => r.json()),
+  map((users) => users.filter((user) => user.active)),
+  retry(1),
+  timeout(5000)
+);
+```
 
 ## Design goals
 
@@ -101,6 +119,14 @@ TaskFn -> map/flatMap -> retry/backoff -> timeout -> catchError
 ```
 
 Order matters. Use `pipe` to make intent explicit.
+
+## Run semantics
+
+- AbortError is treated as cancellation and is never transformed or swallowed.
+- `retry` and `retryWhen` check the signal between attempts and stop on abort.
+- `timeout` rejects with `TimeoutError` and does not abort the underlying TaskFn.
+- `timeoutAbort` rejects with `TimeoutError` and aborts the underlying TaskFn.
+- `timeoutWith` runs its fallback only for `TimeoutError`, not for AbortError.
 
 ## API
 
@@ -319,19 +345,6 @@ Error type used by `timeout`.
 ```typescript
 new TimeoutError()
 ```
-
-### Guarantees
-
-- AbortError is never swallowed by error operators.
-- `retry` and `retryWhen` check the signal between attempts.
-- `timeout` cleans up on abort and rejects with `TimeoutError`.
-- `timeoutAbort` aborts the underlying task.
-
-### Gotchas
-
-- `timeout` does not abort the underlying TaskFn.
-- `catchError` does not run for AbortError.
-- `timeoutWith` does not run fallback for AbortError.
 
 ## Common patterns
 
