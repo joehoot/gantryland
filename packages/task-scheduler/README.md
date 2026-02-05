@@ -56,3 +56,11 @@ queue({ concurrency: 2 })
 - Debounce rejects superseded calls with AbortError.
 - Throttle shares the in-flight call within the window (new signals are ignored).
 - Queue respects the configured concurrency.
+
+## Tests
+
+```bash
+npm test
+
+npx vitest packages/task-scheduler/test
+```

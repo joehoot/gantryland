@@ -60,3 +60,11 @@ new ValidationError("Validation failed", issues)
 
 - `validate` returns a TaskFn that throws `ValidationError` on failure.
 - `fromSafeParse` supports zod/valibot/io-ts style APIs.
+
+## Tests
+
+```bash
+npm test
+
+npx vitest packages/task-validate/test
+```

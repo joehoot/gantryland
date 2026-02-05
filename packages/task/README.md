@@ -119,3 +119,11 @@ export async function runUserTask(id: string) {
 - [task-logger](../task-logger/) - Logging utilities
 - [task-validate](../task-validate/) - Validation combinators
 - [task-router](../task-router/) - Route helpers
+
+## Tests
+
+```bash
+npm test
+
+npx vitest packages/task/test
+```

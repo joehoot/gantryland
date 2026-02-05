@@ -57,3 +57,11 @@ const routeTask = createPathTask("/users/:id", (params) => () => fetch(`/api/${p
 - Patterns support `:param` segments.
 - `createPathTask` throws if a path does not match the pattern.
 - `buildPath` throws if a param is missing.
+
+## Tests
+
+```bash
+npm test
+
+npx vitest packages/task-router/test
+```

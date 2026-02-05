@@ -71,3 +71,11 @@ const unsubscribe = logCache(store, { label: "cache" })
 - `logTask` is for TaskFn composition.
 - `logTaskState` attaches to a Task instance.
 - Cache logging requires a store that supports `subscribe`.
+
+## Tests
+
+```bash
+npm test
+
+npx vitest packages/task-logger/test
+```

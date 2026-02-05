@@ -235,3 +235,11 @@ pipe(
 - `timeout` cleans up properly on abort
 - `timeout` rejects with `TimeoutError`
 - Combinators are curried: `map(fn)(taskFn)` or use with `pipe`
+
+## Tests
+
+```bash
+npm test
+
+npx vitest packages/task-combinators/test
+```

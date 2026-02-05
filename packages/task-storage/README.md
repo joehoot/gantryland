@@ -71,3 +71,11 @@ type StorageLike = {
 - `StorageCacheStore` serializes entries with JSON by default.
 - `FileCacheStore` uses synchronous file I/O; intended for Node.js.
 - Use `@gantryland/task-cache` combinators (`cache`, `staleWhileRevalidate`) with these stores.
+
+## Tests
+
+```bash
+npm test
+
+npx vitest packages/task-storage/test
+```

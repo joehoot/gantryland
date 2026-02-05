@@ -135,3 +135,11 @@ return (
   </button>
 );
 ```
+
+## Tests
+
+```bash
+npm test
+
+npx vitest packages/task-hooks/test
+```

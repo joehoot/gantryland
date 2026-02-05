@@ -65,3 +65,11 @@ const taskFn = toTask(observable)
 - Observers are simple `{ next, error?, complete? }` objects.
 - `fromTask` emits when a task resolves successfully.
 - `toTask` resolves on first `next`, rejects on `error`.
+
+## Tests
+
+```bash
+npm test
+
+npx vitest packages/task-observable/test
+```

@@ -119,3 +119,11 @@ cacheKey("user", userId)
 ## See also
 
 - [task-storage](../task-storage/) - Persistent CacheStore implementations
+
+## Tests
+
+```bash
+npm test
+
+npx vitest packages/task-cache/test
+```
