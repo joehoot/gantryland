@@ -1,8 +1,14 @@
-# Task Scheduler
+# @gantryland/task-scheduler
 
-Scheduling utilities and combinators for Task.
+Scheduling utilities and combinators for Task. Includes polling, debouncing, throttling, and queueing TaskFns.
 
 Works in browser and Node.js with no dependencies.
+
+## Installation
+
+```bash
+npm install @gantryland/task-scheduler
+```
 
 ## Quick start
 
@@ -15,6 +21,17 @@ const task = new Task(debounce({ waitMs: 300 })(fetchUsers));
 const stop = pollTask(task, { intervalMs: 5000, immediate: true });
 // later: stop()
 ```
+
+## Core concepts
+
+### Task vs TaskFn utilities
+
+- `pollTask` works on a Task instance and calls `task.run()` on an interval.
+- `debounce`, `throttle`, and `queue` wrap TaskFn and return a new TaskFn.
+
+### Abort behavior
+
+Debounced and queued TaskFns respect `AbortSignal`. Debounce rejects superseded calls with AbortError.
 
 ## API
 
@@ -50,17 +67,123 @@ Queue a TaskFn with limited concurrency.
 queue({ concurrency: 2 })
 ```
 
+## Practical examples
+
+### Debounce search input
+
+```typescript
+import { Task } from "@gantryland/task";
+import { debounce } from "@gantryland/task-scheduler";
+
+const searchTask = new Task(
+  debounce({ waitMs: 300 })((signal) =>
+    fetch(`/api/search?q=${encodeURIComponent(query)}`, { signal }).then((r) => r.json())
+  )
+);
+
+await searchTask.run();
+```
+
+### Throttle telemetry
+
+```typescript
+import { throttle } from "@gantryland/task-scheduler";
+
+const sendTelemetry = throttle({ windowMs: 1000 })((signal) =>
+  fetch("/api/telemetry", { method: "POST", signal }).then((r) => r.json())
+);
+```
+
+### Queue concurrent writes
+
+```typescript
+import { Task } from "@gantryland/task";
+import { queue } from "@gantryland/task-scheduler";
+
+const writeTask = new Task(
+  queue({ concurrency: 2 })((signal) =>
+    fetch("/api/write", { method: "POST", signal }).then((r) => r.json())
+  )
+);
+```
+
+### Poll a Task for updates
+
+```typescript
+import { Task } from "@gantryland/task";
+import { pollTask } from "@gantryland/task-scheduler";
+
+const statusTask = new Task((signal) =>
+  fetch("/api/status", { signal }).then((r) => r.json())
+);
+
+const stop = pollTask(statusTask, { intervalMs: 10_000, immediate: true });
+
+// Later
+stop();
+```
+
+### Combine with task-combinators
+
+```typescript
+import { Task } from "@gantryland/task";
+import { debounce } from "@gantryland/task-scheduler";
+import { pipe, retry, timeout } from "@gantryland/task-combinators";
+
+const task = new Task(
+  debounce({ waitMs: 300 })(
+    pipe(
+      (signal) => fetch("/api/search", { signal }).then((r) => r.json()),
+      retry(1),
+      timeout(4000)
+    )
+  )
+);
+```
+
+### React usage with task-hooks
+
+```tsx
+import { Task } from "@gantryland/task";
+import { pollTask } from "@gantryland/task-scheduler";
+import { useTaskState } from "@gantryland/task-hooks";
+import { useEffect } from "react";
+
+const statusTask = new Task((signal) =>
+  fetch("/api/status", { signal }).then((r) => r.json())
+);
+
+export function StatusPanel() {
+  const state = useTaskState(statusTask);
+
+  useEffect(() => {
+    const stop = pollTask(statusTask, { intervalMs: 5000, immediate: true });
+    return () => stop();
+  }, []);
+
+  if (state.isLoading) return <Spinner />;
+  return <StatusView status={state.data} />;
+}
+```
+
 ## Notes
 
 - `pollTask` calls `task.run()` on each interval.
 - Debounce rejects superseded calls with AbortError.
 - Throttle shares the in-flight call within the window (new signals are ignored).
-- Queue respects the configured concurrency.
+- Queue respects the configured concurrency and aborts when signaled.
+
+## Related packages
+
+- [@gantryland/task](../task/) - Core Task abstraction
+- [@gantryland/task-combinators](../task-combinators/) - Composable TaskFn operators
+- [@gantryland/task-hooks](../task-hooks/) - React bindings
+- [@gantryland/task-cache](../task-cache/) - Cache combinators and stores
+- [@gantryland/task-logger](../task-logger/) - Logging utilities
 
 ## Tests
 
 ```bash
 npm test
-
 npx vitest packages/task-scheduler/test
 ```

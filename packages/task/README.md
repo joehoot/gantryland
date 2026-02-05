@@ -1,8 +1,14 @@
-# Task
+# @gantryland/task
 
-Minimal async task with reactive state. The instance is the identity.
+Minimal async task with reactive state. The Task instance is the identity: share it to share state across modules and UI.
 
 Works in browser and Node.js (17+) with no dependencies.
+
+## Installation
+
+```bash
+npm install @gantryland/task
+```
 
 ## Quick start
 
@@ -12,7 +18,7 @@ import { pipe, map, retry } from "@gantryland/task-combinators";
 
 const userTask = new Task(
   pipe(
-    () => fetch("/api/user").then((r) => r.json()),
+    (signal) => fetch("/api/user", { signal }).then((r) => r.json()),
     map((user) => user.profile),
     retry(2)
   )
@@ -31,13 +37,7 @@ unsub();
 userTask.dispose();
 ```
 
-## API
-
-### Constructor
-
-```typescript
-new Task<T>(fn)
-```
+## Core concepts
 
 ### TaskFn
 
@@ -58,8 +58,15 @@ type TaskState<T> = {
 };
 ```
 
-`isStale` is true until the first run starts.
-Together with `isLoading`, this is enough to model empty/loading states.
+`isStale` is true until the first run starts. Together with `isLoading`, this is enough to model empty and loading states.
+
+## API
+
+### Constructor
+
+```typescript
+new Task<T>(fn: TaskFn<T>)
+```
 
 ### Methods
 
@@ -67,63 +74,242 @@ Together with `isLoading`, this is enough to model empty/loading states.
 task.getState(): TaskState<T>
 task.subscribe((state) => void): Unsubscribe
 await task.run(): Promise<void>
-task.setFn((signal?) => Promise<T>)
-task.resolve(data: T)
-task.cancel()
-task.reset()
-task.dispose()
+task.setFn(fn: TaskFn<T>): void
+task.resolve(data: T): void
+task.cancel(): void
+task.reset(): void
+task.dispose(): void
 ```
 
-`setFn` lets you swap the task function at runtime while keeping the same Task instance.
-
-`resolve` short-circuits: it aborts in-flight work, marks the task settled, and uses the provided data.
-
-`cancel` aborts in-flight work and sets `isLoading: false` while preserving existing data.
-
-## Notes
+Behavior notes:
 
 - Latest request wins; older responses are ignored.
-- Abort clears `isLoading` while preserving data.
+- Abort clears `isLoading` while preserving current data.
 - Listener errors are isolated.
 
-## Patterns
+## Practical examples
 
 ### Shared singleton
 
 ```typescript
 // tasks/user.ts
-export const userTask = new Task<User>(() =>
-  fetch("/api/user").then((r) => r.json())
+import { Task } from "@gantryland/task";
+
+export const userTask = new Task<User>((signal) =>
+  fetch("/api/user", { signal }).then((r) => r.json())
 );
 ```
 
-### Parameterized tasks
+### Parameterized task with setFn
 
 ```typescript
-const userTask = new Task<User>(() => fetch("/api/users/me").then((r) => r.json()));
+import { Task } from "@gantryland/task";
+
+const userTask = new Task<User>((signal) =>
+  fetch("/api/users/me", { signal }).then((r) => r.json())
+);
 
 export async function runUserTask(id: string) {
-  userTask.setFn(() => fetch(`/api/users/${id}`).then((r) => r.json()));
+  userTask.setFn((signal) =>
+    fetch(`/api/users/${id}`, { signal }).then((r) => r.json())
+  );
   await userTask.run();
 }
 ```
 
-## See also
+### Optimistic resolve with fallback fetch
 
-- [task-combinators](../task-combinators/) - Composable operators for TaskFn
-- [task-hooks](../task-hooks/) - React bindings
-- [task-cache](../task-cache/) - Caching primitives and combinators
-- [task-storage](../task-storage/) - Persistent CacheStore implementations
-- [task-scheduler](../task-scheduler/) - Scheduling utilities and combinators
-- [task-observable](../task-observable/) - Minimal observable interop
-- [task-logger](../task-logger/) - Logging utilities
-- [task-validate](../task-validate/) - Validation combinators
-- [task-router](../task-router/) - Route helpers
+```typescript
+import { Task } from "@gantryland/task";
+
+const profileTask = new Task<Profile>((signal) =>
+  fetch("/api/profile", { signal }).then((r) => r.json())
+);
+
+export async function loadProfile(cached: Profile | null) {
+  if (cached) {
+    profileTask.resolve(cached);
+    return;
+  }
+  await profileTask.run();
+}
+```
+
+### Explicit cancellation
+
+```typescript
+const task = new Task((signal) =>
+  fetch("/api/slow", { signal }).then((r) => r.json())
+);
+
+task.run();
+task.cancel();
+```
+
+### Compose TaskFn with task-combinators
+
+```typescript
+import { Task } from "@gantryland/task";
+import { pipe, timeout, retry, map } from "@gantryland/task-combinators";
+
+const task = new Task(
+  pipe(
+    (signal) => fetch("/api/search?q=term", { signal }).then((r) => r.json()),
+    timeout(4000),
+    retry(3),
+    map((payload) => payload.items)
+  )
+);
+
+await task.run();
+```
+
+### Cached tasks with task-cache and task-storage
+
+```typescript
+import { Task } from "@gantryland/task";
+import { MemoryCacheStore, cache } from "@gantryland/task-cache";
+import { StorageCacheStore } from "@gantryland/task-storage";
+import { pipe } from "@gantryland/task-combinators";
+
+const baseTaskFn = (signal?: AbortSignal) =>
+  fetch("/api/projects", { signal }).then((r) => r.json());
+
+const memoryStore = new MemoryCacheStore();
+const inMemoryTask = new Task(
+  pipe(
+    baseTaskFn,
+    cache("projects", memoryStore, { ttl: 30_000 })
+  )
+);
+
+const persistentStore = new StorageCacheStore(localStorage, { prefix: "gantry:" });
+const persistentTask = new Task(
+  pipe(
+    baseTaskFn,
+    cache("projects", persistentStore, { ttl: 600_000 })
+  )
+);
+```
+
+### Scheduling with task-scheduler
+
+```typescript
+import { Task } from "@gantryland/task";
+import { pollTask } from "@gantryland/task-scheduler";
+
+const task = new Task((signal) =>
+  fetch("/api/heartbeat", { signal }).then((r) => r.json())
+);
+
+const stop = pollTask(task, { intervalMs: 15_000, immediate: true });
+
+// Later
+stop();
+```
+
+### Validation with task-validate
+
+```typescript
+import { Task } from "@gantryland/task";
+import { validate, fromPredicate } from "@gantryland/task-validate";
+import { pipe } from "@gantryland/task-combinators";
+
+type SaveResponse = { ok: boolean };
+
+const isSaveResponse = (input: unknown): input is SaveResponse =>
+  !!input && typeof (input as SaveResponse).ok === "boolean";
+
+const saveTask = new Task(
+  pipe(
+    (signal) => fetch("/api/save", { method: "POST", signal }).then((r) => r.json()),
+    validate(fromPredicate(isSaveResponse))
+  )
+);
+
+await saveTask.run();
+```
+
+### React usage with task-hooks
+
+```tsx
+import { Task } from "@gantryland/task";
+import { useTask } from "@gantryland/task-hooks";
+
+const userTask = new Task((signal) =>
+  fetch("/api/user", { signal }).then((r) => r.json())
+);
+
+export function UserPanel() {
+  const { data, error, isLoading, isStale, run } = useTask(userTask);
+
+  if (isStale || isLoading) return <Spinner />;
+  if (error) return <ErrorView error={error} />;
+  return <UserCard user={data} onRefresh={run} />;
+}
+```
+
+### Observable interop with task-observable
+
+```typescript
+import { Task } from "@gantryland/task";
+import { fromTaskState } from "@gantryland/task-observable";
+
+const task = new Task((signal) =>
+  fetch("/api/stream", { signal }).then((r) => r.json())
+);
+
+const observable = fromTaskState(task);
+const sub = observable.subscribe((state) => console.log(state));
+
+await task.run();
+sub.unsubscribe();
+```
+
+### Logging state changes with task-logger
+
+```typescript
+import { Task } from "@gantryland/task";
+import { logTaskState } from "@gantryland/task-logger";
+
+const task = new Task((signal) =>
+  fetch("/api/notes", { signal }).then((r) => r.json())
+);
+
+const unsubscribe = logTaskState(task, { label: "notes" });
+await task.run();
+unsubscribe();
+```
+
+### Routing helpers with task-router
+
+```typescript
+import { createPathTask } from "@gantryland/task-router";
+
+const userTask = createPathTask(
+  "/users/:id",
+  (params) => (signal) =>
+    fetch(`/api/users/${params.id}`, { signal }).then((r) => r.json())
+);
+
+await userTask.runPath("/users/42");
+```
+
+## Related packages
+
+- [@gantryland/task-combinators](../task-combinators/) - Composable operators for TaskFn
+- [@gantryland/task-hooks](../task-hooks/) - React bindings
+- [@gantryland/task-cache](../task-cache/) - Caching primitives and combinators
+- [@gantryland/task-storage](../task-storage/) - Persistent CacheStore implementations
+- [@gantryland/task-scheduler](../task-scheduler/) - Scheduling utilities and combinators
+- [@gantryland/task-observable](../task-observable/) - Minimal observable interop
+- [@gantryland/task-logger](../task-logger/) - Logging utilities
+- [@gantryland/task-validate](../task-validate/) - Validation combinators
+- [@gantryland/task-router](../task-router/) - Route helpers
 
 ## Tests
 
 ```bash
 npm test
-
 npx vitest packages/task/test
 ```

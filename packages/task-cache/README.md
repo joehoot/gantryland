@@ -1,38 +1,43 @@
-# Task Cache
+# @gantryland/task-cache
 
-Cache primitives and combinators for Task. Designed to compose with
-`@gantryland/task` and `@gantryland/task-combinators`.
+Cache primitives and combinators for `@gantryland/task`. Designed to compose with TaskFn pipelines and shared across the Task ecosystem.
 
 Works in browser and Node.js with no dependencies.
+
+## Installation
+
+```bash
+npm install @gantryland/task-cache
+```
 
 ## Quick start
 
 ```typescript
-import { MemoryCacheStore, cache, staleWhileRevalidate } from "@gantryland/task-cache";
 import { Task } from "@gantryland/task";
+import { MemoryCacheStore, cache, staleWhileRevalidate } from "@gantryland/task-cache";
 import { pipe } from "@gantryland/task-combinators";
 
 const store = new MemoryCacheStore();
 
-const task = new Task(
+const usersTask = new Task(
   pipe(
-    () => fetch("/api/users").then((r) => r.json()),
-    cache("users", store, { ttl: 60_000 })
+    (signal) => fetch("/api/users", { signal }).then((r) => r.json()),
+    cache("users", store, { ttl: 60_000, tags: ["users"] })
   )
 );
 
-await task.run(); // fetches
-await task.run(); // cache hit
+await usersTask.run(); // fetches and caches
+await usersTask.run(); // cache hit
 
 const swrTask = new Task(
   pipe(
-    () => fetch("/api/users").then((r) => r.json()),
+    (signal) => fetch("/api/users", { signal }).then((r) => r.json()),
     staleWhileRevalidate("users", store, { ttl: 30_000, staleTtl: 60_000 })
   )
 );
 ```
 
-## API
+## Core concepts
 
 ### CacheStore
 
@@ -52,17 +57,36 @@ type CacheStore = {
 }
 ```
 
+### CacheEntry
+
+```typescript
+type CacheEntry<T> = {
+  value: T
+  createdAt: number
+  updatedAt: number
+  tags?: string[]
+}
+```
+
+### Cache events
+
+Stores can emit events to power analytics, logging, or invalidation tracing.
+
+Event types: `hit`, `miss`, `stale`, `set`, `invalidate`, `clear`, `revalidate`.
+
+## API
+
 ### MemoryCacheStore
 
 In-memory store with tag invalidation and event emission.
 
 ```typescript
-const store = new MemoryCacheStore();
-store.invalidateTags(["users"]);
-store.subscribe((event) => console.log(event.type));
-```
+import { MemoryCacheStore } from "@gantryland/task-cache";
 
-Events include: `hit`, `miss`, `stale`, `set`, `invalidate`, `clear`, `revalidate`.
+const store = new MemoryCacheStore();
+store.subscribe((event) => console.log(event.type, event.key));
+store.invalidateTags(["users"]);
+```
 
 ### cache
 
@@ -85,7 +109,7 @@ type CacheOptions = {
 
 ### staleWhileRevalidate
 
-Return stale data if within the stale window and refresh in the background.
+Return stale data (if within stale window) and refresh in the background.
 
 ```typescript
 staleWhileRevalidate("users", store, { ttl: 30_000, staleTtl: 60_000 })
@@ -109,21 +133,128 @@ Helper for consistent cache keys.
 cacheKey("user", userId)
 ```
 
+## Practical examples
+
+### Cache with Task and pipe
+
+```typescript
+import { Task } from "@gantryland/task";
+import { MemoryCacheStore, cache } from "@gantryland/task-cache";
+import { pipe } from "@gantryland/task-combinators";
+
+const store = new MemoryCacheStore();
+
+const task = new Task(
+  pipe(
+    (signal) => fetch("/api/projects", { signal }).then((r) => r.json()),
+    cache("projects", store, { ttl: 15_000 })
+  )
+);
+
+await task.run();
+```
+
+### Stale-while-revalidate for fast UI
+
+```typescript
+import { Task } from "@gantryland/task";
+import { MemoryCacheStore, staleWhileRevalidate } from "@gantryland/task-cache";
+import { pipe } from "@gantryland/task-combinators";
+
+const store = new MemoryCacheStore();
+
+const feedTask = new Task(
+  pipe(
+    (signal) => fetch("/api/feed", { signal }).then((r) => r.json()),
+    staleWhileRevalidate("feed", store, { ttl: 10_000, staleTtl: 30_000 })
+  )
+);
+
+await feedTask.run();
+```
+
+### Tag-based invalidation
+
+```typescript
+import { Task } from "@gantryland/task";
+import { MemoryCacheStore, cache, invalidateOnResolve } from "@gantryland/task-cache";
+import { pipe } from "@gantryland/task-combinators";
+
+const store = new MemoryCacheStore();
+
+const listTask = new Task(
+  pipe(
+    (signal) => fetch("/api/posts", { signal }).then((r) => r.json()),
+    cache("posts", store, { ttl: 30_000, tags: ["posts"] })
+  )
+);
+
+const createTask = new Task(
+  pipe(
+    (signal) => fetch("/api/posts", { method: "POST", signal }).then((r) => r.json()),
+    invalidateOnResolve({ tags: ["posts"] }, store)
+  )
+);
+```
+
+### In-flight dedupe
+
+```typescript
+import { cache } from "@gantryland/task-cache";
+
+cache("users", store, { ttl: 10_000, dedupe: true });
+cache("users", store, { ttl: 10_000, dedupe: false });
+```
+
+### Persist cache with task-storage
+
+```typescript
+import { Task } from "@gantryland/task";
+import { cache } from "@gantryland/task-cache";
+import { StorageCacheStore } from "@gantryland/task-storage";
+import { pipe } from "@gantryland/task-combinators";
+
+const store = new StorageCacheStore(localStorage, { prefix: "gantry:" });
+
+const task = new Task(
+  pipe(
+    (signal) => fetch("/api/settings", { signal }).then((r) => r.json()),
+    cache("settings", store, { ttl: 60_000 })
+  )
+);
+```
+
+### Observe cache events
+
+```typescript
+const store = new MemoryCacheStore();
+
+const unsub = store.subscribe((event) => {
+  console.log(event.type, event.key, event.entry?.updatedAt);
+});
+
+// Later
+unsub();
+```
+
 ## Notes
 
 - `cache` is strict: expired entries are re-fetched.
 - `staleWhileRevalidate` returns stale data during the stale window and refreshes in the background.
 - In-flight dedupe is enabled by default (`dedupe: false` to opt out).
-- Tag invalidation requires a store that supports `invalidateTags` (MemoryCacheStore does).
+- Tag invalidation requires a store that supports `invalidateTags` (MemoryCacheStore and StorageCacheStore do).
 
-## See also
+## Related packages
 
-- [task-storage](../task-storage/) - Persistent CacheStore implementations
+- [@gantryland/task](../task/) - Core Task abstraction
+- [@gantryland/task-combinators](../task-combinators/) - Composable TaskFn operators
+- [@gantryland/task-storage](../task-storage/) - Persistent CacheStore implementations
+- [@gantryland/task-hooks](../task-hooks/) - React bindings
+- [@gantryland/task-logger](../task-logger/) - Logging utilities
 
 ## Tests
 
 ```bash
 npm test
-
 npx vitest packages/task-cache/test
 ```
