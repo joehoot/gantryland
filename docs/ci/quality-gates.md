@@ -31,3 +31,5 @@ Protect the default branch by requiring a passing status check for each quality 
 
 The current reference pipeline lives at `.github/workflows/ci.yml`.
 If you use a different CI provider, mirror the same gate commands and required-check policy there.
+
+Use `docs/ci/enforcement-runbook.md` to validate provider-side required-check enforcement.

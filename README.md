@@ -60,6 +60,7 @@ Gantryland is a suite of modern, composable tools for async workflows. Packages 
 ## CI guides
 
 - [CI quality gates](docs/ci/quality-gates.md)
+- [Required check enforcement runbook](docs/ci/enforcement-runbook.md)
 
 ## Handoff guides
 

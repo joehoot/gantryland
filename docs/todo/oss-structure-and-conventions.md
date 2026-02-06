@@ -44,4 +44,5 @@ Notes:
 - Public API delta checks now run in CI via `npm run api:check`.
 - Coverage thresholds are now enforced in CI via `npm run test:coverage`.
 - Provider-agnostic required-check policy is documented in `docs/ci/quality-gates.md`.
+- Provider-side required-check validation steps are documented in `docs/ci/enforcement-runbook.md`.
 - "Required CI gates" and "PR pipeline pass" still require CI-provider protection policy and a validated pull-request run.

@@ -22,6 +22,7 @@ Progress notes:
 - Coverage thresholds are enforced via `vitest.config.ts` (`lines >=95`, `statements >=95`, `functions >=98`, `branches >=90`).
 - API baseline deltas are enforced via `npm run api:check` against snapshots in `docs/api`.
 - Required-check policy and provider-agnostic CI guidance are documented in `docs/ci/quality-gates.md`.
+- Provider-side required-check verification steps and evidence checklist are documented in `docs/ci/enforcement-runbook.md`.
 - Release provenance expectations are documented in `docs/releasing/provenance.md`.
 - Remaining work is protected-branch enforcement in the active CI provider.
 
@@ -39,12 +40,12 @@ Progress notes:
 - [x] Add benchmark guidance with reproducible scripts for core packages.
 - [x] Add security posture notes (dependency policy and audit cadence).
 
-## P2 - Contributor throughput
+## P2 - Contributor throughput (not planned for solo-maintained repo)
 
-- [ ] Add PR template with tests/docs/changeset/compat checkboxes.
-- [ ] Add issue templates (bug, feature, security report).
-- [ ] Add contributor onboarding guidance with "good first issue" flow.
-- [ ] Add lightweight maintenance cadence notes.
+- [x] N/A: PR template with tests/docs/changeset/compat checkboxes (not needed for solo-maintained workflow).
+- [x] N/A: issue templates (bug, feature, security report) (not needed for solo-maintained workflow).
+- [x] N/A: contributor onboarding guidance with "good first issue" flow (not needed for solo-maintained workflow).
+- [x] N/A: lightweight maintenance cadence notes (tracked operationally outside public templates).
 
 ## Suggested 2-week execution plan
 
@@ -52,7 +53,7 @@ Progress notes:
 
 - [x] Deliver all P0 trust/governance docs.
 - [ ] Deliver core CI gates and coverage thresholds.
-- [ ] Add PR template.
+- [x] N/A: add PR template (solo-maintained repo).
 
 ### Week 2
 
