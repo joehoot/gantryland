@@ -28,7 +28,7 @@ Target: remove unconventional monorepo setup patterns and align Gantryland with 
 - [x] Add `engines.node` policy in root `package.json`.
 - [x] Propagate `engines` to workspace packages where appropriate.
 - [x] Add `.editorconfig` for baseline editor consistency.
-- [ ] Verify no conflicting formatting assumptions in existing docs and code.
+- [x] Verify no conflicting formatting assumptions in existing docs and code.
 
 ## Verification checklist
 
@@ -37,3 +37,8 @@ Target: remove unconventional monorepo setup patterns and align Gantryland with 
 - [x] Publish command naming is unambiguous and documented.
 - [x] Packaging/publish dry-run succeeds for all workspaces.
 - [x] New governance files are linked from root docs.
+
+Notes:
+
+- Lint and typecheck jobs now run in CI (`npm run lint`, `npm run format:check`, `npm run typecheck`) as part of the expanded quality gate.
+- "Required status checks" and "workflow passes on a test PR" still require GitHub branch-protection and PR-run confirmation.

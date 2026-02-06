@@ -16,6 +16,11 @@ Target: move Gantryland from strong OSS readiness to clear enterprise-grade conf
 - [ ] Add coverage reporting and minimum coverage thresholds.
 - [ ] Add public API delta checks (for example, declaration/API report checks).
 
+Progress notes:
+
+- CI workflow now runs `lint`, `format:check`, `typecheck`, `build`, `test`, and release guard.
+- Remaining work is enforcement via required status checks in GitHub branch protection, plus coverage and API delta automation.
+
 ## P1 - OSS consumer confidence
 
 - [ ] Add a compatibility matrix (Node.js, TypeScript, React where relevant).
