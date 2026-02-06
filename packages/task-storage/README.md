@@ -1,11 +1,12 @@
 # @gantryland/task-storage
 
-Persistent cache stores that implement `CacheStore` from `@gantryland/task-cache`. Use these to keep cache entries across sessions or processes.
+Persistent cache stores that implement `CacheStore` from `@gantryland/task-cache`. Use these to keep cache entries across browser sessions or on-disk Node.js processes.
 
 - Storage-backed cache for browser environments.
 - File-backed cache for Node.js processes.
 - Tag invalidation and cache events supported.
-- Works in browser and Node.js with no dependencies.
+- Custom serialization for storage formats.
+- Works with task-cache combinators.
 
 ## Installation
 
@@ -16,6 +17,7 @@ npm install @gantryland/task-storage
 ## Contents
 
 - [Quick start](#quick-start)
+- [At a glance](#at-a-glance)
 - [Design goals](#design-goals)
 - [When to use task-storage](#when-to-use-task-storage)
 - [When not to use task-storage](#when-not-to-use-task-storage)
@@ -43,9 +45,18 @@ const task = new Task(
     cache("users", store, { ttl: 60_000 })
   )
 );
+
+await task.run();
 ```
 
-This example shows localStorage-backed cache persistence.
+## At a glance
+
+```typescript
+import { StorageCacheStore, FileCacheStore } from "@gantryland/task-storage";
+
+const browserStore = new StorageCacheStore(localStorage, { prefix: "app:" });
+const fileStore = new FileCacheStore("./.cache/tasks.json", { pretty: true });
+```
 
 ## Design goals
 
@@ -68,11 +79,11 @@ This example shows localStorage-backed cache persistence.
 
 ### StorageCacheStore
 
-Wraps a `Storage`-like interface (localStorage/sessionStorage). Entries are serialized to JSON by default and keyed with a prefix.
+Wraps a `Storage`-like interface (localStorage/sessionStorage). Entries are serialized to strings by default and keyed with a prefix. Invalid or unreadable entries are removed when read.
 
 ### FileCacheStore
 
-Persists a cache map to disk as JSON using synchronous I/O. Intended for Node.js processes.
+Persists a cache map to disk as JSON using synchronous I/O. Invalid JSON clears the in-memory store.
 
 ### StorageLike
 
@@ -140,8 +151,10 @@ type StorageLike = {
 ### Guarantees
 
 - StorageCacheStore scopes keys by prefix.
+- StorageCacheStore removes invalid entries when read.
 - FileCacheStore persists on every write.
 - Both stores emit cache events when entries change.
+- Listener errors are caught and logged.
 
 ### Gotchas
 
@@ -149,8 +162,6 @@ type StorageLike = {
 - StorageCacheStore serializes values to JSON by default.
 
 ## Common patterns
-
-Use these patterns for most usage.
 
 ### Persist Task cache to localStorage
 
@@ -176,8 +187,6 @@ const task = new Task(
 import { FileCacheStore } from "@gantryland/task-storage";
 
 const store = new FileCacheStore("./.cache/tasks.json", { pretty: true });
-
-// Combine with task-cache when creating TaskFns.
 ```
 
 ### Custom serialization
@@ -196,8 +205,6 @@ const store = new StorageCacheStore(localStorage, {
 ```
 
 ## Integrations
-
-Compose with other Gantryland utilities. This section shows common pairings.
 
 ### Use with task-cache and task-hooks
 
@@ -233,7 +240,6 @@ import { logCache } from "@gantryland/task-logger";
 const store = new StorageCacheStore(localStorage, { prefix: "app:" });
 const unsubscribe = logCache(store, { label: "storage" });
 
-// Later
 unsubscribe();
 ```
 

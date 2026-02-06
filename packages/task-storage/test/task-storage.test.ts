@@ -54,6 +54,20 @@ describe("StorageCacheStore", () => {
     expect(storage.getItem("cache:bad")).toBeNull();
   });
 
+  it("removes entries when deserialize throws", () => {
+    const storage = new MemoryStorage();
+    const store = new StorageCacheStore(storage, {
+      deserialize: () => {
+        throw new Error("bad deserialize");
+      },
+    });
+
+    storage.setItem("task-cache:bad", "boom");
+
+    expect(store.get("bad")).toBeUndefined();
+    expect(storage.getItem("task-cache:bad")).toBeNull();
+  });
+
   it("clears only prefixed entries", () => {
     const storage = new MemoryStorage();
     const store = new StorageCacheStore(storage, { prefix: "cache:" });
@@ -85,6 +99,20 @@ describe("StorageCacheStore", () => {
     expect(events).toEqual(["set", "ok:set", "invalidate", "ok:invalidate"]);
     expect(errorSpy).toHaveBeenCalled();
     errorSpy.mockRestore();
+  });
+
+  it("stops emitting to unsubscribed listeners", () => {
+    const storage = new MemoryStorage();
+    const store = new StorageCacheStore(storage);
+    const events: string[] = [];
+
+    const unsubscribe = store.subscribe((event) => events.push(event.type));
+
+    store.set("a", { value: 1, createdAt: 1, updatedAt: 1 });
+    unsubscribe();
+    store.delete("a");
+
+    expect(events).toEqual(["set"]);
   });
 
   it("invalidates by tags", () => {
@@ -181,6 +209,23 @@ describe("FileCacheStore", () => {
     ]);
     expect(errorSpy).toHaveBeenCalled();
     errorSpy.mockRestore();
+
+    rmSync(dir, { recursive: true, force: true });
+  });
+
+  it("stops emitting to unsubscribed listeners", () => {
+    const dir = createTempDir();
+    const filePath = join(dir, "cache.json");
+    const store = new FileCacheStore(filePath);
+    const events: string[] = [];
+
+    const unsubscribe = store.subscribe((event) => events.push(event.type));
+
+    store.set("a", { value: 1, createdAt: 1, updatedAt: 1 });
+    unsubscribe();
+    store.delete("a");
+
+    expect(events).toEqual(["set"]);
 
     rmSync(dir, { recursive: true, force: true });
   });

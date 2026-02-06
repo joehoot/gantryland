@@ -22,8 +22,18 @@ export type StorageLike = {
  * Options for StorageCacheStore.
  */
 export type StorageCacheStoreOptions = {
+  /**
+   * Key prefix used to scope stored entries.
+   */
   prefix?: string;
+  /**
+   * Serialize a cache entry for storage.
+   */
   serialize?: (entry: CacheEntry<unknown>) => string;
+  /**
+   * Deserialize a cache entry from storage.
+   * Returning undefined treats the entry as invalid.
+   */
   deserialize?: (raw: string) => CacheEntry<unknown> | undefined;
 };
 
@@ -41,6 +51,7 @@ const asStringKey = (key: CacheKey): string => String(key);
 
 /**
  * CacheStore backed by a Storage-like interface.
+ * Keys are stringified and prefixed before storage.
  */
 export class StorageCacheStore implements CacheStore {
   private storage: StorageLike;
@@ -51,6 +62,9 @@ export class StorageCacheStore implements CacheStore {
 
   /**
    * Create a StorageCacheStore.
+   *
+   * @param storage - Backing Storage-like implementation.
+   * @param options - Serialization and prefix options.
    */
   constructor(storage: StorageLike, options: StorageCacheStoreOptions = {}) {
     this.storage = storage;
@@ -61,6 +75,11 @@ export class StorageCacheStore implements CacheStore {
 
   /**
    * Get a cache entry by key.
+   * Invalid or unreadable entries are removed and return undefined.
+   *
+   * @template T - Cached value type.
+   * @param key - Cache key.
+   * @returns The cache entry or undefined when missing or invalid.
    */
   get<T>(key: CacheKey): CacheEntry<T> | undefined {
     const entry = this.readEntry(key);
@@ -73,6 +92,10 @@ export class StorageCacheStore implements CacheStore {
 
   /**
    * Set a cache entry by key.
+   *
+   * @template T - Cached value type.
+   * @param key - Cache key.
+   * @param entry - Cache entry to store.
    */
   set<T>(key: CacheKey, entry: CacheEntry<T>): void {
     this.storage.setItem(this.keyFor(key), this.serialize(entry));
@@ -81,6 +104,8 @@ export class StorageCacheStore implements CacheStore {
 
   /**
    * Delete a cache entry by key.
+   *
+   * @param key - Cache key.
    */
   delete(key: CacheKey): void {
     const existing = this.readEntry(key);
@@ -98,6 +123,9 @@ export class StorageCacheStore implements CacheStore {
 
   /**
    * Check if a key exists.
+   *
+   * @param key - Cache key.
+   * @returns True when a raw entry exists in storage.
    */
   has(key: CacheKey): boolean {
     return this.storage.getItem(this.keyFor(key)) !== null;
@@ -105,6 +133,8 @@ export class StorageCacheStore implements CacheStore {
 
   /**
    * List keys for the configured prefix.
+   *
+   * @returns Iterable of cache keys.
    */
   keys(): Iterable<CacheKey> {
     return this.listKeys().map((key) => this.stripPrefix(key));
@@ -112,6 +142,10 @@ export class StorageCacheStore implements CacheStore {
 
   /**
    * Subscribe to cache events.
+   * Listener errors are caught and logged.
+   *
+   * @param listener - Event callback.
+   * @returns Unsubscribe function.
    */
   subscribe(listener: (event: CacheEvent) => void): () => void {
     this.listeners.add(listener);
@@ -120,6 +154,9 @@ export class StorageCacheStore implements CacheStore {
 
   /**
    * Emit a cache event to subscribers.
+   * Listener errors are caught and logged.
+   *
+   * @param event - Cache event payload.
    */
   emit(event: CacheEvent): void {
     for (const listener of this.listeners) {
@@ -133,6 +170,8 @@ export class StorageCacheStore implements CacheStore {
 
   /**
    * Invalidate entries matching any of the provided tags.
+   *
+   * @param tags - Tags to match against stored entries.
    */
   invalidateTags(tags: string[]): void {
     const keys = [...this.keys()];
@@ -187,11 +226,15 @@ export class StorageCacheStore implements CacheStore {
  * Options for FileCacheStore.
  */
 export type FileCacheStoreOptions = {
+  /**
+   * Write the cache file with indentation.
+   */
   pretty?: boolean;
 };
 
 /**
  * CacheStore persisted to a JSON file (Node.js only).
+ * The file stores a plain JSON object keyed by the stringified cache key.
  */
 export class FileCacheStore implements CacheStore {
   private filePath: string;
@@ -201,6 +244,9 @@ export class FileCacheStore implements CacheStore {
 
   /**
    * Create a FileCacheStore.
+   *
+   * @param filePath - JSON file path for persistence.
+   * @param options - Persistence options.
    */
   constructor(filePath: string, options: FileCacheStoreOptions = {}) {
     this.filePath = filePath;
@@ -210,6 +256,10 @@ export class FileCacheStore implements CacheStore {
 
   /**
    * Get a cache entry by key.
+   *
+   * @template T - Cached value type.
+   * @param key - Cache key.
+   * @returns The cache entry or undefined when missing.
    */
   get<T>(key: CacheKey): CacheEntry<T> | undefined {
     return this.store.get(asStringKey(key)) as CacheEntry<T> | undefined;
@@ -217,6 +267,10 @@ export class FileCacheStore implements CacheStore {
 
   /**
    * Set a cache entry by key.
+   *
+   * @template T - Cached value type.
+   * @param key - Cache key.
+   * @param entry - Cache entry to store.
    */
   set<T>(key: CacheKey, entry: CacheEntry<T>): void {
     this.store.set(asStringKey(key), entry);
@@ -226,6 +280,8 @@ export class FileCacheStore implements CacheStore {
 
   /**
    * Delete a cache entry by key.
+   *
+   * @param key - Cache key.
    */
   delete(key: CacheKey): void {
     const stringKey = asStringKey(key);
@@ -246,6 +302,9 @@ export class FileCacheStore implements CacheStore {
 
   /**
    * Check if a key exists.
+   *
+   * @param key - Cache key.
+   * @returns True when an entry exists in memory.
    */
   has(key: CacheKey): boolean {
     return this.store.has(asStringKey(key));
@@ -253,6 +312,8 @@ export class FileCacheStore implements CacheStore {
 
   /**
    * List all keys.
+   *
+   * @returns Iterable of cache keys.
    */
   keys(): Iterable<CacheKey> {
     return this.store.keys();
@@ -260,6 +321,10 @@ export class FileCacheStore implements CacheStore {
 
   /**
    * Subscribe to cache events.
+   * Listener errors are caught and logged.
+   *
+   * @param listener - Event callback.
+   * @returns Unsubscribe function.
    */
   subscribe(listener: (event: CacheEvent) => void): () => void {
     this.listeners.add(listener);
@@ -268,6 +333,9 @@ export class FileCacheStore implements CacheStore {
 
   /**
    * Emit a cache event to subscribers.
+   * Listener errors are caught and logged.
+   *
+   * @param event - Cache event payload.
    */
   emit(event: CacheEvent): void {
     for (const listener of this.listeners) {
@@ -281,6 +349,8 @@ export class FileCacheStore implements CacheStore {
 
   /**
    * Invalidate entries matching any of the provided tags.
+   *
+   * @param tags - Tags to match against stored entries.
    */
   invalidateTags(tags: string[]): void {
     const keys = [...this.store.keys()];
@@ -293,6 +363,7 @@ export class FileCacheStore implements CacheStore {
 
   /**
    * Load the cache file into memory.
+   * Invalid JSON clears the in-memory store.
    */
   private load(): void {
     if (!existsSync(this.filePath)) return;
