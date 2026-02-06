@@ -6,6 +6,7 @@ Composable operators for TaskFn. Transform results, handle errors, retry, timeou
 
 - Curried combinators that compose cleanly with `pipe`.
 - Abort-aware behavior across retries and timeouts.
+- Normalizes non-Error throws in error-handling and timeout paths.
 - Parallel and sequential orchestration utilities.
 - Works in browser and Node.js with no dependencies.
 
@@ -18,6 +19,7 @@ npm install @gantryland/task-combinators
 ## Contents
 
 - [Highlights](#highlights)
+- [Installation](#installation)
 - [Quick start](#quick-start)
 - [At a glance](#at-a-glance)
 - [Design goals](#design-goals)
@@ -112,6 +114,10 @@ const withPipeline = pipe(fetchUsers, retry(2), timeout(5000));
 
 AbortError is treated as cancellation and is not transformed or swallowed by error operators.
 
+### Error normalization
+
+Some combinators normalize non-Error throws to `Error` (for example, `tapError`, `tapAbort`, `retry`, `retryWhen`, `timeout`, `timeoutAbort`, and `timeoutWith`).
+
 ## Flow
 
 ```text
@@ -124,9 +130,10 @@ Order matters. Use `pipe` to make intent explicit.
 
 - AbortError is treated as cancellation and is never transformed or swallowed.
 - `retry` and `retryWhen` check the signal between attempts and stop on abort.
-- `timeout` rejects with `TimeoutError` and does not abort the underlying TaskFn.
-- `timeoutAbort` rejects with `TimeoutError` and aborts the underlying TaskFn.
-- `timeoutWith` runs its fallback only for `TimeoutError`, not for AbortError.
+- `retry`, `retryWhen`, and `backoff` normalize non-Error throws when retries stop.
+- `timeout` rejects with `TimeoutError`, does not abort the underlying TaskFn, and normalizes non-Error throws.
+- `timeoutAbort` rejects with `TimeoutError`, aborts the underlying TaskFn, and normalizes non-Error throws.
+- `timeoutWith` runs its fallback only for `TimeoutError`, not for AbortError, and normalizes non-Error throws.
 
 ## API
 
@@ -165,7 +172,7 @@ Order matters. Use `pipe` to make intent explicit.
 
 ### pipe
 
-Compose functions left to right.
+Compose functions left to right. Abort behavior depends on the composed functions.
 
 ```typescript
 pipe(taskFn, map(transform), retry(2), timeout(5000))
@@ -173,7 +180,7 @@ pipe(taskFn, map(transform), retry(2), timeout(5000))
 
 ### map
 
-Transform the result.
+Transform the result. Propagates AbortError.
 
 ```typescript
 map((data) => data.filter((x) => x.active))
@@ -181,7 +188,7 @@ map((data) => data.filter((x) => x.active))
 
 ### flatMap
 
-Chain to another async operation. Receives the abort signal.
+Chain to another async operation. Receives the abort signal and propagates AbortError.
 
 ```typescript
 flatMap((user, signal) => fetchDetails(user.id, signal))
@@ -189,7 +196,7 @@ flatMap((user, signal) => fetchDetails(user.id, signal))
 
 ### tap
 
-Side effect on success, returns data unchanged.
+Side effect on success, returns data unchanged. Propagates AbortError.
 
 ```typescript
 tap((data) => console.log("fetched", data.length))
@@ -198,6 +205,7 @@ tap((data) => console.log("fetched", data.length))
 ### tapError
 
 Side effect on error (skips AbortError), rethrows.
+Normalizes non-Error throws before rethrowing.
 
 ```typescript
 tapError((err) => reportError(err))
@@ -206,6 +214,7 @@ tapError((err) => reportError(err))
 ### tapAbort
 
 Side effect on AbortError, rethrows.
+Normalizes non-AbortError throws before rethrowing.
 
 ```typescript
 tapAbort((err) => logAbort(err))
@@ -214,6 +223,7 @@ tapAbort((err) => logAbort(err))
 ### mapError
 
 Transform error before rethrowing (skips AbortError). Mapper must return an Error.
+Does not normalize non-Error throws before calling the mapper.
 
 ```typescript
 mapError((err) => new CustomError("request failed", { cause: err }))
@@ -232,6 +242,7 @@ catchError(async (err) => await loadFallback(err))
 ### retry
 
 Retry on failure. `retry(2)` means 3 total attempts.
+Propagates AbortError and normalizes non-Error throws when retries stop.
 
 `onRetry` runs after each failed attempt.
 
@@ -242,7 +253,8 @@ retry(2, { onRetry: (err, attempt) => console.warn("retry", attempt, err) })
 
 ### retryWhen
 
-Retry while a predicate returns true.
+Retry while a predicate returns true. Propagates AbortError and respects abort during delay.
+Normalizes non-Error throws when retries stop.
 
 ```typescript
 retryWhen((err, attempt) => attempt < 3)
@@ -252,6 +264,7 @@ retryWhen((err) => err instanceof Error, { onRetry: (err, attempt) => log(err, a
 ### backoff
 
 Retry with a fixed or computed delay.
+Propagates AbortError, respects abort during delay, and normalizes non-Error throws when retries stop.
 
 ```typescript
 backoff({ attempts: 3, delayMs: (attempt) => attempt * 250 })
@@ -259,7 +272,8 @@ backoff({ attempts: 3, delayMs: (attempt) => attempt * 250 })
 
 ### timeout
 
-Fail after duration. Respects abort signal and rejects with `TimeoutError`.
+Fail after duration. Does not abort the underlying TaskFn.
+Propagates AbortError, rejects with `TimeoutError`, and normalizes non-Error throws.
 
 ```typescript
 timeout(5000)
@@ -268,6 +282,7 @@ timeout(5000)
 ### timeoutAbort
 
 Fail after duration and abort the underlying task.
+Propagates AbortError, rejects with `TimeoutError`, and normalizes non-Error throws.
 
 ```typescript
 timeoutAbort(5000)
@@ -276,6 +291,7 @@ timeoutAbort(5000)
 ### timeoutWith
 
 Fallback TaskFn on timeout. AbortError is rethrown and does not trigger fallback.
+Normalizes non-Error throws before rethrowing.
 
 ```typescript
 timeoutWith(3000, () => fetchCachedUsers())
@@ -283,7 +299,7 @@ timeoutWith(3000, () => fetchCachedUsers())
 
 ### zip
 
-Run TaskFns in parallel and return a tuple of results.
+Run TaskFns in parallel and return a tuple of results. Propagates AbortError.
 
 ```typescript
 zip(fetchUser, fetchTeams)
@@ -291,7 +307,7 @@ zip(fetchUser, fetchTeams)
 
 ### all
 
-Run TaskFns in parallel and return an array of results.
+Run TaskFns in parallel and return an array of results. Propagates AbortError.
 
 ```typescript
 all([fetchUser, fetchTeams])
@@ -299,7 +315,7 @@ all([fetchUser, fetchTeams])
 
 ### race
 
-Resolve or reject with the first TaskFn to settle.
+Resolve or reject with the first TaskFn to settle. Propagates AbortError.
 Accepts either varargs or an array of TaskFns.
 
 ```typescript
@@ -309,6 +325,7 @@ race(fetchPrimary, fetchReplica)
 ### sequence
 
 Run TaskFns sequentially and return all results. `concat` is an alias.
+Checks the AbortSignal before each run and propagates AbortError.
 
 ```typescript
 sequence(fetchUser, fetchTeams)
@@ -324,7 +341,7 @@ concat(fetchUser, fetchTeams)
 
 ### defer
 
-Defer creation of a TaskFn until run time.
+Defer creation of a TaskFn until run time. Propagates AbortError.
 
 ```typescript
 defer(() => fetchUserTaskFn(id))

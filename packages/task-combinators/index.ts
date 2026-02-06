@@ -63,7 +63,8 @@ export class TimeoutError extends Error {
 // Combinators
 
 /**
- * Transforms the result of a TaskFn.
+ * Transforms the resolved value of a TaskFn.
+ * Propagates AbortError without modification.
  *
  * @template T - The input data type
  * @template U - The output data type
@@ -85,8 +86,8 @@ export const map =
     taskFn(signal, ...args).then(fn);
 
 /**
- * Chains to another async operation. The inner function receives the
- * abort signal for proper cancellation support.
+ * Chains to another async operation.
+ * Passes the same AbortSignal to the inner function and rethrows AbortError.
  *
  * @template T - The input data type
  * @template U - The output data type
@@ -109,6 +110,7 @@ export const flatMap =
 
 /**
  * Executes a side effect on success without modifying the data.
+ * Propagates AbortError without modification.
  *
  * @template T - The data type
  * @param fn - Side effect function (logging, metrics, etc.)
@@ -132,9 +134,9 @@ export const tap =
     });
 
 /**
- * Executes a side effect on error without modifying the error.
+ * Executes a side effect on error without modifying the error type.
  * Skips AbortError to avoid logging/reporting cancellations.
- * Always rethrows the error.
+ * Normalizes non-Error throws before rethrowing.
  *
  * @template T - The data type
  * @param fn - Side effect function for error handling (logging, reporting, etc.)
@@ -163,7 +165,7 @@ export const tapError =
 
 /**
  * Executes a side effect on AbortError without modifying the error.
- * Always rethrows the error.
+ * Normalizes non-AbortError throws before rethrowing.
  *
  * @template T - The data type
  * @param fn - Side effect function for abort handling
@@ -184,6 +186,7 @@ export const tapAbort =
 /**
  * Transforms an error before rethrowing. Useful for wrapping errors
  * in custom error classes. Skips AbortError.
+ * Does not normalize non-Error throws before calling fn.
  *
  * @template T - The data type
  * @param fn - Function that transforms the error to an Error
@@ -207,8 +210,8 @@ export const mapError =
     });
 
 /**
- * Recovers from errors with a fallback value or promise. Skips AbortError
- * (cancellations should propagate, not be caught).
+ * Recovers from errors with a fallback value or promise.
+ * Skips AbortError so cancellations propagate.
  *
  * @template T - The data type
  * @param fallback - A value, promise, or function that computes the fallback
@@ -250,7 +253,7 @@ export const catchError =
 
 /**
  * Retries on failure. `retry(2)` means 3 total attempts (1 + 2 retries).
- * Checks the abort signal between attempts. Skips retry on AbortError.
+ * Checks the abort signal between attempts and rethrows AbortError.
  * Negative attempts are treated as 0.
  *
  * @template T - The data type
@@ -292,7 +295,7 @@ export const retry =
 
 /**
  * Fails if the TaskFn doesn't resolve within the specified duration.
- * Properly cleans up on abort and respects the abort signal.
+ * Does not abort the underlying task. Propagates AbortError.
  *
  * @template T - The data type
  * @param ms - Timeout in milliseconds
@@ -317,38 +320,43 @@ export const timeout =
         return;
       }
 
+      let settled = false;
+      const finish = (fn: () => void) => {
+        if (settled) return;
+        settled = true;
+        fn();
+        clearTimeout(timer);
+        signal?.removeEventListener("abort", onAbort);
+      };
+
       const timer = setTimeout(() => {
-        reject(new TimeoutError());
+        finish(() => reject(new TimeoutError()));
       }, ms);
 
       const onAbort = () => {
-        clearTimeout(timer);
-        reject(createAbortError());
+        finish(() => reject(createAbortError()));
       };
 
       signal?.addEventListener("abort", onAbort, { once: true });
 
       taskFn(signal, ...args)
-        .then(resolve)
+        .then((value) => finish(() => resolve(value)))
         .catch((err) => {
           if (isAbortError(err)) {
-            reject(err);
+            finish(() => reject(err));
             return;
           }
-          reject(toError(err));
-        })
-        .finally(() => {
-          clearTimeout(timer);
-          signal?.removeEventListener("abort", onAbort);
+          finish(() => reject(toError(err)));
         });
     });
 
 /**
  * Fails if the TaskFn doesn't resolve within the specified duration.
- * Aborts the underlying task on timeout.
+ * Aborts the underlying task on timeout and propagates AbortError.
  *
  * If the task rejects with AbortError due to the timeout, the combinator
  * normalizes this to TimeoutError for consistent handling.
+ * Normalizes non-Error throws before rethrowing.
  */
 export const timeoutAbort =
   <T, Args extends unknown[] = []>(ms: number) =>
@@ -405,6 +413,7 @@ export const timeoutAbort =
 /**
  * Fails after the specified duration, then runs a fallback TaskFn.
  * Does not abort the original task. AbortError is rethrown.
+ * Normalizes non-Error throws before rethrowing.
  *
  * @template T - The data type
  * @param ms - Timeout in milliseconds
@@ -423,6 +432,7 @@ export const timeoutWith =
 
 /**
  * Runs TaskFns in parallel and resolves with a tuple of results.
+ * Passes the same AbortSignal to each TaskFn and propagates AbortError.
  */
 export const zip =
   <T extends unknown[], Args extends unknown[] = []>(
@@ -433,6 +443,7 @@ export const zip =
 
 /**
  * Runs TaskFns in parallel and resolves with an array of results.
+ * Passes the same AbortSignal to each TaskFn and propagates AbortError.
  */
 export function all<T, Args extends unknown[] = []>(
   taskFns: TaskFn<T, Args>[]
@@ -449,6 +460,7 @@ export function all<Args extends unknown[]>(
 
 /**
  * Resolves or rejects with the first TaskFn to settle.
+ * Passes the same AbortSignal to each TaskFn and propagates AbortError.
  */
 export function race<T, Args extends unknown[] = []>(
   taskFns: TaskFn<T, Args>[]
@@ -468,6 +480,7 @@ export function race<Args extends unknown[]>(
 
 /**
  * Runs TaskFns sequentially and resolves with all results.
+ * Checks the AbortSignal before each run and propagates AbortError.
  */
 export const sequence =
   <T extends unknown[], Args extends unknown[] = []>(
@@ -489,6 +502,7 @@ export const concat = sequence;
 
 /**
  * Defers creation of a TaskFn until run time.
+ * Passes through AbortSignal and propagates AbortError.
  */
 export const defer =
   <T, Args extends unknown[] = []>(factory: () => TaskFn<T, Args>): TaskFn<T, Args> =>
@@ -507,7 +521,8 @@ type RetryWhenOptions = {
 };
 
 /**
- * Retries while the predicate returns true. Skips AbortError.
+ * Retries while the predicate returns true.
+ * Skips AbortError and respects aborts during delay.
  * Optional onRetry is called before any delay.
  */
 export const retryWhen =
@@ -544,6 +559,7 @@ type BackoffOptions = {
 
 /**
  * Retries with a fixed or computed delay between attempts.
+ * Skips AbortError and respects aborts during delay.
  */
 export const backoff =
   <T, Args extends unknown[] = []>(options: BackoffOptions) =>
@@ -564,6 +580,7 @@ export const backoff =
 /**
  * Composes functions left to right. Pass a value and a series of
  * functions to transform it through.
+ * Abort behavior depends on the composed functions.
  *
  * @param initial - The initial value (typically a TaskFn)
  * @param fns - Functions to apply in sequence
