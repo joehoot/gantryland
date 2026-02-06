@@ -11,6 +11,7 @@ Gantryland is a suite of modern, composable tools for async workflows. Packages 
 - [Packages](#packages)
 - [Authoring guides](#authoring-guides)
 - [Release guides](#release-guides)
+- [Adoption guides](#adoption-guides)
 - [API guides](#api-guides)
 - [CI guides](#ci-guides)
 - [Handoff guides](#handoff-guides)
@@ -46,6 +47,10 @@ Gantryland is a suite of modern, composable tools for async workflows. Packages 
 - [Release process](docs/releasing/process.md)
 - [Release provenance policy](docs/releasing/provenance.md)
 - [0.3.0 audit tracker](docs/releasing/0.3.0-audit.md)
+
+## Adoption guides
+
+- [Consumer confidence guide](docs/adoption/consumer-confidence.md)
 
 ## API guides
 

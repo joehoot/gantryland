@@ -27,10 +27,10 @@ Progress notes:
 
 ## P1 - OSS consumer confidence
 
-- [ ] Add a compatibility matrix (Node.js, TypeScript, React where relevant).
-- [ ] Add deprecation and migration policy.
-- [ ] Add package lifecycle/status markers (stable/beta/experimental).
-- [ ] Add changelog conventions by bump type (patch/minor/major).
+- [x] Add a compatibility matrix (Node.js, TypeScript, React where relevant).
+- [x] Add deprecation and migration policy.
+- [x] Add package lifecycle/status markers (stable/beta/experimental).
+- [x] Add changelog conventions by bump type (patch/minor/major).
 
 ## P1 - Enterprise adoption readiness
 
@@ -56,9 +56,9 @@ Progress notes:
 
 ### Week 2
 
-- [ ] Deliver compatibility matrix and deprecation/migration policy.
+- [x] Deliver compatibility matrix and deprecation/migration policy.
 - [ ] Deliver architecture overview and benchmark harness notes.
-- [ ] Publish package lifecycle markers and changelog convention section.
+- [x] Publish package lifecycle markers and changelog convention section.
 
 ## Exit criteria
 
@@ -66,4 +66,6 @@ Progress notes:
 - [x] Security and support policies are discoverable from root docs.
 - [ ] Coverage thresholds are enforced in PR workflows.
 - [x] Public API change process is documented and verified.
-- [ ] New consumers can assess adoption risk quickly from docs.
+- [x] New consumers can assess adoption risk quickly from docs.
+
+P1 consumer confidence policy is documented in `docs/adoption/consumer-confidence.md`.
