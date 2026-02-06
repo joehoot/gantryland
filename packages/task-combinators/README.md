@@ -80,6 +80,9 @@ await usersTask.run();
 - `zip(...taskFns)`
 - `race(...taskFns)`
 - `sequence(...taskFns)`
+- `debounce({ waitMs })`
+- `throttle({ windowMs })`
+- `queue({ concurrency? })`
 
 ## Patterns
 
@@ -142,8 +145,6 @@ const taskFn = timeoutWith(3_000, fetchCached)(
 
 - [@gantryland/task](../task/) - Task execution and state primitive
 - [@gantryland/task-cache](../task-cache/) - Cache combinators and in-memory store
-- [@gantryland/task-scheduler](../task-scheduler/) - Polling and TaskFn scheduling utilities
-- [@gantryland/task-validate](../task-validate/) - Output validation combinators
 
 ## Test this package
 

@@ -149,13 +149,6 @@ await task.run();
 
 - [@gantryland/task-combinators](../task-combinators/) - TaskFn composition and control-flow operators
 - [@gantryland/task-cache](../task-cache/) - Cache combinators and in-memory store
-- [@gantryland/task-storage](../task-storage/) - Persistent CacheStore implementations
-- [@gantryland/task-scheduler](../task-scheduler/) - Polling and TaskFn scheduling utilities
-- [@gantryland/task-hooks](../task-hooks/) - React bindings for Task state
-- [@gantryland/task-observable](../task-observable/) - Observable interop adapters
-- [@gantryland/task-validate](../task-validate/) - Output validation combinators
-- [@gantryland/task-router](../task-router/) - Route-pattern helpers for Task
-- [@gantryland/task-logger](../task-logger/) - Task and cache logging helpers
 
 ## Test this package
 

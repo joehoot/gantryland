@@ -232,6 +232,26 @@ type BackoffOptions = {
  */
 export declare const backoff: <T, Args extends unknown[] = []>(options: BackoffOptions) => (taskFn: TaskFn<T, Args>) => TaskFn<T, Args>;
 /**
+ * Debounce a TaskFn so only the last call within the window executes.
+ *
+ * Superseded calls reject with AbortError.
+ */
+export declare const debounce: <T, Args extends unknown[] = []>(options: {
+    waitMs: number;
+}) => (taskFn: TaskFn<T, Args>) => TaskFn<T, Args>;
+/**
+ * Throttle a TaskFn so calls share one run per window.
+ */
+export declare const throttle: <T, Args extends unknown[] = []>(options: {
+    windowMs: number;
+}) => (taskFn: TaskFn<T, Args>) => TaskFn<T, Args>;
+/**
+ * Queue a TaskFn with limited concurrency.
+ */
+export declare const queue: <T, Args extends unknown[] = []>(options?: {
+    concurrency?: number;
+}) => (taskFn: TaskFn<T, Args>) => TaskFn<T, Args>;
+/**
  * Composes functions left to right. Pass a value and a series of
  * functions to transform it through.
  * Abort behavior depends on the composed functions.

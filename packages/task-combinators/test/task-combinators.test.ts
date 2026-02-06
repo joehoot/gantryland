@@ -3,10 +3,12 @@ import {
   TimeoutError,
   backoff,
   catchError,
+  debounce,
   flatMap,
   map,
   mapError,
   pipe,
+  queue,
   race,
   retry,
   retryWhen,
@@ -14,6 +16,7 @@ import {
   tap,
   tapAbort,
   tapError,
+  throttle,
   timeout,
   timeoutAbort,
   timeoutWith,
@@ -36,6 +39,11 @@ const createDeferred = <T>() => {
 
 const createAbortError = () =>
   Object.assign(new Error("Aborted"), { name: "AbortError" });
+
+const flushMicrotasks = async () => {
+  await Promise.resolve();
+  await Promise.resolve();
+};
 
 describe("task-combinators", () => {
   it("map transforms resolved data", async () => {
@@ -580,6 +588,223 @@ describe("task-combinators", () => {
     await vi.advanceTimersByTimeAsync(50);
     await rejection;
     vi.useRealTimers();
+  });
+
+  it("debounce only runs the last call and rejects earlier calls", async () => {
+    vi.useFakeTimers();
+    const taskFn = vi.fn(async () => "ok");
+    const debounced = debounce<string>({ waitMs: 30 })(taskFn);
+
+    const first = debounced();
+    const second = debounced();
+
+    await expect(first).rejects.toMatchObject({ name: "AbortError" });
+
+    await vi.advanceTimersByTimeAsync(30);
+    await expect(second).resolves.toBe("ok");
+    expect(taskFn).toHaveBeenCalledTimes(1);
+
+    vi.useRealTimers();
+  });
+
+  it("debounce rejects if the signal aborts before execution", async () => {
+    vi.useFakeTimers();
+    const taskFn = vi.fn(async () => "ok");
+    const debounced = debounce<string>({ waitMs: 20 })(taskFn);
+
+    const controller = new AbortController();
+    const promise = debounced(controller.signal);
+    controller.abort();
+
+    await expect(promise).rejects.toMatchObject({ name: "AbortError" });
+    expect(taskFn).not.toHaveBeenCalled();
+
+    vi.useRealTimers();
+  });
+
+  it("debounce rejects when the TaskFn throws synchronously", async () => {
+    vi.useFakeTimers();
+    const error = new Error("boom");
+    const taskFn = vi.fn(() => {
+      throw error;
+    });
+    const debounced = debounce<string>({ waitMs: 10 })(taskFn);
+
+    const promise = debounced();
+    const expectation = expect(promise).rejects.toBe(error);
+    await vi.advanceTimersByTimeAsync(10);
+
+    await expectation;
+    vi.useRealTimers();
+  });
+
+  it("throttle reuses in-flight promise within the window", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2024-01-01T00:00:00.000Z"));
+
+    const deferred = createDeferred<string>();
+    const taskFn = vi.fn(() => deferred.promise);
+    const throttled = throttle<string>({ windowMs: 100 })(taskFn);
+
+    const first = throttled();
+    const second = throttled();
+
+    await flushMicrotasks();
+
+    expect(first).toBe(second);
+    expect(taskFn).toHaveBeenCalledTimes(1);
+
+    deferred.resolve("ok");
+    await first;
+
+    vi.setSystemTime(new Date("2024-01-01T00:00:00.200Z"));
+    const third = throttled();
+
+    await flushMicrotasks();
+    expect(taskFn).toHaveBeenCalledTimes(2);
+
+    await third;
+    vi.useRealTimers();
+  });
+
+  it("throttle ignores later signals and arguments within the window", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2024-01-01T00:00:00.000Z"));
+
+    const taskFn = vi.fn(
+      async (_signal: AbortSignal | undefined, value: number) => value,
+    );
+    const throttled = throttle<number, [number]>({ windowMs: 100 })(taskFn);
+    const firstSignal = new AbortController().signal;
+    const secondSignal = new AbortController().signal;
+
+    const first = throttled(firstSignal, 1);
+    const second = throttled(secondSignal, 2);
+
+    expect(first).toBe(second);
+    await expect(first).resolves.toBe(1);
+    expect(taskFn).toHaveBeenCalledTimes(1);
+    expect(taskFn).toHaveBeenCalledWith(firstSignal, 1);
+
+    vi.useRealTimers();
+  });
+
+  it("throttle rejects when the TaskFn throws synchronously", async () => {
+    const error = new Error("boom");
+    const taskFn = vi.fn(() => {
+      throw error;
+    });
+    const throttled = throttle<string>({ windowMs: 50 })(taskFn);
+
+    await expect(throttled()).rejects.toBe(error);
+    expect(taskFn).toHaveBeenCalledTimes(1);
+  });
+
+  it("queue runs tasks in order with default concurrency", async () => {
+    const deferreds = [createDeferred<string>(), createDeferred<string>()];
+    const started: number[] = [];
+    let index = 0;
+    const taskFn = vi.fn(async () => {
+      const current = index;
+      started.push(current);
+      index += 1;
+      return deferreds[current].promise;
+    });
+
+    const queued = queue<string>()(taskFn);
+
+    const first = queued();
+    const second = queued();
+
+    await Promise.resolve();
+    expect(started).toEqual([0]);
+
+    deferreds[0].resolve("first");
+    await first;
+
+    await flushMicrotasks();
+    expect(started).toEqual([0, 1]);
+
+    deferreds[1].resolve("second");
+    await expect(second).resolves.toBe("second");
+  });
+
+  it("queue respects concurrency limits", async () => {
+    const deferreds = [
+      createDeferred<string>(),
+      createDeferred<string>(),
+      createDeferred<string>(),
+    ];
+    const started: number[] = [];
+    let index = 0;
+    const taskFn = vi.fn(async () => {
+      const current = index;
+      started.push(current);
+      index += 1;
+      return deferreds[current].promise;
+    });
+
+    const queued = queue<string>({ concurrency: 2 })(taskFn);
+
+    const first = queued();
+    const second = queued();
+    const third = queued();
+
+    await Promise.resolve();
+    expect(started).toEqual([0, 1]);
+
+    deferreds[0].resolve("one");
+    await first;
+
+    await flushMicrotasks();
+    expect(started).toEqual([0, 1, 2]);
+
+    deferreds[1].resolve("two");
+    deferreds[2].resolve("three");
+    await expect(Promise.all([second, third])).resolves.toEqual([
+      "two",
+      "three",
+    ]);
+  });
+
+  it("queue rejects with AbortError when aborted before start", async () => {
+    const deferred = createDeferred<string>();
+    const taskFn = vi.fn(async () => deferred.promise);
+    const queued = queue<string>()(taskFn);
+
+    const first = queued();
+    const controller = new AbortController();
+    const second = queued(controller.signal);
+    controller.abort();
+
+    await expect(second).rejects.toMatchObject({ name: "AbortError" });
+    expect(taskFn).toHaveBeenCalledTimes(1);
+
+    deferred.resolve("done");
+    await first;
+  });
+
+  it("queue rejects with AbortError when already aborted", async () => {
+    const taskFn = vi.fn(async () => "ok");
+    const queued = queue<string>()(taskFn);
+    const controller = new AbortController();
+    controller.abort();
+
+    await expect(queued(controller.signal)).rejects.toMatchObject({
+      name: "AbortError",
+    });
+    expect(taskFn).not.toHaveBeenCalled();
+  });
+
+  it("queue rejects when the TaskFn throws synchronously", async () => {
+    const error = new Error("boom");
+    const taskFn = vi.fn(() => {
+      throw error;
+    });
+    const queued = queue<string>()(taskFn);
+
+    await expect(queued()).rejects.toBe(error);
+    expect(taskFn).toHaveBeenCalledTimes(1);
   });
 
   it("pipe composes functions left to right", () => {

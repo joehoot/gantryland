@@ -5,13 +5,6 @@
 /packages/task/ @joehoot
 /packages/task-cache/ @joehoot
 /packages/task-combinators/ @joehoot
-/packages/task-hooks/ @joehoot
-/packages/task-logger/ @joehoot
-/packages/task-observable/ @joehoot
-/packages/task-router/ @joehoot
-/packages/task-scheduler/ @joehoot
-/packages/task-storage/ @joehoot
-/packages/task-validate/ @joehoot
 
 # Docs owners
 /docs/ @joehoot

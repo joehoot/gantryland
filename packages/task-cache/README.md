@@ -171,8 +171,6 @@ unsubscribe();
 
 - [@gantryland/task](../task/) - Task execution and state primitive
 - [@gantryland/task-combinators](../task-combinators/) - TaskFn composition and control-flow operators
-- [@gantryland/task-storage](../task-storage/) - Persistent CacheStore implementations
-- [@gantryland/task-logger](../task-logger/) - Task and cache logging helpers
 
 ## Test this package
 

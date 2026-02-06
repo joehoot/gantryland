@@ -543,6 +543,169 @@ export const backoff =
       },
     )(taskFn);
 
+/**
+ * Debounce a TaskFn so only the last call within the window executes.
+ *
+ * Superseded calls reject with AbortError.
+ */
+export const debounce =
+  <T, Args extends unknown[] = []>(options: { waitMs: number }) =>
+  (taskFn: TaskFn<T, Args>): TaskFn<T, Args> => {
+    let timer: ReturnType<typeof setTimeout> | null = null;
+    let pendingReject: ((err: Error) => void) | null = null;
+    let cleanupAbortListener: (() => void) | null = null;
+    let callId = 0;
+    let lastSignal: AbortSignal | undefined;
+    let lastArgs: Args = [] as unknown as Args;
+
+    const clearPending = () => {
+      cleanupAbortListener?.();
+      cleanupAbortListener = null;
+      pendingReject = null;
+    };
+
+    return (signal?: AbortSignal, ...args: Args) => {
+      callId += 1;
+      const currentCallId = callId;
+      lastSignal = signal;
+      lastArgs = args;
+      if (timer) clearTimeout(timer);
+
+      pendingReject?.(createAbortError());
+      clearPending();
+
+      if (signal?.aborted) return Promise.reject(createAbortError());
+
+      return new Promise<T>((resolve, reject) => {
+        pendingReject = reject;
+        const onAbort = () => {
+          if (timer) {
+            clearTimeout(timer);
+            timer = null;
+          }
+          clearPending();
+          reject(createAbortError());
+        };
+        signal?.addEventListener("abort", onAbort, { once: true });
+        cleanupAbortListener = () =>
+          signal?.removeEventListener("abort", onAbort);
+
+        timer = setTimeout(() => {
+          if (currentCallId !== callId) return;
+          timer = null;
+          cleanupAbortListener?.();
+          cleanupAbortListener = null;
+          const activeSignal = lastSignal;
+          const activeArgs = lastArgs;
+          if (activeSignal?.aborted) {
+            clearPending();
+            reject(createAbortError());
+            return;
+          }
+          void Promise.resolve()
+            .then(() => taskFn(activeSignal, ...activeArgs))
+            .then(resolve)
+            .catch(reject)
+            .finally(() => {
+              if (currentCallId === callId) {
+                clearPending();
+              }
+            });
+        }, options.waitMs);
+      });
+    };
+  };
+
+/**
+ * Throttle a TaskFn so calls share one run per window.
+ */
+export const throttle =
+  <T, Args extends unknown[] = []>(options: { windowMs: number }) =>
+  (taskFn: TaskFn<T, Args>): TaskFn<T, Args> => {
+    let lastRun = 0;
+    let inFlight: Promise<T> | null = null;
+
+    return (signal?: AbortSignal, ...args: Args) => {
+      const now = Date.now();
+      if (inFlight && now - lastRun < options.windowMs) return inFlight;
+
+      lastRun = now;
+      inFlight = Promise.resolve()
+        .then(() => taskFn(signal, ...args))
+        .finally(() => {
+          inFlight = null;
+        });
+
+      return inFlight;
+    };
+  };
+
+/**
+ * Queue a TaskFn with limited concurrency.
+ */
+export const queue =
+  <T, Args extends unknown[] = []>(options: { concurrency?: number } = {}) =>
+  (taskFn: TaskFn<T, Args>): TaskFn<T, Args> => {
+    const concurrency = Math.max(1, options.concurrency ?? 1);
+    const pending: Array<{ start: () => void }> = [];
+    let active = 0;
+
+    const runNext = () => {
+      if (active >= concurrency) return;
+      const next = pending.shift();
+      if (!next) return;
+      next.start();
+    };
+
+    return (signal?: AbortSignal, ...args: Args) =>
+      new Promise<T>((resolve, reject) => {
+        let started = false;
+        const entry = {
+          start: () => {
+            if (signal?.aborted) {
+              signal?.removeEventListener("abort", onAbort);
+              reject(createAbortError());
+              runNext();
+              return;
+            }
+            started = true;
+            signal?.removeEventListener("abort", onAbort);
+            active += 1;
+            void Promise.resolve()
+              .then(() => taskFn(signal, ...args))
+              .then(resolve)
+              .catch(reject)
+              .finally(() => {
+                active -= 1;
+                runNext();
+              });
+          },
+        };
+
+        const onAbort = () => {
+          if (started) return;
+          const index = pending.indexOf(entry);
+          if (index !== -1) {
+            pending.splice(index, 1);
+            signal?.removeEventListener("abort", onAbort);
+            reject(createAbortError());
+            runNext();
+          } else {
+            reject(createAbortError());
+          }
+        };
+
+        if (signal?.aborted) {
+          reject(createAbortError());
+          return;
+        }
+
+        signal?.addEventListener("abort", onAbort, { once: true });
+        pending.push(entry);
+        runNext();
+      });
+  };
+
 // Pipe
 
 /**

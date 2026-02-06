@@ -9,13 +9,6 @@ If you are new here: run setup, then open the package README you need.
 - [@gantryland/task](packages/task/)
 - [@gantryland/task-cache](packages/task-cache/)
 - [@gantryland/task-combinators](packages/task-combinators/)
-- [@gantryland/task-hooks](packages/task-hooks/)
-- [@gantryland/task-logger](packages/task-logger/)
-- [@gantryland/task-observable](packages/task-observable/)
-- [@gantryland/task-router](packages/task-router/)
-- [@gantryland/task-scheduler](packages/task-scheduler/)
-- [@gantryland/task-storage](packages/task-storage/)
-- [@gantryland/task-validate](packages/task-validate/)
 
 ## Setup
 

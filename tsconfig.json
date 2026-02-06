@@ -3,13 +3,6 @@
   "references": [
     { "path": "packages/task" },
     { "path": "packages/task-cache" },
-    { "path": "packages/task-combinators" },
-    { "path": "packages/task-hooks" },
-    { "path": "packages/task-storage" },
-    { "path": "packages/task-scheduler" },
-    { "path": "packages/task-observable" },
-    { "path": "packages/task-logger" },
-    { "path": "packages/task-validate" },
-    { "path": "packages/task-router" }
+    { "path": "packages/task-combinators" }
   ]
 }
