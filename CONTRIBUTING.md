@@ -11,7 +11,9 @@ npm run lint
 npm run format:check
 npm run typecheck
 npm run build
+npm run api:check
 npm test
+npm run test:coverage
 ```
 
 Use `npm run format` and `npm run lint:fix` to apply autoformat and safe fixes locally.
@@ -20,7 +22,10 @@ Use `npm run format` and `npm run lint:fix` to apply autoformat and safe fixes l
 
 - This repo uses Biome as the source of truth for linting and formatting.
 - Workspace `.vscode/settings.json` enables format-on-save and Biome code actions on save.
-- CI enforces `lint`, `format:check`, `typecheck`, `build`, `test`, and release guard checks.
+- CI enforces `lint`, `format:check`, `typecheck`, `build`, `test:coverage`, and release guard checks.
+- Required quality gates and provider-agnostic branch-protection policy are documented in `docs/ci/quality-gates.md`.
+- API deltas are checked by comparing built declarations to `docs/api/*.d.ts` snapshots (`npm run api:check`).
+- When API changes are intentional, regenerate baselines with `npm run api:update` and commit the updated snapshots.
 
 ## TypeScript strictness policy
 

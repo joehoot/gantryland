@@ -6,7 +6,7 @@ on:
 
 jobs:
   verify:
-    name: Lint, format, typecheck, build, test, and release guard
+    name: Lint, format, typecheck, build, API check, coverage, and release guard
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -33,8 +33,11 @@ jobs:
       - name: Build
         run: npm run build
 
-      - name: Test
-        run: npm test
+      - name: API delta check
+        run: npm run api:check
+
+      - name: Test with coverage thresholds
+        run: npm run test:coverage
 
       - name: Release guard
         run: npm run release:guard:changeset

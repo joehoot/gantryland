@@ -15,12 +15,13 @@ npm run release:publish
 ```
 
 - `release:changeset`: creates a new `.changeset/*.md` entry.
-- `release:status`: non-interactive check for pending changesets plus build/test.
+- `release:status`: non-interactive check for pending changesets plus quality gates.
 - `release:changelog`: applies versions and updates package changelogs.
-- `release:ready`: guard changesets, apply versions/changelogs, then build/test.
+- `release:ready`: guard changesets, apply versions/changelogs, then run quality gates.
 - `release:publish`: reruns release checks, then publishes with Changesets.
 
 `release:guard:changeset` is intended for CI pull request checks against `main`.
+See `docs/ci/quality-gates.md` for the full provider-agnostic required gate policy.
 `publish:workspaces` is available for explicit workspace publish operations and is intentionally named to avoid npm lifecycle ambiguity.
 
 ## Bump policy

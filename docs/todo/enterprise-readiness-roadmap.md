@@ -4,22 +4,25 @@ Target: move Gantryland from strong OSS readiness to clear enterprise-grade conf
 
 ## P0 - Trust and governance
 
-- [ ] Add `SECURITY.md` with disclosure process, response SLA, and supported versions.
-- [ ] Add `SUPPORT.md` with support scope, response expectations, and contact channels.
-- [ ] Add `CODEOWNERS` to define package ownership and review routing.
+- [x] Add `SECURITY.md` with disclosure process, response SLA, and supported versions.
+- [x] Add `SUPPORT.md` with support scope, response expectations, and contact channels.
+- [x] Add `CODEOWNERS` to define package ownership and review routing.
 - [ ] Document release provenance expectations (for example, signed tags and publish policy).
 
 ## P0 - CI quality gates
 
 - [ ] Enforce required checks on PRs: build, test, typecheck, and release guard.
 - [ ] Add and enforce lint/format checks.
-- [ ] Add coverage reporting and minimum coverage thresholds.
-- [ ] Add public API delta checks (for example, declaration/API report checks).
+- [x] Add coverage reporting and minimum coverage thresholds.
+- [x] Add public API delta checks (for example, declaration/API report checks).
 
 Progress notes:
 
-- CI workflow now runs `lint`, `format:check`, `typecheck`, `build`, `test`, and release guard.
-- Remaining work is enforcement via required checks in protected-branch policy, plus coverage and API delta automation.
+- CI workflow now runs `lint`, `format:check`, `typecheck`, `build`, `test:coverage`, and release guard.
+- Coverage thresholds are enforced via `vitest.config.ts` (`lines >=95`, `statements >=95`, `functions >=98`, `branches >=90`).
+- API baseline deltas are enforced via `npm run api:check` against snapshots in `docs/api`.
+- Required-check policy and provider-agnostic CI guidance are documented in `docs/ci/quality-gates.md`.
+- Remaining work is protected-branch enforcement in the active CI provider.
 
 ## P1 - OSS consumer confidence
 
@@ -59,7 +62,7 @@ Progress notes:
 ## Exit criteria
 
 - [ ] Required CI checks protect the default branch.
-- [ ] Security and support policies are discoverable from root docs.
+- [x] Security and support policies are discoverable from root docs.
 - [ ] Coverage thresholds are enforced in PR workflows.
-- [ ] Public API change process is documented and verified.
+- [x] Public API change process is documented and verified.
 - [ ] New consumers can assess adoption risk quickly from docs.

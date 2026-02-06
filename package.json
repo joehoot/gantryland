@@ -17,6 +17,8 @@
   "scripts": {
     "build": "tsc -b",
     "clean": "tsc -b --clean",
+    "api:check": "node ./scripts/api-delta.mjs --check",
+    "api:update": "node ./scripts/api-delta.mjs --update",
     "lint": "biome lint .",
     "lint:fix": "biome lint --write .",
     "format": "biome format --write .",
@@ -29,15 +31,17 @@
     "release:changelog": "changeset version",
     "release:guard:changeset": "changeset status --since main",
     "release:status": "changeset status && npm run release:check",
-    "release:check": "npm run lint && npm run format:check && npm run typecheck && npm run build && npm test",
+    "release:check": "npm run lint && npm run format:check && npm run typecheck && npm run build && npm run api:check && npm test",
     "release:ready": "npm run release:guard:changeset && npm run release:changelog && npm run release:check",
     "release:publish": "npm run release:check && npm run changeset:publish",
     "test": "vitest run",
+    "test:coverage": "vitest run --coverage",
     "changeset:publish": "changeset publish"
   },
   "devDependencies": {
     "@biomejs/biome": "^1.9.4",
     "@changesets/cli": "^2.27.1",
+    "@vitest/coverage-v8": "^2.1.9",
     "@testing-library/react": "^16.0.1",
     "@types/node": "^22.13.0",
     "@types/react": "^18.2.0",
