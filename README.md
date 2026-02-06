@@ -44,6 +44,7 @@ Gantryland is a suite of modern, composable tools for async workflows. Packages 
 
 - [Release index](docs/releasing/README.md)
 - [Release process](docs/releasing/process.md)
+- [Release provenance policy](docs/releasing/provenance.md)
 - [0.3.0 audit tracker](docs/releasing/0.3.0-audit.md)
 
 ## API guides

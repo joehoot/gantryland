@@ -7,7 +7,7 @@ Target: move Gantryland from strong OSS readiness to clear enterprise-grade conf
 - [x] Add `SECURITY.md` with disclosure process, response SLA, and supported versions.
 - [x] Add `SUPPORT.md` with support scope, response expectations, and contact channels.
 - [x] Add `CODEOWNERS` to define package ownership and review routing.
-- [ ] Document release provenance expectations (for example, signed tags and publish policy).
+- [x] Document release provenance expectations (for example, signed tags and publish policy).
 
 ## P0 - CI quality gates
 
@@ -22,6 +22,7 @@ Progress notes:
 - Coverage thresholds are enforced via `vitest.config.ts` (`lines >=95`, `statements >=95`, `functions >=98`, `branches >=90`).
 - API baseline deltas are enforced via `npm run api:check` against snapshots in `docs/api`.
 - Required-check policy and provider-agnostic CI guidance are documented in `docs/ci/quality-gates.md`.
+- Release provenance expectations are documented in `docs/releasing/provenance.md`.
 - Remaining work is protected-branch enforcement in the active CI provider.
 
 ## P1 - OSS consumer confidence
@@ -49,7 +50,7 @@ Progress notes:
 
 ### Week 1
 
-- [ ] Deliver all P0 trust/governance docs.
+- [x] Deliver all P0 trust/governance docs.
 - [ ] Deliver core CI gates and coverage thresholds.
 - [ ] Add PR template.
 

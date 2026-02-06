@@ -22,6 +22,7 @@ npm run release:publish
 
 `release:guard:changeset` is intended for CI pull request checks against `main`.
 See `docs/ci/quality-gates.md` for the full provider-agnostic required gate policy.
+See `docs/releasing/provenance.md` for signed-tag and publication traceability requirements.
 `publish:workspaces` is available for explicit workspace publish operations and is intentionally named to avoid npm lifecycle ambiguity.
 
 ## Bump policy
