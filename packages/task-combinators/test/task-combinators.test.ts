@@ -1,10 +1,8 @@
 import { describe, expect, it, vi } from "vitest";
 import {
   TimeoutError,
-  all,
   backoff,
   catchError,
-  defer,
   flatMap,
   map,
   mapError,
@@ -250,6 +248,14 @@ describe("task-combinators", () => {
     await expect(taskFn()).rejects.toMatchObject({ message: "boom" });
   });
 
+  it("timeout normalizes null throws", async () => {
+    const taskFn = timeout(20)(async () => {
+      throw null;
+    });
+
+    await expect(taskFn()).rejects.toMatchObject({ message: "null" });
+  });
+
   it("timeout does not abort the underlying task", async () => {
     vi.useFakeTimers();
     const controller = new AbortController();
@@ -399,26 +405,6 @@ describe("task-combinators", () => {
     });
   });
 
-  it("all runs tasks in parallel and preserves order", async () => {
-    const taskFn = all([async () => 1, async () => 2, async () => 3]);
-    await expect(taskFn()).resolves.toEqual([1, 2, 3]);
-  });
-
-  it("all propagates AbortError", async () => {
-    const controller = new AbortController();
-    controller.abort();
-    const taskFn = all([
-      async (signal) => {
-        if (signal?.aborted) throw createAbortError();
-        return 1;
-      },
-    ]);
-
-    await expect(taskFn(controller.signal)).rejects.toMatchObject({
-      name: "AbortError",
-    });
-  });
-
   it("race resolves with the first settled task", async () => {
     const first = createDeferred<string>();
     const second = createDeferred<string>();
@@ -443,16 +429,6 @@ describe("task-combinators", () => {
     await expect(taskFn(controller.signal)).rejects.toMatchObject({
       name: "AbortError",
     });
-  });
-
-  it("race accepts an array of task functions", async () => {
-    const first = createDeferred<string>();
-    const second = createDeferred<string>();
-    const taskFn = race([() => first.promise, () => second.promise]);
-
-    const promise = taskFn();
-    first.resolve("first");
-    await expect(promise).resolves.toBe("first");
   });
 
   it("sequence runs tasks sequentially", async () => {
@@ -483,17 +459,6 @@ describe("task-combinators", () => {
     await expect(taskFn(controller.signal)).rejects.toMatchObject({
       name: "AbortError",
     });
-  });
-
-  it("defer creates a task function at call time", async () => {
-    let created = 0;
-    const taskFn = defer(() => {
-      created += 1;
-      return async () => created;
-    });
-
-    await expect(taskFn()).resolves.toBe(1);
-    await expect(taskFn()).resolves.toBe(2);
   });
 
   it("retryWhen retries based on predicate and respects maxAttempts", async () => {

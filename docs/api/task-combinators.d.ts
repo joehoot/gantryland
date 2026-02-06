@@ -199,18 +199,9 @@ export declare const timeoutWith: <T, Args extends unknown[] = []>(ms: number, f
  */
 export declare const zip: <T extends unknown[], Args extends unknown[] = []>(...taskFns: { [K in keyof T]: TaskFn<T[K], Args>; }) => TaskFn<T, Args>;
 /**
- * Runs TaskFns in parallel and resolves with an array of results.
- * Passes the same AbortSignal to each TaskFn and propagates AbortError.
- */
-export declare function all<T, Args extends unknown[] = []>(taskFns: TaskFn<T, Args>[]): TaskFn<T[], Args>;
-export declare function all<T extends readonly unknown[], Args extends unknown[] = []>(taskFns: {
-    [K in keyof T]: TaskFn<T[K], Args>;
-}): TaskFn<T, Args>;
-/**
  * Resolves or rejects with the first TaskFn to settle.
  * Passes the same AbortSignal to each TaskFn and propagates AbortError.
  */
-export declare function race<T, Args extends unknown[] = []>(taskFns: TaskFn<T, Args>[]): TaskFn<T, Args>;
 export declare function race<T extends unknown[], Args extends unknown[] = []>(...taskFns: {
     [K in keyof T]: TaskFn<T[K], Args>;
 }): TaskFn<T[number], Args>;
@@ -219,11 +210,6 @@ export declare function race<T extends unknown[], Args extends unknown[] = []>(.
  * Checks the AbortSignal before each run and propagates AbortError.
  */
 export declare const sequence: <T extends unknown[], Args extends unknown[] = []>(...taskFns: { [K in keyof T]: TaskFn<T[K], Args>; }) => TaskFn<T, Args>;
-/**
- * Defers creation of a TaskFn until run time.
- * Passes through AbortSignal and propagates AbortError.
- */
-export declare const defer: <T, Args extends unknown[] = []>(factory: () => TaskFn<T, Args>) => TaskFn<T, Args>;
 type RetryWhenOptions = {
     maxAttempts?: number;
     delayMs?: (attempt: number, err: unknown) => number;

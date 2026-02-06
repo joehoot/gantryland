@@ -26,19 +26,7 @@ export type StorageCacheStoreOptions = {
    * Key prefix used to scope stored entries.
    */
   prefix?: string;
-  /**
-   * Serialize a cache entry for storage.
-   */
-  serialize?: (entry: CacheEntry<unknown>) => string;
-  /**
-   * Deserialize a cache entry from storage.
-   * Returning undefined treats the entry as invalid.
-   */
-  deserialize?: (raw: string) => CacheEntry<unknown> | undefined;
 };
-
-const defaultSerialize = (entry: CacheEntry<unknown>): string =>
-  JSON.stringify(entry);
 
 const defaultDeserialize = (raw: string): CacheEntry<unknown> | undefined => {
   const parsed = JSON.parse(raw) as CacheEntry<unknown>;
@@ -56,21 +44,17 @@ const asStringKey = (key: CacheKey): string => String(key);
 export class StorageCacheStore implements CacheStore {
   private storage: StorageLike;
   private prefix: string;
-  private serialize: (entry: CacheEntry<unknown>) => string;
-  private deserialize: (raw: string) => CacheEntry<unknown> | undefined;
   private listeners = new Set<(event: CacheEvent) => void>();
 
   /**
    * Create a StorageCacheStore.
    *
    * @param storage - Backing Storage-like implementation.
-   * @param options - Serialization and prefix options.
+   * @param options - Prefix options.
    */
   constructor(storage: StorageLike, options: StorageCacheStoreOptions = {}) {
     this.storage = storage;
     this.prefix = options.prefix ?? "task-cache:";
-    this.serialize = options.serialize ?? defaultSerialize;
-    this.deserialize = options.deserialize ?? defaultDeserialize;
   }
 
   /**
@@ -98,7 +82,7 @@ export class StorageCacheStore implements CacheStore {
    * @param entry - Cache entry to store.
    */
   set<T>(key: CacheKey, entry: CacheEntry<T>): void {
-    this.storage.setItem(this.keyFor(key), this.serialize(entry));
+    this.storage.setItem(this.keyFor(key), JSON.stringify(entry));
     this.emit({ type: "set", key, entry });
   }
 
@@ -196,7 +180,7 @@ export class StorageCacheStore implements CacheStore {
     const raw = this.storage.getItem(this.keyFor(key));
     if (!raw) return undefined;
     try {
-      return this.deserialize(raw);
+      return defaultDeserialize(raw);
     } catch {
       return undefined;
     }
@@ -223,22 +207,11 @@ export class StorageCacheStore implements CacheStore {
 }
 
 /**
- * Options for FileCacheStore.
- */
-export type FileCacheStoreOptions = {
-  /**
-   * Write the cache file with indentation.
-   */
-  pretty?: boolean;
-};
-
-/**
  * CacheStore persisted to a JSON file (Node.js only).
  * The file stores a plain JSON object keyed by the stringified cache key.
  */
 export class FileCacheStore implements CacheStore {
   private filePath: string;
-  private pretty: boolean;
   private store = new Map<string, CacheEntry<unknown>>();
   private listeners = new Set<(event: CacheEvent) => void>();
 
@@ -246,11 +219,9 @@ export class FileCacheStore implements CacheStore {
    * Create a FileCacheStore.
    *
    * @param filePath - JSON file path for persistence.
-   * @param options - Persistence options.
    */
-  constructor(filePath: string, options: FileCacheStoreOptions = {}) {
+  constructor(filePath: string) {
     this.filePath = filePath;
-    this.pretty = options.pretty ?? false;
     this.load();
   }
 
@@ -387,7 +358,7 @@ export class FileCacheStore implements CacheStore {
     for (const [key, entry] of this.store.entries()) {
       data[key] = entry;
     }
-    const json = JSON.stringify(data, null, this.pretty ? 2 : 0);
+    const json = JSON.stringify(data);
     mkdirSync(dirname(this.filePath), { recursive: true });
     writeFileSync(this.filePath, json, "utf8");
   }

@@ -14,16 +14,31 @@ npm install @gantryland/task-validate
 
 ```typescript
 import { Task } from "@gantryland/task";
-import { fromSafeParse, validate } from "@gantryland/task-validate";
+import { ValidationError, validate } from "@gantryland/task-validate";
 import { pipe } from "@gantryland/task-combinators";
-import { z } from "zod";
 
-const User = z.object({ id: z.string(), name: z.string() });
+type User = { id: string; name: string };
+
+const userValidator = {
+  parse: (input: unknown): User => {
+    if (
+      typeof input === "object" &&
+      input !== null &&
+      "id" in input &&
+      "name" in input &&
+      typeof (input as { id: unknown }).id === "string" &&
+      typeof (input as { name: unknown }).name === "string"
+    ) {
+      return input as User;
+    }
+    throw new ValidationError("Invalid user payload", { expected: "User" });
+  },
+};
 
 const userTask = new Task(
   pipe(
     (signal) => fetch("/api/user", { signal }).then((r) => r.json()),
-    validate(fromSafeParse(User.safeParse))
+    validate(userValidator)
   )
 );
 
@@ -33,7 +48,6 @@ await userTask.run();
 ## When to use
 
 - You want output validation directly in task composition.
-- You already have a `safeParse`-style schema validator.
 - You want type guard validation with a consistent error type.
 
 ## When not to use
@@ -44,8 +58,6 @@ await userTask.run();
 ## Exports
 
 - `validate(validator)`
-- `fromSafeParse(safeParse)`
-- `fromPredicate(predicate, issues?)`
 - `ValidationError`
 
 Core type:
@@ -64,13 +76,6 @@ type Validator<T> = {
   - Returns parsed value on success.
   - Throws validation failure from the validator.
 - TaskFn failures, including abort, pass through unchanged.
-- `fromSafeParse`
-  - Converts `{ success, data?, error? }` style validators.
-  - Throws `ValidationError("Validation failed", result.error)` when not successful.
-- `fromPredicate`
-  - Uses a type guard.
-  - Throws `ValidationError("Validation failed", issues)` when predicate fails.
-
 ## Patterns
 
 ### 1) Handle `ValidationError` explicitly
@@ -87,22 +92,33 @@ try {
 }
 ```
 
-### 2) Use predicate validation without schema library
+### 2) Inline minimal validator
 
 ```typescript
 import { Task } from "@gantryland/task";
-import { fromPredicate, validate } from "@gantryland/task-validate";
+import { ValidationError, validate } from "@gantryland/task-validate";
 import { pipe } from "@gantryland/task-combinators";
 
 type User = { id: string; name: string };
 
-const isUser = (input: unknown): input is User =>
-  !!input && typeof (input as User).id === "string";
+const userValidator = {
+  parse: (input: unknown): User => {
+    if (
+      input &&
+      typeof input === "object" &&
+      typeof (input as { id?: unknown }).id === "string" &&
+      typeof (input as { name?: unknown }).name === "string"
+    ) {
+      return input as User;
+    }
+    throw new ValidationError("Validation failed", { expected: "User" });
+  },
+};
 
 const userTask = new Task(
   pipe(
     (signal) => fetch("/api/user", { signal }).then((r) => r.json()),
-    validate(fromPredicate(isUser, { reason: "Invalid user payload" }))
+    validate(userValidator)
   )
 );
 ```
@@ -112,14 +128,27 @@ const userTask = new Task(
 ```typescript
 import { Task } from "@gantryland/task";
 import { pipe, retry, timeout } from "@gantryland/task-combinators";
-import { fromSafeParse, validate } from "@gantryland/task-validate";
+import { ValidationError, validate } from "@gantryland/task-validate";
+
+const userValidator = {
+  parse: (input: unknown): { id: string } => {
+    if (
+      input &&
+      typeof input === "object" &&
+      typeof (input as { id?: unknown }).id === "string"
+    ) {
+      return input as { id: string };
+    }
+    throw new ValidationError("Validation failed", { expected: "User" });
+  },
+};
 
 const task = new Task(
   pipe(
     (signal) => fetch("/api/user", { signal }).then((r) => r.json()),
     retry(2),
     timeout(4_000),
-    validate(fromSafeParse(User.safeParse))
+    validate(userValidator)
   )
 );
 ```

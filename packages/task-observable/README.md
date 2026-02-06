@@ -14,7 +14,7 @@ npm install @gantryland/task-observable
 
 ```typescript
 import { Task } from "@gantryland/task";
-import { fromTask } from "@gantryland/task-observable";
+import { fromTaskState } from "@gantryland/task-observable";
 
 type User = { id: string; name: string };
 
@@ -22,8 +22,12 @@ const userTask = new Task<User>((signal) =>
   fetch("/api/user", { signal }).then((r) => r.json())
 );
 
-const sub = fromTask(userTask).subscribe((user) => {
-  console.log(user.name);
+const sub = fromTaskState(userTask).subscribe({
+  next: (state) => {
+    if (state.data) {
+      console.log(state.data.name);
+    }
+  },
 });
 
 await userTask.run();
@@ -33,7 +37,7 @@ sub.unsubscribe();
 ## When to use
 
 - You need a tiny observable interface for adapters.
-- You want to expose task state/results to observable consumers.
+- You want to expose task state to observable consumers.
 - You want to adapt an observable source into a `TaskFn`.
 
 ## When not to use
@@ -43,9 +47,7 @@ sub.unsubscribe();
 
 ## Exports
 
-- `createObservable(subscribe)`
 - `fromTaskState(task)`
-- `fromTask(task)`
 - `toTask(observable)`
 
 Core types:
@@ -60,21 +62,14 @@ type Observer<T> = {
 type Subscription = { unsubscribe: () => void };
 
 type Observable<T> = {
-  subscribe: (observer: Observer<T> | ((value: T) => void)) => Subscription;
+  subscribe: (observer: Observer<T>) => Subscription;
 };
 ```
 
 ## Semantics
 
-- `createObservable`
-  - Accepts function or object observers.
-  - Uses a no-op unsubscribe when subscribe callback returns nothing.
 - `fromTaskState`
   - Emits every task state transition in order.
-- `fromTask`
-  - Emits only when state is not loading, not stale, and has defined `data`.
-  - Deduplicates by reference equality (`===`).
-  - Forwards task errors to `observer.error`.
 - `toTask`
   - Resolves on first `next`.
   - Rejects on `error`.
@@ -106,11 +101,14 @@ sub.unsubscribe();
 
 ```typescript
 import { Task } from "@gantryland/task";
-import { createObservable, toTask } from "@gantryland/task-observable";
+import { toTask } from "@gantryland/task-observable";
 
-const source$ = createObservable<string>((observer) => {
-  observer.next("ready");
-});
+const source$ = {
+  subscribe: (observer: { next: (value: string) => void }) => {
+    observer.next("ready");
+    return { unsubscribe: () => {} };
+  },
+};
 
 const task = new Task(toTask(source$));
 await task.run();

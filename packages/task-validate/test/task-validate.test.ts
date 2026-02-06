@@ -1,10 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import {
-  fromPredicate,
-  fromSafeParse,
-  validate,
-  ValidationError,
-} from "../index";
+import { validate, ValidationError } from "../index";
 
 const createAbortError = () =>
   Object.assign(new Error("Aborted"), { name: "AbortError" });
@@ -26,19 +21,18 @@ describe("validate", () => {
     expect(taskFn).toHaveBeenCalledTimes(1);
   });
 
-  it("propagates ValidationError", async () => {
+  it("propagates ValidationError from validator", async () => {
     const error = new ValidationError("Validation failed", { reason: "bad" });
-    const validator = {
+    const wrapped = validate({
       parse: () => {
         throw error;
       },
-    };
-    const wrapped = validate(validator)(async () => "nope");
+    })(async () => "nope");
 
     await expect(wrapped()).rejects.toBe(error);
   });
 
-  it("propagates non-validation errors", async () => {
+  it("propagates non-validation errors from task function", async () => {
     const error = new Error("boom");
     const wrapped = validate({ parse: (input) => input as string })(
       async () => {
@@ -49,7 +43,7 @@ describe("validate", () => {
     await expect(wrapped()).rejects.toBe(error);
   });
 
-  it("propagates AbortError from the TaskFn", async () => {
+  it("propagates AbortError from task function", async () => {
     const error = createAbortError();
     const wrapped = validate({ parse: (input) => input as string })(
       async () => {
@@ -61,55 +55,11 @@ describe("validate", () => {
   });
 });
 
-describe("fromSafeParse", () => {
-  it("returns parsed data on success", () => {
-    const validator = fromSafeParse<string>(() => ({
-      success: true,
-      data: "ok",
-    }));
-    expect(validator.parse("input")).toBe("ok");
-  });
-
-  it("throws ValidationError with issues on failure", () => {
-    const issues = { message: "bad" };
-    const validator = fromSafeParse(() => ({ success: false, error: issues }));
-
-    const thrown = (() => {
-      try {
-        validator.parse("input");
-      } catch (error) {
-        return error;
-      }
-    })();
-
-    expect(thrown).toBeInstanceOf(ValidationError);
-    expect((thrown as ValidationError).issues).toBe(issues);
-  });
-});
-
-describe("fromPredicate", () => {
-  it("returns input when predicate passes", () => {
-    const validator = fromPredicate<number>(
-      (input): input is number => typeof input === "number",
-    );
-    expect(validator.parse(2)).toBe(2);
-  });
-
-  it("throws ValidationError with issues when predicate fails", () => {
-    const validator = fromPredicate<number>(
-      (input): input is number => typeof input === "number",
-      { expected: "number" },
-    );
-
-    const thrown = (() => {
-      try {
-        validator.parse("nope");
-      } catch (error) {
-        return error;
-      }
-    })();
-
-    expect(thrown).toBeInstanceOf(ValidationError);
-    expect((thrown as ValidationError).issues).toEqual({ expected: "number" });
+describe("ValidationError", () => {
+  it("stores issues payload", () => {
+    const error = new ValidationError("Validation failed", {
+      expected: "User",
+    });
+    expect(error.issues).toEqual({ expected: "User" });
   });
 });

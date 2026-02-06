@@ -1,13 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import { Task } from "@gantryland/task";
 import { MemoryCacheStore, type CacheStore } from "@gantryland/task-cache";
-import {
-  consoleLogger,
-  createLogger,
-  logCache,
-  logTask,
-  logTaskState,
-} from "../index";
+import { logCache, logTask, logTaskState } from "../index";
 
 const createDeferred = <T>() => {
   let resolve: (value: T) => void = (_value) => {
@@ -25,38 +19,6 @@ const createDeferred = <T>() => {
 
 const createAbortError = () =>
   Object.assign(new Error("Aborted"), { name: "AbortError" });
-
-describe("consoleLogger", () => {
-  it("uses console method and forwards meta", () => {
-    const infoSpy = vi.spyOn(console, "info").mockImplementation(() => {});
-    const meta = { value: 1 };
-
-    consoleLogger({ level: "info", message: "hello", meta });
-
-    expect(infoSpy).toHaveBeenCalledWith("hello", meta);
-    infoSpy.mockRestore();
-  });
-});
-
-describe("createLogger", () => {
-  it("prefixes messages and forwards events", () => {
-    const events: Array<{ message: string }> = [];
-    const logger = createLogger({
-      prefix: "[app]",
-      logger: (event) => events.push(event),
-    });
-
-    logger({ level: "info", message: "ready", meta: { ok: true } });
-
-    expect(events).toEqual([
-      {
-        level: "info",
-        message: "[app] ready",
-        meta: { ok: true },
-      },
-    ]);
-  });
-});
 
 describe("logTask", () => {
   it("logs start and success with timing", async () => {

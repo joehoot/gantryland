@@ -39,7 +39,7 @@ await settingsTask.run();
 `Storage`-backed store (`localStorage`/`sessionStorage` or compatible).
 
 - Prefix-scoped keys (default prefix: `task-cache:`)
-- JSON serialization by default
+- JSON serialization
 - Invalid/unreadable entries are removed on read
 - Supports cache events and tag invalidation
 
@@ -48,8 +48,6 @@ Constructor:
 ```typescript
 new StorageCacheStore(storage, {
   prefix?: string,
-  serialize?: (entry) => string,
-  deserialize?: (raw) => CacheEntry | undefined,
 })
 ```
 
@@ -65,7 +63,7 @@ File-backed JSON store persisted with synchronous I/O.
 Constructor:
 
 ```typescript
-new FileCacheStore(filePath, { pretty?: boolean })
+new FileCacheStore(filePath)
 ```
 
 ## API
@@ -118,25 +116,7 @@ const store = new StorageCacheStore(localStorage, { prefix: "gantry:" });
 ```typescript
 import { FileCacheStore } from "@gantryland/task-storage";
 
-const store = new FileCacheStore("./.cache/task-cache.json", { pretty: true });
-```
-
-### 3) Custom serialization format
-
-```typescript
-import { StorageCacheStore } from "@gantryland/task-storage";
-
-const store = new StorageCacheStore(localStorage, {
-  prefix: "app:",
-  serialize: (entry) => JSON.stringify({ version: 1, entry }),
-  deserialize: (raw) => {
-    const parsed = JSON.parse(raw) as { version?: number; entry?: unknown };
-    if (parsed.version !== 1) return undefined;
-    return parsed.entry as
-      | { value: unknown; createdAt: number; updatedAt: number; tags?: string[] }
-      | undefined;
-  },
-});
+const store = new FileCacheStore("./.cache/task-cache.json");
 ```
 
 ## Operational notes

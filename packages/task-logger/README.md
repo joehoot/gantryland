@@ -16,21 +16,20 @@ npm install @gantryland/task-logger
 import { Task } from "@gantryland/task";
 import { cache, MemoryCacheStore } from "@gantryland/task-cache";
 import { pipe } from "@gantryland/task-combinators";
-import { createLogger, logCache, logTask, logTaskState } from "@gantryland/task-logger";
+import { logCache, logTask, logTaskState } from "@gantryland/task-logger";
 
-const logger = createLogger({ prefix: "[app]" });
 const store = new MemoryCacheStore();
 
 const usersTask = new Task(
   pipe(
     (signal) => fetch("/api/users", { signal }).then((r) => r.json()),
-    logTask({ label: "users", logger }),
+    logTask({ label: "users" }),
     cache("users", store, { ttl: 60_000 })
   )
 );
 
-const stopTaskLogs = logTaskState(usersTask, { label: "users", logger });
-const stopCacheLogs = logCache(store, { label: "cache", logger });
+const stopTaskLogs = logTaskState(usersTask, { label: "users" });
+const stopCacheLogs = logCache(store, { label: "cache" });
 
 await usersTask.run();
 
@@ -51,8 +50,6 @@ stopCacheLogs();
 
 ## Exports
 
-- `consoleLogger(event)`
-- `createLogger({ prefix?, logger? })`
 - `logTask(options?)`
 - `logTaskState(task, options?)`
 - `logCache(store, options?)`
@@ -60,10 +57,8 @@ stopCacheLogs();
 Core event types:
 
 ```typescript
-type LogLevel = "debug" | "info" | "warn" | "error";
-
 type LogEvent = {
-  level: LogLevel;
+  level: "debug" | "info" | "warn" | "error";
   message: string;
   meta?: Record<string, unknown>;
 };
@@ -95,13 +90,13 @@ type Logger = (event: LogEvent) => void;
 
 ```typescript
 import type { LogEvent } from "@gantryland/task-logger";
-import { createLogger } from "@gantryland/task-logger";
+import { logTask } from "@gantryland/task-logger";
 
 const jsonLogger = (event: LogEvent) => {
   console.log(JSON.stringify({ ...event, ts: new Date().toISOString() }));
 };
 
-const logger = createLogger({ prefix: "[tasks]", logger: jsonLogger });
+const instrument = logTask({ label: "users", logger: jsonLogger });
 ```
 
 ### 2) TaskFn execution instrumentation

@@ -1,10 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import {
-  buildPath,
-  createPathTask,
-  createRouteTask,
-  matchRoute,
-} from "../index";
+import { buildPath, createRouteTask, matchRoute } from "../index";
 
 describe("matchRoute", () => {
   it("matches params and decodes path segments", () => {
@@ -59,24 +54,19 @@ describe("createRouteTask", () => {
     params.id = "mutated";
     expect(routeTask.getParams()).toEqual({ id: "2" });
   });
-});
 
-describe("createPathTask", () => {
-  it("seeds params from initialPath and runs with runPath", async () => {
+  it("runs with params matched from a route", async () => {
     const taskForParams = (params: Record<string, string>) => async () =>
       params.id ? `user:${params.id}` : "none";
 
-    const routeTask = createPathTask("/users/:id", taskForParams, "/users/5");
-    expect(routeTask.getParams()).toEqual({ id: "5" });
+    const routeTask = createRouteTask(taskForParams);
+    const match = matchRoute("/users/:id", "/users/9");
 
-    await routeTask.runPath("/users/9");
+    if (!match) {
+      throw new Error("expected route to match");
+    }
+
+    await routeTask.run(match.params);
     expect(routeTask.task.getState().data).toBe("user:9");
-  });
-
-  it("throws when path does not match", async () => {
-    const routeTask = createPathTask("/users/:id", () => async () => "ok");
-    await expect(routeTask.runPath("/teams/1")).rejects.toThrow(
-      "Path does not match pattern: /users/:id",
-    );
   });
 });

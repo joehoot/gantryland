@@ -4,7 +4,7 @@ Minimal async task with reactive state.
 
 A `Task` instance is the identity: share the instance to share async state across modules, services, and UI.
 
-- Small API (`run`, `subscribe`, `cancel`, `reset`, `resolveWith`)
+- Small API (`run`, `subscribe`, `cancel`, `reset`)
 - AbortSignal-aware execution
 - Latest-request-wins behavior built in
 - No runtime dependencies; works in browser and Node.js
@@ -35,7 +35,6 @@ const unsubscribe = userTask.subscribe(({ data, error, isLoading, isStale }) => 
 await userTask.run("42");
 
 unsubscribe();
-userTask.dispose();
 ```
 
 ## When to use
@@ -75,7 +74,7 @@ stale -> run() -> loading -> success | error
 ## API
 
 ```typescript
-new Task<T, Args extends unknown[] = []>(fn?: TaskFn<T, Args>)
+new Task<T, Args extends unknown[] = []>(fn: TaskFn<T, Args>)
 ```
 
 | Member | Purpose | Return |
@@ -83,11 +82,8 @@ new Task<T, Args extends unknown[] = []>(fn?: TaskFn<T, Args>)
 | `getState()` | Read current snapshot | `TaskState<T>` |
 | `subscribe(listener)` | Observe state changes (immediate first emit) | `() => void` |
 | `run(...args)` | Execute the current `TaskFn` | `Promise<T \| undefined>` |
-| `define(fn)` | Replace the current `TaskFn` | `Task<T, Args>` |
-| `resolveWith(data)` | Set success state without running | `void` |
 | `cancel()` | Abort in-flight run and clear loading | `void` |
 | `reset()` | Restore initial stale state | `void` |
-| `dispose()` | Abort and clear subscribers | `void` |
 
 ## Semantics
 
@@ -135,38 +131,17 @@ if (error) {
 }
 ```
 
-### 3) Optimistic hydrate, then network fallback
+### 3) One stable implementation
 
 ```typescript
 import { Task } from "@gantryland/task";
 
-type Profile = { id: string; name: string };
+const task = new Task(async () => {
+  const response = await fetch("/api/profile");
+  if (!response.ok) throw new Error("Request failed");
+  return response.json() as Promise<{ id: string; name: string }>;
+});
 
-const profileTask = new Task<Profile>((signal) =>
-  fetch("/api/profile", { signal }).then((r) => r.json())
-);
-
-async function loadProfile(cached: Profile | null) {
-  if (cached) {
-    profileTask.resolveWith(cached);
-    return;
-  }
-
-  await profileTask.run();
-}
-```
-
-### 4) Swap implementations at runtime with `define`
-
-```typescript
-import { Task } from "@gantryland/task";
-
-const task = new Task<string>();
-
-task.define(async () => "first");
-await task.run();
-
-task.define(async () => "second");
 await task.run();
 ```
 

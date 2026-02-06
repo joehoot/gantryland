@@ -54,20 +54,6 @@ describe("StorageCacheStore", () => {
     expect(storage.getItem("cache:bad")).toBeNull();
   });
 
-  it("removes entries when deserialize throws", () => {
-    const storage = new MemoryStorage();
-    const store = new StorageCacheStore(storage, {
-      deserialize: () => {
-        throw new Error("bad deserialize");
-      },
-    });
-
-    storage.setItem("task-cache:bad", "boom");
-
-    expect(store.get("bad")).toBeUndefined();
-    expect(storage.getItem("task-cache:bad")).toBeNull();
-  });
-
   it("clears only prefixed entries", () => {
     const storage = new MemoryStorage();
     const store = new StorageCacheStore(storage, { prefix: "cache:" });
@@ -126,22 +112,6 @@ describe("StorageCacheStore", () => {
 
     expect(store.has("a")).toBe(false);
     expect(store.has("b")).toBe(true);
-  });
-
-  it("uses custom serialize and deserialize", () => {
-    const storage = new MemoryStorage();
-    const store = new StorageCacheStore(storage, {
-      serialize: (entry) => `value:${(entry.value as number) ?? 0}`,
-      deserialize: (raw) => ({
-        value: Number(raw.split(":")[1]),
-        createdAt: 1,
-        updatedAt: 1,
-      }),
-    });
-
-    store.set("a", { value: 7, createdAt: 1, updatedAt: 1 });
-    expect(storage.getItem("task-cache:a")).toBe("value:7");
-    expect(store.get<number>("a")?.value).toBe(7);
   });
 });
 

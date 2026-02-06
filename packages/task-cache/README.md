@@ -90,7 +90,6 @@ type CacheOptions = {
 | `cache(key, store, options?)` | TTL cache combinator | `(taskFn) => TaskFn` |
 | `staleWhileRevalidate(key, store, options?)` | Serve stale, refresh in background | `(taskFn) => TaskFn` |
 | `invalidateOnResolve(target, store)` | Invalidate keys/tags after success | `(taskFn) => TaskFn` |
-| `cacheKey(...parts)` | Build stable string keys | `string` |
 
 ### MemoryCacheStore methods
 

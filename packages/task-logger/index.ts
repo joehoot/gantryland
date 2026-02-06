@@ -1,123 +1,28 @@
 import type { Task, TaskFn, TaskState } from "@gantryland/task";
-import type { CacheEvent, CacheStore } from "@gantryland/task-cache";
+import type { CacheStore } from "@gantryland/task-cache";
 
-/**
- * Log severity levels.
- */
-export type LogLevel = "debug" | "info" | "warn" | "error";
-
-/**
- * Structured log event.
- */
 export type LogEvent = {
-  level: LogLevel;
+  level: "debug" | "info" | "warn" | "error";
   message: string;
   meta?: Record<string, unknown>;
 };
 
-/**
- * Logger function signature.
- */
 export type Logger = (event: LogEvent) => void;
 
-/**
- * Options for logging TaskFn execution.
- */
-export type TaskLoggerOptions = {
-  label?: string;
-  logger?: Logger;
-  /**
-   * Clock source for duration metadata (defaults to Date.now).
-   */
-  now?: () => number;
-};
-
-/**
- * Options for logging Task instance state transitions.
- */
-export type TaskSubscriptionLoggerOptions = {
-  label?: string;
-  logger?: Logger;
-  /**
-   * Clock source for duration metadata (defaults to Date.now).
-   */
-  now?: () => number;
-};
-
-/**
- * Options for logging cache events.
- */
-export type CacheLoggerOptions = {
-  label?: string;
-  logger?: Logger;
-};
-
-/**
- * Log events using the console.
- *
- * Uses the event level as the console method when available.
- *
- * @param event - Structured log event to write
- * @returns Nothing
- *
- * @example
- * ```typescript
- * consoleLogger({ level: "info", message: "task start" });
- * ```
- */
-export const consoleLogger: Logger = ({ level, message, meta }) => {
+const defaultLogger: Logger = ({ level, message, meta }) => {
   const method = console[level] ?? console.log;
   if (meta) method(message, meta);
   else method(message);
 };
 
-/**
- * Create a logger that prefixes messages.
- *
- * Wraps an existing logger or the console logger by default.
- *
- * @param options - Logger configuration
- * @returns A logger that adds the prefix to every message
- *
- * @example
- * ```typescript
- * const logger = createLogger({ prefix: "[api]" });
- * logger({ level: "info", message: "ready" });
- * ```
- */
-export const createLogger = (
-  options: { prefix?: string; logger?: Logger } = {},
-): Logger => {
-  const { prefix, logger } = options;
-  const base = logger ?? consoleLogger;
-  return (event) => {
-    const message = prefix ? `${prefix} ${event.message}` : event.message;
-    base({ ...event, message });
-  };
-};
-
-/**
- * Wrap a TaskFn and log start/success/error/abort with duration metadata.
- *
- * Errors are rethrown after logging. AbortError logs at debug level.
- *
- * @template T - Resolved data type
- * @template Args - TaskFn argument tuple
- * @param options - Logging configuration
- * @returns A combinator that returns a TaskFn
- *
- * @example
- * ```typescript
- * const task = new Task(
- *   pipe(fetchUser, logTask({ label: "user" }))
- * );
- * ```
- */
+/** Wraps a TaskFn and logs start/success/error/abort with duration metadata. */
 export const logTask =
-  <T, Args extends unknown[] = []>(options: TaskLoggerOptions = {}) =>
+  <T, Args extends unknown[] = []>(
+    options: { label?: string; logger?: Logger; now?: () => number } = {},
+  ) =>
   (taskFn: TaskFn<T, Args>): TaskFn<T, Args> =>
   async (signal?: AbortSignal, ...args: Args) => {
-    const logger = options.logger ?? consoleLogger;
+    const logger = options.logger ?? defaultLogger;
     const label = options.label ?? "task";
     const now = options.now ?? Date.now;
     const start = now();
@@ -152,31 +57,12 @@ export const logTask =
     }
   };
 
-/**
- * Subscribe to a Task and log lifecycle transitions.
- *
- * Success/abort are inferred from TaskState changes. If a run completes
- * without error and the data reference does not change, it is logged as abort.
- *
- * @template T - Task data type
- * @template Args - Task argument tuple
- * @param task - Task instance to subscribe to
- * @param options - Logging configuration
- * @returns Unsubscribe function
- *
- * @example
- * ```typescript
- * const task = new Task(fetchUser);
- * const unsubscribe = logTaskState(task, { label: "user" });
- * await task.run();
- * unsubscribe();
- * ```
- */
+/** Subscribes to Task state transitions and logs start/success/error/abort. */
 export const logTaskState = <T, Args extends unknown[] = []>(
   task: Task<T, Args>,
-  options: TaskSubscriptionLoggerOptions = {},
+  options: { label?: string; logger?: Logger; now?: () => number } = {},
 ): (() => void) => {
-  const logger = options.logger ?? consoleLogger;
+  const logger = options.logger ?? defaultLogger;
   const label = options.label ?? "task";
   const now = options.now ?? Date.now;
   let lastState: TaskState<T> | undefined;
@@ -224,31 +110,16 @@ export const logTaskState = <T, Args extends unknown[] = []>(
   });
 };
 
-/**
- * Subscribe to cache events and log them.
- *
- * Returns a no-op when the store does not expose subscribe().
- *
- * @param store - Cache store that may emit events
- * @param options - Logging configuration
- * @returns Unsubscribe function
- *
- * @example
- * ```typescript
- * const store = new MemoryCacheStore();
- * const unsubscribe = logCache(store, { label: "cache" });
- * unsubscribe();
- * ```
- */
+/** Subscribes to cache events and logs `${label} ${event.type}` at debug level. */
 export const logCache = (
   store: CacheStore,
-  options: CacheLoggerOptions = {},
+  options: { label?: string; logger?: Logger } = {},
 ): (() => void) => {
-  const logger = options.logger ?? consoleLogger;
+  const logger = options.logger ?? defaultLogger;
   const label = options.label ?? "cache";
   if (!store.subscribe) return () => undefined;
 
-  return store.subscribe((event: CacheEvent) => {
+  return store.subscribe((event) => {
     logger({
       level: "debug",
       message: `${label} ${event.type}`,
@@ -257,12 +128,9 @@ export const logCache = (
   });
 };
 
-/**
- * Detect AbortError.
- */
-const isAbortError = (err: unknown): boolean => {
-  if (typeof DOMException !== "undefined" && err instanceof DOMException) {
-    return err.name === "AbortError";
-  }
-  return (err as Error).name === "AbortError";
-};
+const isAbortError = (err: unknown): boolean =>
+  (err instanceof Error && err.name === "AbortError") ||
+  (typeof err === "object" &&
+    err !== null &&
+    "name" in err &&
+    (err as { name?: unknown }).name === "AbortError");

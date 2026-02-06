@@ -1,13 +1,4 @@
-/**
- * Reactive snapshot of a Task.
- *
- * @template T - The type of the resolved data
- *
- * @property data - Last successful result, or undefined before any success
- * @property error - Last error, or undefined if none (AbortError is not stored; non-Error throws are normalized)
- * @property isLoading - True while a run is in-flight
- * @property isStale - True before the first run starts
- */
+/** Reactive state snapshot for a Task instance. */
 export type TaskState<T> = {
   data: T | undefined;
   error: Error | undefined;
@@ -18,37 +9,22 @@ export type TaskState<T> = {
 type Listener<T> = (state: TaskState<T>) => void;
 type Unsubscribe = () => void;
 
-/**
- * Async function signature executed by a Task.
- *
- * Task treats AbortError as cancellation and does not store it in TaskState.
- *
- * @template T - The type of the resolved data
- * @template Args - Arguments forwarded by run
- * @param signal - Optional AbortSignal for cancellation
- * @param args - Arguments forwarded from run
- * @returns A promise that resolves to the data
- *
- * @example
- * ```typescript
- * const fetchUser: TaskFn<User> = (signal) =>
- *   fetch("/api/user", { signal }).then((r) => r.json());
- * ```
- */
+/** Async function signature executed by `Task.run()`. */
 export type TaskFn<T, Args extends unknown[] = []> = (
   signal?: AbortSignal,
   ...args: Args
 ) => Promise<T>;
 
 const isAbortError = (err: unknown): boolean =>
-  (err as Error).name === "AbortError";
+  (err instanceof Error && err.name === "AbortError") ||
+  (typeof err === "object" &&
+    err !== null &&
+    "name" in err &&
+    (err as { name?: unknown }).name === "AbortError");
 
 const toError = (err: unknown): Error =>
   err instanceof Error ? err : new Error(String(err));
 
-/**
- * Internal helper for the initial Task state.
- */
 const createDefaultTaskState = <T>(): TaskState<T> => ({
   data: undefined,
   error: undefined,
@@ -57,63 +33,33 @@ const createDefaultTaskState = <T>(): TaskState<T> => ({
 });
 
 /**
- * Minimal async task with reactive state.
+ * Minimal async primitive with reactive state and latest-run-wins semantics.
  *
- * The instance is the identity: share the instance to share state across
- * modules or UI. Works in browser and Node.js.
- *
- * @template T - The type of the resolved data
- * @template Args - Arguments forwarded by run
- *
- * @example
- * ```typescript
- * import { Task } from "./task";
- * import { pipe, retry, timeout } from "./task-combinators";
- *
- * const userTask = new Task(
- *   pipe(
- *     (signal) => fetch("/api/user", { signal }).then((r) => r.json()),
- *     retry(2),
- *     timeout(5000)
- *   )
- * );
- *
- * userTask.subscribe(({ data, error, isLoading }) => {
- *   if (isLoading) showSpinner();
- *   else if (error) showError(error);
- *   else render(data);
- * });
- *
- * await userTask.run();
- * ```
+ * The Task instance is the state identity: share the instance to share state.
  */
 export class Task<T, Args extends unknown[] = []> {
   private _state: TaskState<T> = createDefaultTaskState<T>();
   private readonly listeners = new Set<Listener<T>>();
   private abortController: AbortController | null = null;
   private requestId = 0;
-  private fn: TaskFn<T, Args> | null;
+  private readonly fn: TaskFn<T, Args>;
 
-  /**
-   * Creates a new Task instance.
-   *
-   * @param fn - TaskFn to execute. Can be replaced later with define().
-   */
-  constructor(fn?: TaskFn<T, Args>) {
-    this.fn = fn ?? null;
+  /** Creates a task with a required `TaskFn`. */
+  constructor(fn: TaskFn<T, Args>) {
+    this.fn = fn;
   }
 
   private setState(state: TaskState<T>): void {
     this._state = state;
-    this._notify();
+    this.notify();
   }
 
   private updateState(partial: Partial<TaskState<T>>): void {
     this._state = { ...this._state, ...partial };
-    this._notify();
+    this.notify();
   }
 
-  private _notify() {
+  private notify() {
     for (const listener of this.listeners) {
       try {
         listener(this._state);
@@ -124,51 +70,12 @@ export class Task<T, Args extends unknown[] = []> {
   }
 
   /**
-   * Sets or replaces the TaskFn. Cancels any in-flight request.
+   * Executes the current `TaskFn`.
    *
-   * @param fn - The new TaskFn to use
-   * @returns The task instance
-   *
-   * @example
-   * ```typescript
-   * const task = new Task<User>((signal) =>
-   *   fetch("/api/users/me", { signal }).then((r) => r.json())
-   * );
-   * task.define((signal) => fetch(`/api/users/${id}`, { signal }).then((r) => r.json()));
-   * await task.run();
-   * ```
-   */
-  define(fn: TaskFn<T, Args>): this {
-    this.cancel();
-    this.fn = fn;
-    return this;
-  }
-
-  /**
-   * Executes the TaskFn and updates state reactively.
-   *
-   * Behavior:
-   * - Aborts any previous in-flight request (latest wins)
-   * - Sets isLoading true and clears error
-   * - On success: sets data, clears error, sets isLoading false
-   * - On error: preserves data, sets error (normalized to Error), sets isLoading false
-   * - On abort: preserves data, sets isLoading false, no error
-   * - Superseded runs resolve undefined and do not update state
-   * - AbortError is swallowed and not stored
-   *
-   * @param args - Arguments forwarded to the TaskFn
-   * @returns Resolved data on success, otherwise undefined
-   *
-   * @example
-   * ```typescript
-   * await task.run();
-   * await task.run(userId, includeFlags);
-   * ```
+   * Starts loading, clears `error`, aborts any in-flight run, and enforces
+   * latest-run-wins. Returns `undefined` on error, abort, or superseded runs.
    */
   async run(...args: Args): Promise<T | undefined> {
-    if (!this.fn) {
-      throw new Error("TaskFn is not set. Call define() before run().");
-    }
     const currentRequestId = ++this.requestId;
     this.abortController?.abort();
     this.abortController = new AbortController();
@@ -200,36 +107,15 @@ export class Task<T, Args extends unknown[] = []> {
     }
   }
 
-  /**
-   * Returns the current state snapshot.
-   *
-   * @returns The current TaskState
-   *
-   * @example
-   * ```typescript
-   * const { data, error, isLoading, isStale } = task.getState();
-   * ```
-   */
+  /** Returns the current state snapshot. */
   getState(): TaskState<T> {
     return this._state;
   }
 
   /**
-   * Subscribes to state changes. The listener is called immediately with
-   * the current state, then on every subsequent change.
+   * Subscribes to state changes.
    *
-   * @param listener - Callback invoked with the current state
-   * @returns Unsubscribe function
-   *
-   * @example
-   * ```typescript
-   * const unsub = task.subscribe((state) => {
-   *   console.log("State changed:", state);
-   * });
-   *
-   * // Later...
-   * unsub();
-   * ```
+   * The listener receives the current state immediately and then every update.
    */
   subscribe(listener: Listener<T>): Unsubscribe {
     this.listeners.add(listener);
@@ -239,50 +125,7 @@ export class Task<T, Args extends unknown[] = []> {
     };
   }
 
-  /**
-   * Short-circuits with provided data. Aborts any in-flight request and
-   * immediately settles the task with the given data.
-   *
-   * State after resolve:
-   * - data: provided value
-   * - error: undefined
-   * - isLoading: false
-   * - isStale: false
-   *
-   * @param data - The data to resolve with
-   *
-   * @example
-   * ```typescript
-   * // Skip fetch if we already have the data
-   * if (cachedUser) {
-   *   task.resolveWith(cachedUser);
-   * } else {
-   *   await task.run();
-   * }
-   * ```
-   */
-  resolveWith(data: T): void {
-    this.requestId += 1;
-    this.abortController?.abort();
-    this.abortController = null;
-    this.setState({
-      data,
-      error: undefined,
-      isLoading: false,
-      isStale: false,
-    });
-  }
-
-  /**
-   * Cancels any in-flight request. Preserves existing data and clears
-   * isLoading. Does nothing if no request is in-flight.
-   *
-   * @example
-   * ```typescript
-   * task.run(); // starts fetch
-   * task.cancel(); // aborts fetch, keeps previous data
-   * ```
-   */
+  /** Cancels any in-flight run and clears `isLoading`. */
   cancel(): void {
     if (!this.abortController) return;
     this.requestId += 1;
@@ -293,37 +136,11 @@ export class Task<T, Args extends unknown[] = []> {
     }
   }
 
-  /**
-   * Resets the task to its initial state. Aborts any in-flight request
-   * and clears all data/error.
-   *
-   * @example
-   * ```typescript
-   * task.reset();
-   * // State is now: { data: undefined, error: undefined, isLoading: false, isStale: true }
-   * ```
-   */
+  /** Aborts any in-flight run and restores the initial stale state. */
   reset(): void {
     this.requestId += 1;
     this.abortController?.abort();
     this.abortController = null;
     this.setState(createDefaultTaskState<T>());
-  }
-
-  /**
-   * Disposes the task. Aborts any in-flight request and removes all
-   * listeners. The task should not be used after disposal.
-   *
-   * @example
-   * ```typescript
-   * // Cleanup on component unmount or when done
-   * task.dispose();
-   * ```
-   */
-  dispose(): void {
-    this.requestId += 1;
-    this.abortController?.abort();
-    this.abortController = null;
-    this.listeners.clear();
   }
 }

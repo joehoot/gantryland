@@ -4,13 +4,18 @@ const isAbortError = (err: unknown): boolean => {
   if (typeof DOMException !== "undefined" && err instanceof DOMException) {
     return err.name === "AbortError";
   }
-  return (err as Error).name === "AbortError";
+  return (
+    (err instanceof Error && err.name === "AbortError") ||
+    (typeof err === "object" &&
+      err !== null &&
+      "name" in err &&
+      (err as { name?: unknown }).name === "AbortError")
+  );
 };
 
 const toError = (err: unknown): Error => {
   if (err instanceof Error) return err;
-  if (typeof err === "string") return new Error(err);
-  return new Error("Unknown error");
+  return new Error(String(err));
 };
 
 const createAbortError = (): Error => {
@@ -444,38 +449,15 @@ export const zip =
     Promise.all(taskFns.map((fn) => fn(signal, ...args))) as Promise<T>;
 
 /**
- * Runs TaskFns in parallel and resolves with an array of results.
- * Passes the same AbortSignal to each TaskFn and propagates AbortError.
- */
-export function all<T, Args extends unknown[] = []>(
-  taskFns: TaskFn<T, Args>[],
-): TaskFn<T[], Args>;
-export function all<T extends readonly unknown[], Args extends unknown[] = []>(
-  taskFns: { [K in keyof T]: TaskFn<T[K], Args> },
-): TaskFn<T, Args>;
-export function all<Args extends unknown[]>(
-  taskFns: TaskFn<unknown, Args>[],
-): TaskFn<unknown[], Args> {
-  return (signal?: AbortSignal, ...args: Args) =>
-    Promise.all(taskFns.map((fn) => fn(signal, ...args)));
-}
-
-/**
  * Resolves or rejects with the first TaskFn to settle.
  * Passes the same AbortSignal to each TaskFn and propagates AbortError.
  */
-export function race<T, Args extends unknown[] = []>(
-  taskFns: TaskFn<T, Args>[],
-): TaskFn<T, Args>;
 export function race<T extends unknown[], Args extends unknown[] = []>(
   ...taskFns: { [K in keyof T]: TaskFn<T[K], Args> }
 ): TaskFn<T[number], Args>;
 export function race<Args extends unknown[]>(
-  ...taskFnsOrArray: [TaskFn<unknown, Args>[]] | TaskFn<unknown, Args>[]
+  ...taskFns: TaskFn<unknown, Args>[]
 ): TaskFn<unknown, Args> {
-  const taskFns = (
-    Array.isArray(taskFnsOrArray[0]) ? taskFnsOrArray[0] : taskFnsOrArray
-  ) as TaskFn<unknown, Args>[];
   return (signal?: AbortSignal, ...args: Args) =>
     Promise.race(taskFns.map((fn) => fn(signal, ...args)));
 }
@@ -496,17 +478,6 @@ export const sequence =
     }
     return results as T;
   };
-
-/**
- * Defers creation of a TaskFn until run time.
- * Passes through AbortSignal and propagates AbortError.
- */
-export const defer =
-  <T, Args extends unknown[] = []>(
-    factory: () => TaskFn<T, Args>,
-  ): TaskFn<T, Args> =>
-  (signal?: AbortSignal, ...args: Args) =>
-    factory()(signal, ...args);
 
 type RetryWhenOptions = {
   maxAttempts?: number;

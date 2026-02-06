@@ -13,17 +13,19 @@ npm install @gantryland/task-router
 ## Quick start
 
 ```typescript
-import { createPathTask } from "@gantryland/task-router";
+import { createRouteTask, matchRoute } from "@gantryland/task-router";
 
 type User = { id: string; name: string };
 
-const userTask = createPathTask<User>(
-  "/users/:id",
+const userTask = createRouteTask<User>(
   (params) => (signal) =>
     fetch(`/api/users/${params.id}`, { signal }).then((r) => r.json())
 );
 
-await userTask.runPath("/users/123");
+const match = matchRoute("/users/:id", "/users/123");
+if (match) {
+  await userTask.run(match.params);
+}
 ```
 
 ## When to use
@@ -42,24 +44,12 @@ await userTask.runPath("/users/123");
 - `matchRoute(pattern, path)`
 - `buildPath(pattern, params)`
 - `createRouteTask(taskForParams, initialParams?)`
-- `createPathTask(pattern, taskForParams, initialPath?)`
 
 Core types:
 
 ```typescript
 type RouteParams = Record<string, string>;
 
-type RouteMatch = {
-  params: RouteParams;
-  path: string;
-};
-
-type RouteTask<T, Args extends unknown[] = []> = {
-  task: Task<T, Args>;
-  getParams: () => RouteParams;
-  setParams: (params: RouteParams) => void;
-  run: (params?: RouteParams, ...args: Args) => Promise<T | undefined>;
-};
 ```
 
 ## Semantics
@@ -76,9 +66,6 @@ type RouteTask<T, Args extends unknown[] = []> = {
   - Uses the latest stored params snapshot for execution.
   - `run(params)` updates params before delegating to `task.run(...)`.
   - `getParams()` returns a copy.
-- `createPathTask`
-  - Adds `runPath(path, ...args)` that validates/matches the path.
-  - Throws if `runPath` receives a non-matching path.
 
 Like `Task`, `run` and `runPath` resolve to `undefined` on error, abort, or superseded runs.
 
@@ -87,17 +74,17 @@ Like `Task`, `run` and `runPath` resolve to `undefined` on error, abort, or supe
 ### 1) Match first, route task execution
 
 ```typescript
-import { createPathTask, matchRoute } from "@gantryland/task-router";
+import { createRouteTask, matchRoute } from "@gantryland/task-router";
 
-const userTask = createPathTask(
-  "/users/:id",
+const userTask = createRouteTask(
   (params) => (signal) =>
     fetch(`/api/users/${params.id}`, { signal }).then((r) => r.json())
 );
 
 async function runForPath(path: string) {
-  if (matchRoute("/users/:id", path)) {
-    return userTask.runPath(path);
+  const match = matchRoute("/users/:id", path);
+  if (match) {
+    return userTask.run(match.params);
   }
 }
 ```
@@ -116,10 +103,9 @@ const path = buildPath("/teams/:teamId/projects/:projectId", {
 ### 3) Keep params and task state together
 
 ```typescript
-import { createPathTask } from "@gantryland/task-router";
+import { createRouteTask, matchRoute } from "@gantryland/task-router";
 
-const userTask = createPathTask(
-  "/users/:id",
+const userTask = createRouteTask(
   (params) => (signal) =>
     fetch(`/api/users/${params.id}`, { signal }).then((r) => r.json())
 );
@@ -128,18 +114,20 @@ const unsubscribe = userTask.task.subscribe((state) => {
   console.log(userTask.getParams(), state);
 });
 
-await userTask.runPath("/users/42");
+const match = matchRoute("/users/:id", "/users/42");
+if (match) {
+  await userTask.run(match.params);
+}
 unsubscribe();
 ```
 
 ### 4) Compose task function with combinators
 
 ```typescript
-import { createPathTask } from "@gantryland/task-router";
+import { createRouteTask, matchRoute } from "@gantryland/task-router";
 import { pipe, retry, timeout } from "@gantryland/task-combinators";
 
-const routeTask = createPathTask(
-  "/users/:id",
+const routeTask = createRouteTask(
   (params) =>
     pipe(
       (signal) => fetch(`/api/users/${params.id}`, { signal }).then((r) => r.json()),
@@ -148,7 +136,10 @@ const routeTask = createPathTask(
     )
 );
 
-await routeTask.runPath("/users/99");
+const match = matchRoute("/users/:id", "/users/99");
+if (match) {
+  await routeTask.run(match.params);
+}
 ```
 
 ## Related packages

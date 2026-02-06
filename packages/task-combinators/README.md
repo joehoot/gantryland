@@ -78,10 +78,8 @@ await usersTask.run();
 ### Orchestration
 
 - `zip(...taskFns)`
-- `all(taskFns)`
-- `race(...taskFns)` or `race(taskFns)`
+- `race(...taskFns)`
 - `sequence(...taskFns)`
-- `defer(factory)`
 
 ## Patterns
 
@@ -116,7 +114,7 @@ const taskFn = pipe(
 ### 3) Parallel + sequence orchestration
 
 ```typescript
-import { all, sequence, zip } from "@gantryland/task-combinators";
+import { sequence, zip } from "@gantryland/task-combinators";
 
 const fetchUser = (signal?: AbortSignal) =>
   fetch("/api/user", { signal }).then((r) => r.json());
@@ -124,7 +122,6 @@ const fetchTeams = (signal?: AbortSignal) =>
   fetch("/api/teams", { signal }).then((r) => r.json());
 
 const tupleTaskFn = zip(fetchUser, fetchTeams);
-const arrayTaskFn = all([fetchUser, fetchTeams]);
 const sequentialTaskFn = sequence(fetchUser, fetchTeams);
 ```
 

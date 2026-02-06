@@ -1,44 +1,6 @@
 import type { Task, TaskFn } from "@gantryland/task";
 
 /**
- * Configuration for polling a Task.
- *
- * @property intervalMs - Milliseconds between runs.
- * @property immediate - Run immediately before waiting the interval.
- */
-export type PollOptions = {
-  intervalMs: number;
-  immediate?: boolean;
-};
-
-/**
- * Configuration for debouncing a TaskFn.
- *
- * @property waitMs - Milliseconds to wait after the last call.
- */
-export type DebounceOptions = {
-  waitMs: number;
-};
-
-/**
- * Configuration for throttling a TaskFn.
- *
- * @property windowMs - Milliseconds in the throttle window.
- */
-export type ThrottleOptions = {
-  windowMs: number;
-};
-
-/**
- * Configuration for queueing a TaskFn.
- *
- * @property concurrency - Maximum number of in-flight TaskFn runs.
- */
-export type QueueOptions = {
-  concurrency?: number;
-};
-
-/**
  * Poll a Task on a fixed interval.
  *
  * Calls `task.run(...args)` on every tick. If `immediate` is false, the first
@@ -62,7 +24,7 @@ export type QueueOptions = {
  */
 export const pollTask = <T, Args extends unknown[] = []>(
   task: Task<T, Args>,
-  options: PollOptions,
+  options: { intervalMs: number; immediate?: boolean },
   ...args: Args
 ): (() => void) => {
   let timer: ReturnType<typeof setTimeout> | null = null;
@@ -111,32 +73,35 @@ export const pollTask = <T, Args extends unknown[] = []>(
  * ```
  */
 export const debounce =
-  <T, Args extends unknown[] = []>(options: DebounceOptions) =>
+  <T, Args extends unknown[] = []>(options: { waitMs: number }) =>
   (taskFn: TaskFn<T, Args>): TaskFn<T, Args> => {
     let timer: ReturnType<typeof setTimeout> | null = null;
-    let pendingRejects: Array<(err: Error) => void> = [];
-    let pendingCleanups: Array<() => void> = [];
+    let pendingReject: ((err: Error) => void) | null = null;
+    let cleanupAbortListener: (() => void) | null = null;
+    let callId = 0;
     let lastSignal: AbortSignal | undefined;
     let lastArgs: Args = [] as unknown as Args;
 
     const clearPending = () => {
-      for (const cleanup of pendingCleanups) cleanup();
-      pendingRejects = [];
-      pendingCleanups = [];
+      cleanupAbortListener?.();
+      cleanupAbortListener = null;
+      pendingReject = null;
     };
 
     return (signal?: AbortSignal, ...args: Args) => {
+      callId += 1;
+      const currentCallId = callId;
       lastSignal = signal;
       lastArgs = args;
       if (timer) clearTimeout(timer);
 
-      for (const reject of pendingRejects) reject(createAbortError());
+      pendingReject?.(createAbortError());
       clearPending();
 
       if (signal?.aborted) return Promise.reject(createAbortError());
 
       return new Promise<T>((resolve, reject) => {
-        pendingRejects.push(reject);
+        pendingReject = reject;
         const onAbort = () => {
           if (timer) {
             clearTimeout(timer);
@@ -146,13 +111,14 @@ export const debounce =
           reject(createAbortError());
         };
         signal?.addEventListener("abort", onAbort, { once: true });
-        pendingCleanups.push(() =>
-          signal?.removeEventListener("abort", onAbort),
-        );
+        cleanupAbortListener = () =>
+          signal?.removeEventListener("abort", onAbort);
 
         timer = setTimeout(() => {
+          if (currentCallId !== callId) return;
           timer = null;
-          signal?.removeEventListener("abort", onAbort);
+          cleanupAbortListener?.();
+          cleanupAbortListener = null;
           const activeSignal = lastSignal;
           const activeArgs = lastArgs;
           if (activeSignal?.aborted) {
@@ -165,7 +131,9 @@ export const debounce =
             .then(resolve)
             .catch(reject)
             .finally(() => {
-              clearPending();
+              if (currentCallId === callId) {
+                clearPending();
+              }
             });
         }, options.waitMs);
       });
@@ -195,7 +163,7 @@ export const debounce =
  * ```
  */
 export const throttle =
-  <T, Args extends unknown[] = []>(options: ThrottleOptions) =>
+  <T, Args extends unknown[] = []>(options: { windowMs: number }) =>
   (taskFn: TaskFn<T, Args>): TaskFn<T, Args> => {
     let lastRun = 0;
     let inFlight: Promise<T> | null = null;
@@ -241,7 +209,7 @@ export const throttle =
  * ```
  */
 export const queue =
-  <T, Args extends unknown[] = []>(options: QueueOptions = {}) =>
+  <T, Args extends unknown[] = []>(options: { concurrency?: number } = {}) =>
   (taskFn: TaskFn<T, Args>): TaskFn<T, Args> => {
     const concurrency = Math.max(1, options.concurrency ?? 1);
     const pending: Array<{ start: () => void }> = [];

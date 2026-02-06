@@ -19,7 +19,7 @@ const createAbortError = () =>
   Object.assign(new Error("Aborted"), { name: "AbortError" });
 
 describe("Task", () => {
-  it("starts with a stale, idle state", () => {
+  it("starts stale and idle", () => {
     const task = new Task(async () => "ok");
     expect(task.getState()).toEqual({
       data: undefined,
@@ -29,7 +29,7 @@ describe("Task", () => {
     });
   });
 
-  it("notifies subscribers immediately and on updates", async () => {
+  it("notifies immediately and on state updates", async () => {
     const deferred = createDeferred<string>();
     const task = new Task(() => deferred.promise);
     const states: Array<ReturnType<typeof task.getState>> = [];
@@ -38,47 +38,49 @@ describe("Task", () => {
       states.push({ ...state });
     });
 
-    expect(states).toHaveLength(1);
-    expect(states[0].isStale).toBe(true);
-
     const runPromise = task.run();
-    expect(task.getState().isLoading).toBe(true);
     deferred.resolve("value");
     await runPromise;
 
-    expect(states.at(-1)?.data).toBe("value");
-    expect(states.at(-1)?.isLoading).toBe(false);
-    expect(states.at(-1)?.isStale).toBe(false);
+    expect(states).toHaveLength(3);
+    expect(states[0]).toEqual({
+      data: undefined,
+      error: undefined,
+      isLoading: false,
+      isStale: true,
+    });
+    expect(states[1]?.isLoading).toBe(true);
+    expect(states[2]).toEqual({
+      data: "value",
+      error: undefined,
+      isLoading: false,
+      isStale: false,
+    });
 
     unsub();
   });
 
-  it("passes args to run", async () => {
+  it("forwards run args to the task function", async () => {
     const task = new Task<string, [number, string]>(
       async (_signal, id, label) => Promise.resolve(`${id}:${label}`),
     );
 
     await task.run(7, "ok");
-
     expect(task.getState().data).toBe("7:ok");
   });
 
-  it("throws when run is called without a TaskFn", async () => {
-    const task = new Task<string>();
-    await expect(task.run()).rejects.toThrow("TaskFn is not set");
-  });
-
-  it("preserves data when run fails", async () => {
-    const task = new Task(async () => "initial");
-    await task.run();
-    expect(task.getState().data).toBe("initial");
-
+  it("preserves data when later runs fail", async () => {
+    let fail = false;
     const error = new Error("boom");
-    task.define(async () => {
-      throw error;
+    const task = new Task(async () => {
+      if (fail) throw error;
+      return "initial";
     });
 
     await task.run();
+    fail = true;
+    await task.run();
+
     expect(task.getState().data).toBe("initial");
     expect(task.getState().error).toBe(error);
     expect(task.getState().isLoading).toBe(false);
@@ -90,39 +92,41 @@ describe("Task", () => {
     });
 
     await task.run();
-
-    const { error } = task.getState();
-    expect(error).toBeInstanceOf(Error);
-    expect(error?.message).toBe("boom");
+    expect(task.getState().error).toBeInstanceOf(Error);
+    expect(task.getState().error?.message).toBe("boom");
   });
 
-  it("clears error when a new run starts", async () => {
-    const task = new Task<string>(async () => {
-      throw new Error("boom");
+  it("normalizes null failures without crashing abort checks", async () => {
+    const task = new Task(async () => {
+      throw null;
+    });
+
+    await expect(task.run()).resolves.toBe(undefined);
+    expect(task.getState().error?.message).toBe("null");
+  });
+
+  it("clears previous errors when a new run starts", async () => {
+    let call = 0;
+    const deferred = createDeferred<string>();
+    const task = new Task(async () => {
+      call += 1;
+      if (call === 1) throw new Error("boom");
+      return deferred.promise;
     });
 
     await task.run();
-    expect(task.getState().error?.message).toBe("boom");
-
-    const deferred = createDeferred<string>();
-    task.define(() => deferred.promise);
-
     const runPromise = task.run();
-    expect(task.getState().isLoading).toBe(true);
     expect(task.getState().error).toBe(undefined);
+    expect(task.getState().isLoading).toBe(true);
 
     deferred.resolve("ok");
     await runPromise;
   });
 
-  it("clears loading without error on abort", async () => {
+  it("returns undefined and clears loading on cancel", async () => {
     const task = new Task(
       (signal) =>
         new Promise<string>((_, reject) => {
-          if (signal?.aborted) {
-            reject(createAbortError());
-            return;
-          }
           signal?.addEventListener("abort", () => reject(createAbortError()), {
             once: true,
           });
@@ -130,89 +134,31 @@ describe("Task", () => {
     );
 
     const runPromise = task.run();
-    expect(task.getState().isLoading).toBe(true);
     task.cancel();
-    await expect(runPromise).resolves.toBe(undefined);
 
+    await expect(runPromise).resolves.toBe(undefined);
     expect(task.getState().isLoading).toBe(false);
     expect(task.getState().error).toBe(undefined);
   });
 
-  it("resolves undefined when canceled immediately after run starts", async () => {
-    const task = new Task(
-      (signal) =>
-        new Promise<string>((_, reject) => {
-          signal?.addEventListener("abort", () => reject(createAbortError()), {
-            once: true,
-          });
-        }),
-    );
-
-    const runPromise = task.run();
-    task.cancel();
-
-    await expect(runPromise).resolves.toBe(undefined);
-    expect(task.getState().error).toBe(undefined);
-  });
-
-  it("ignores AbortError thrown by the TaskFn", async () => {
+  it("ignores AbortError thrown by the task function", async () => {
     const task = new Task(async () => {
       throw createAbortError();
     });
 
-    const result = await task.run();
-
-    expect(result).toBe(undefined);
+    await expect(task.run()).resolves.toBe(undefined);
     expect(task.getState().error).toBe(undefined);
   });
 
-  it("resolves undefined on error", async () => {
+  it("returns undefined on failure", async () => {
     const task = new Task(async () => {
       throw new Error("boom");
     });
 
-    const result = await task.run();
-
-    expect(result).toBe(undefined);
+    await expect(task.run()).resolves.toBe(undefined);
   });
 
-  it("resolveWith settles immediately and ignores in-flight work", async () => {
-    const deferred = createDeferred<string>();
-    const task = new Task(() => deferred.promise);
-
-    const runPromise = task.run();
-    expect(task.getState().isLoading).toBe(true);
-
-    task.resolveWith("cached");
-    expect(task.getState().isLoading).toBe(false);
-    expect(task.getState().data).toBe("cached");
-
-    deferred.resolve("late");
-    await runPromise;
-    expect(task.getState().data).toBe("cached");
-  });
-
-  it("uses the latest run when multiple requests complete", async () => {
-    const deferreds: Array<ReturnType<typeof createDeferred<string>>> = [];
-    const task = new Task(() => {
-      const deferred = createDeferred<string>();
-      deferreds.push(deferred);
-      return deferred.promise;
-    });
-
-    const firstRun = task.run();
-    const secondRun = task.run();
-
-    deferreds[0].resolve("first");
-    deferreds[1].resolve("second");
-
-    await firstRun;
-    await secondRun;
-
-    expect(task.getState().data).toBe("second");
-  });
-
-  it("resolves undefined for superseded runs", async () => {
+  it("uses the latest run when multiple runs overlap", async () => {
     const deferreds: Array<ReturnType<typeof createDeferred<string>>> = [];
     const task = new Task(() => {
       const deferred = createDeferred<string>();
@@ -228,14 +174,14 @@ describe("Task", () => {
 
     await expect(firstRun).resolves.toBe(undefined);
     await expect(secondRun).resolves.toBe("second");
+    expect(task.getState().data).toBe("second");
   });
 
-  it("reset returns to the initial state", async () => {
+  it("reset restores the initial state", async () => {
     const task = new Task(async () => "data");
     await task.run();
 
     task.reset();
-
     expect(task.getState()).toEqual({
       data: undefined,
       error: undefined,
@@ -244,24 +190,7 @@ describe("Task", () => {
     });
   });
 
-  it("define cancels in-flight work and uses the latest function", async () => {
-    const first = createDeferred<string>();
-    const task = new Task(() => first.promise);
-
-    const firstRun = task.run();
-    expect(task.getState().isLoading).toBe(true);
-
-    task.define(async () => "second");
-    first.resolve("first");
-    await firstRun;
-
-    expect(task.getState().isLoading).toBe(false);
-    const secondRun = task.run();
-    await secondRun;
-    expect(task.getState().data).toBe("second");
-  });
-
-  it("cancel is a no-op when idle and preserves data when loading", async () => {
+  it("cancel is a no-op when idle", () => {
     const task = new Task(async () => "data");
     task.cancel();
     expect(task.getState()).toEqual({
@@ -270,29 +199,35 @@ describe("Task", () => {
       isLoading: false,
       isStale: true,
     });
+  });
 
-    await task.run();
-    expect(task.getState().data).toBe("data");
-
-    const pending = new Task(
+  it("preserves prior data when canceled during a later run", async () => {
+    let call = 0;
+    const task = new Task(
       (signal) =>
-        new Promise<string>((_, reject) => {
+        new Promise<string>((resolve, reject) => {
+          call += 1;
+          if (call === 1) {
+            resolve("cached");
+            return;
+          }
+
           signal?.addEventListener("abort", () => reject(createAbortError()), {
             once: true,
           });
         }),
     );
-    pending.resolveWith("cached");
-    const runPromise = pending.run();
-    expect(pending.getState().isLoading).toBe(true);
-    pending.cancel();
+
+    await task.run();
+    const runPromise = task.run();
+    task.cancel();
     await runPromise;
 
-    expect(pending.getState().data).toBe("cached");
-    expect(pending.getState().isLoading).toBe(false);
+    expect(task.getState().data).toBe("cached");
+    expect(task.getState().isLoading).toBe(false);
   });
 
-  it("isolates listener errors during notifications", async () => {
+  it("isolates listener errors", async () => {
     const task = new Task(async () => "data");
     let callCount = 0;
     let allowThrow = false;
@@ -300,9 +235,7 @@ describe("Task", () => {
 
     task.subscribe(() => {
       callCount += 1;
-      if (allowThrow) {
-        throw new Error("listener boom");
-      }
+      if (allowThrow) throw new Error("listener boom");
     });
 
     task.subscribe(() => {
@@ -311,34 +244,13 @@ describe("Task", () => {
 
     allowThrow = true;
     await task.run();
+
     expect(callCount).toBeGreaterThan(2);
     expect(errorSpy).toHaveBeenCalled();
     errorSpy.mockRestore();
   });
 
-  it("dispose removes listeners and aborts in-flight work", async () => {
-    const task = new Task(
-      (signal) =>
-        new Promise<string>((_, reject) => {
-          signal?.addEventListener("abort", () => reject(createAbortError()), {
-            once: true,
-          });
-        }),
-    );
-    let notified = 0;
-
-    task.subscribe(() => {
-      notified += 1;
-    });
-
-    const runPromise = task.run();
-    task.dispose();
-    await runPromise;
-
-    expect(notified).toBe(2);
-  });
-
-  it("marks isStale false as soon as run starts", async () => {
+  it("marks isStale false when run starts", async () => {
     const deferred = createDeferred<string>();
     const task = new Task(() => deferred.promise);
 
@@ -348,7 +260,7 @@ describe("Task", () => {
     await runPromise;
   });
 
-  it("does not overwrite newer state with older failures", async () => {
+  it("does not allow older failures to overwrite newer success", async () => {
     const deferreds: Array<ReturnType<typeof createDeferred<string>>> = [];
     const task = new Task(() => {
       const deferred = createDeferred<string>();

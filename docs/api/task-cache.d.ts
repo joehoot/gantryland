@@ -1,8 +1,6 @@
 // API baseline for @gantryland/task-cache
 import type { TaskFn } from "@gantryland/task";
-/**
- * Supported cache key types.
- */
+/** Supported cache key types. */
 export type CacheKey = string | number | symbol;
 /**
  * Cache entry payload with metadata.
@@ -23,10 +21,6 @@ export type CacheEntry<T> = {
     tags?: string[];
 };
 /**
- * Cache event names emitted by stores.
- */
-export type CacheEventType = "hit" | "miss" | "stale" | "set" | "invalidate" | "clear" | "revalidate" | "revalidateError";
-/**
  * Cache event payload.
  *
  * `error` is set for `revalidateError` events.
@@ -37,7 +31,7 @@ export type CacheEventType = "hit" | "miss" | "stale" | "set" | "invalidate" | "
  * @property error - Error for `revalidateError` events
  */
 export type CacheEvent = {
-    type: CacheEventType;
+    type: "hit" | "miss" | "stale" | "set" | "invalidate" | "clear" | "revalidate" | "revalidateError";
     key?: CacheKey;
     entry?: CacheEntry<unknown>;
     error?: unknown;
@@ -235,18 +229,6 @@ export declare const cache: <T, Args extends unknown[] = []>(key: CacheKey, stor
  */
 export declare const staleWhileRevalidate: <T, Args extends unknown[] = []>(key: CacheKey, store: CacheStore, options?: CacheOptions) => (taskFn: TaskFn<T, Args>) => TaskFn<T, Args>;
 /**
- * Targets to invalidate after a task resolves.
- *
- * Supports a cache key, key array, tag object, or a resolver function.
- *
- * @template T - Resolved data type
- */
-export type InvalidateTarget<T> = CacheKey | CacheKey[] | {
-    tags: string[];
-} | ((result: T) => CacheKey | CacheKey[] | {
-    tags: string[];
-});
-/**
  * Invalidate cache entries after a TaskFn resolves.
  *
  * Supports keys, key arrays, tags, or a resolver function.
@@ -269,19 +251,9 @@ export type InvalidateTarget<T> = CacheKey | CacheKey[] | {
  * await taskFn();
  * ```
  */
-export declare const invalidateOnResolve: <T, Args extends unknown[] = []>(target: InvalidateTarget<T>, store: CacheStore) => (taskFn: TaskFn<T, Args>) => TaskFn<T, Args>;
-/**
- * Build a stable cache key from parts.
- *
- * Coerces each part to a string and joins with ":".
- *
- * @param parts - Key parts to join
- * @returns A stable string key
- *
- * @example
- * ```typescript
- * const key = cacheKey("user", 42, true);
- * ```
- */
-export declare const cacheKey: (...parts: Array<string | number | boolean | null | undefined>) => string;
+export declare const invalidateOnResolve: <T, Args extends unknown[] = []>(target: CacheKey | CacheKey[] | {
+    tags: string[];
+} | ((result: T) => CacheKey | CacheKey[] | {
+    tags: string[];
+}), store: CacheStore) => (taskFn: TaskFn<T, Args>) => TaskFn<T, Args>;
 //# sourceMappingURL=index.d.ts.map

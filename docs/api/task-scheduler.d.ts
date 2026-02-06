@@ -1,40 +1,6 @@
 // API baseline for @gantryland/task-scheduler
 import type { Task, TaskFn } from "@gantryland/task";
 /**
- * Configuration for polling a Task.
- *
- * @property intervalMs - Milliseconds between runs.
- * @property immediate - Run immediately before waiting the interval.
- */
-export type PollOptions = {
-    intervalMs: number;
-    immediate?: boolean;
-};
-/**
- * Configuration for debouncing a TaskFn.
- *
- * @property waitMs - Milliseconds to wait after the last call.
- */
-export type DebounceOptions = {
-    waitMs: number;
-};
-/**
- * Configuration for throttling a TaskFn.
- *
- * @property windowMs - Milliseconds in the throttle window.
- */
-export type ThrottleOptions = {
-    windowMs: number;
-};
-/**
- * Configuration for queueing a TaskFn.
- *
- * @property concurrency - Maximum number of in-flight TaskFn runs.
- */
-export type QueueOptions = {
-    concurrency?: number;
-};
-/**
  * Poll a Task on a fixed interval.
  *
  * Calls `task.run(...args)` on every tick. If `immediate` is false, the first
@@ -56,7 +22,10 @@ export type QueueOptions = {
  * stop();
  * ```
  */
-export declare const pollTask: <T, Args extends unknown[] = []>(task: Task<T, Args>, options: PollOptions, ...args: Args) => (() => void);
+export declare const pollTask: <T, Args extends unknown[] = []>(task: Task<T, Args>, options: {
+    intervalMs: number;
+    immediate?: boolean;
+}, ...args: Args) => (() => void);
 /**
  * Debounce a TaskFn so only the last call within the window executes.
  *
@@ -78,7 +47,9 @@ export declare const pollTask: <T, Args extends unknown[] = []>(task: Task<T, Ar
  * const debounced = pipe(search, debounce({ waitMs: 300 }));
  * ```
  */
-export declare const debounce: <T, Args extends unknown[] = []>(options: DebounceOptions) => (taskFn: TaskFn<T, Args>) => TaskFn<T, Args>;
+export declare const debounce: <T, Args extends unknown[] = []>(options: {
+    waitMs: number;
+}) => (taskFn: TaskFn<T, Args>) => TaskFn<T, Args>;
 /**
  * Throttle a TaskFn so calls share one run per window.
  *
@@ -101,7 +72,9 @@ export declare const debounce: <T, Args extends unknown[] = []>(options: Debounc
  * const throttled = pipe(sendTelemetry, throttle({ windowMs: 1000 }));
  * ```
  */
-export declare const throttle: <T, Args extends unknown[] = []>(options: ThrottleOptions) => (taskFn: TaskFn<T, Args>) => TaskFn<T, Args>;
+export declare const throttle: <T, Args extends unknown[] = []>(options: {
+    windowMs: number;
+}) => (taskFn: TaskFn<T, Args>) => TaskFn<T, Args>;
 /**
  * Queue a TaskFn with limited concurrency.
  *
@@ -127,5 +100,7 @@ export declare const throttle: <T, Args extends unknown[] = []>(options: Throttl
  * const queued = pipe(write, queue({ concurrency: 2 }));
  * ```
  */
-export declare const queue: <T, Args extends unknown[] = []>(options?: QueueOptions) => (taskFn: TaskFn<T, Args>) => TaskFn<T, Args>;
+export declare const queue: <T, Args extends unknown[] = []>(options?: {
+    concurrency?: number;
+}) => (taskFn: TaskFn<T, Args>) => TaskFn<T, Args>;
 //# sourceMappingURL=index.d.ts.map

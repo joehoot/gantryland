@@ -6,24 +6,6 @@ import { Task, type TaskFn } from "@gantryland/task";
 export type RouteParams = Record<string, string>;
 
 /**
- * Route match result.
- */
-export type RouteMatch = {
-  params: RouteParams;
-  path: string;
-};
-
-/**
- * A Task wrapper that tracks route params.
- */
-export type RouteTask<T, Args extends unknown[] = []> = {
-  task: Task<T, Args>;
-  getParams: () => RouteParams;
-  setParams: (params: RouteParams) => void;
-  run: (params?: RouteParams, ...args: Args) => Promise<T | undefined>;
-};
-
-/**
  * Match a path against a pattern like "/users/:id".
  *
  * Returns decoded params when the pattern matches the full path.
@@ -42,7 +24,7 @@ export type RouteTask<T, Args extends unknown[] = []> = {
 export const matchRoute = (
   pattern: string,
   path: string,
-): RouteMatch | null => {
+): { params: RouteParams; path: string } | null => {
   const patternSegments = trimSlashes(pattern).split("/").filter(Boolean);
   const pathSegments = trimSlashes(path).split("/").filter(Boolean);
   if (patternSegments.length !== pathSegments.length) return null;
@@ -124,7 +106,12 @@ export const buildPath = (pattern: string, params: RouteParams): string => {
 export const createRouteTask = <T, Args extends unknown[] = []>(
   taskForParams: (params: RouteParams) => TaskFn<T, Args>,
   initialParams: RouteParams = {},
-): RouteTask<T, Args> => {
+): {
+  task: Task<T, Args>;
+  getParams: () => RouteParams;
+  setParams: (params: RouteParams) => void;
+  run: (params?: RouteParams, ...args: Args) => Promise<T | undefined>;
+} => {
   let currentParams = { ...initialParams };
   const task = new Task<T, Args>((signal, ...args) =>
     taskForParams(currentParams)(signal, ...args),
@@ -142,49 +129,6 @@ export const createRouteTask = <T, Args extends unknown[] = []>(
   };
 
   return { task, getParams, setParams, run };
-};
-
-/**
- * Create a RouteTask from a path pattern.
- *
- * runPath matches the path and throws when the pattern does not match.
- * If initialPath matches, its params seed the task.
- *
- * run and runPath resolve to data on success or undefined on error, abort, or
- * superseded runs (Task latest-wins).
- *
- * @template T - Task data type
- * @template Args - Arguments forwarded to the TaskFn
- * @param pattern - Pattern with ":param" segments
- * @param taskForParams - Factory that maps params to a TaskFn
- * @param initialPath - Optional path to seed initial params
- * @returns RouteTask wrapper with runPath convenience
- *
- * @example
- * ```typescript
- * const userTask = createPathTask("/users/:id", (params) => (signal) =>
- *   fetch(`/api/users/${params.id}`, { signal }).then((r) => r.json())
- * );
- * await userTask.runPath("/users/123");
- * ```
- */
-export const createPathTask = <T, Args extends unknown[] = []>(
-  pattern: string,
-  taskForParams: (params: RouteParams) => TaskFn<T, Args>,
-  initialPath?: string,
-): RouteTask<T, Args> & {
-  runPath: (path: string, ...args: Args) => Promise<T | undefined>;
-} => {
-  const initialMatch = initialPath ? matchRoute(pattern, initialPath) : null;
-  const routeTask = createRouteTask(taskForParams, initialMatch?.params ?? {});
-
-  const runPath = async (path: string, ...args: Args) => {
-    const match = matchRoute(pattern, path);
-    if (!match) throw new Error(`Path does not match pattern: ${pattern}`);
-    return routeTask.run(match.params, ...args);
-  };
-
-  return { ...routeTask, runPath };
 };
 
 /**

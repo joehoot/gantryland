@@ -1,8 +1,6 @@
 import type { TaskFn } from "@gantryland/task";
 
-/**
- * Supported cache key types.
- */
+/** Supported cache key types. */
 export type CacheKey = string | number | symbol;
 
 /**
@@ -25,19 +23,6 @@ export type CacheEntry<T> = {
 };
 
 /**
- * Cache event names emitted by stores.
- */
-export type CacheEventType =
-  | "hit"
-  | "miss"
-  | "stale"
-  | "set"
-  | "invalidate"
-  | "clear"
-  | "revalidate"
-  | "revalidateError";
-
-/**
  * Cache event payload.
  *
  * `error` is set for `revalidateError` events.
@@ -48,7 +33,15 @@ export type CacheEventType =
  * @property error - Error for `revalidateError` events
  */
 export type CacheEvent = {
-  type: CacheEventType;
+  type:
+    | "hit"
+    | "miss"
+    | "stale"
+    | "set"
+    | "invalidate"
+    | "clear"
+    | "revalidate"
+    | "revalidateError";
   key?: CacheKey;
   entry?: CacheEntry<unknown>;
   error?: unknown;
@@ -453,19 +446,6 @@ export const staleWhileRevalidate =
   };
 
 /**
- * Targets to invalidate after a task resolves.
- *
- * Supports a cache key, key array, tag object, or a resolver function.
- *
- * @template T - Resolved data type
- */
-export type InvalidateTarget<T> =
-  | CacheKey
-  | CacheKey[]
-  | { tags: string[] }
-  | ((result: T) => CacheKey | CacheKey[] | { tags: string[] });
-
-/**
  * Invalidate cache entries after a TaskFn resolves.
  *
  * Supports keys, key arrays, tags, or a resolver function.
@@ -490,7 +470,11 @@ export type InvalidateTarget<T> =
  */
 export const invalidateOnResolve =
   <T, Args extends unknown[] = []>(
-    target: InvalidateTarget<T>,
+    target:
+      | CacheKey
+      | CacheKey[]
+      | { tags: string[] }
+      | ((result: T) => CacheKey | CacheKey[] | { tags: string[] }),
     store: CacheStore,
   ) =>
   (taskFn: TaskFn<T, Args>): TaskFn<T, Args> =>
@@ -509,20 +493,3 @@ export const invalidateOnResolve =
     for (const key of keys) store.delete(key);
     return result;
   };
-
-/**
- * Build a stable cache key from parts.
- *
- * Coerces each part to a string and joins with ":".
- *
- * @param parts - Key parts to join
- * @returns A stable string key
- *
- * @example
- * ```typescript
- * const key = cacheKey("user", 42, true);
- * ```
- */
-export const cacheKey = (
-  ...parts: Array<string | number | boolean | null | undefined>
-): string => parts.map((part) => String(part)).join(":");

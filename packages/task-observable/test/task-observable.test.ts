@@ -1,77 +1,20 @@
 import { describe, expect, it, vi } from "vitest";
 import { Task } from "@gantryland/task";
-import { createObservable, fromTask, fromTaskState, toTask } from "../index";
-
-const createDeferred = <T>() => {
-  let resolve: (value: T) => void = (_value) => {
-    throw new Error("Deferred resolve before initialization");
-  };
-  let reject: (reason?: unknown) => void = (_reason) => {
-    throw new Error("Deferred reject before initialization");
-  };
-  const promise = new Promise<T>((res, rej) => {
-    resolve = res;
-    reject = rej;
-  });
-  return { promise, resolve, reject };
-};
+import { fromTaskState, toTask, type Observer } from "../index";
 
 const createAbortError = () =>
   Object.assign(new Error("Aborted"), { name: "AbortError" });
 
-describe("createObservable", () => {
-  it("normalizes function observers and returns unsubscribe", () => {
-    const next = vi.fn();
-    let stored: { next: (value: number) => void } | undefined;
-
-    const observable = createObservable<number>((observer) => {
-      stored = observer;
-      return () => {
-        stored = undefined;
-      };
-    });
-
-    const subscription = observable.subscribe(next);
-    stored?.next(1);
-
-    expect(next).toHaveBeenCalledWith(1);
-    subscription.unsubscribe();
-    expect(stored).toBeUndefined();
-  });
-
-  it("supports object observers", () => {
-    const next = vi.fn();
-    const observable = createObservable<number>((observer) => {
-      observer.next(2);
-    });
-
-    observable.subscribe({ next });
-
-    expect(next).toHaveBeenCalledWith(2);
-  });
-
-  it("returns a no-op unsubscribe when none is provided", () => {
-    const observable = createObservable<number>(() => {});
-
-    const subscription = observable.subscribe(() => {});
-
-    expect(() => subscription.unsubscribe()).not.toThrow();
-  });
-});
-
 describe("fromTaskState", () => {
   it("emits initial and updated task states", async () => {
-    const deferred = createDeferred<string>();
-    const task = new Task(() => deferred.promise);
+    const task = new Task(async () => "ok");
     const states: Array<ReturnType<typeof task.getState>> = [];
 
-    const subscription = fromTaskState(task).subscribe((state) => {
-      states.push({ ...state });
+    const subscription = fromTaskState(task).subscribe({
+      next: (state) => states.push({ ...state }),
     });
 
-    const runPromise = task.run();
-    deferred.resolve("ok");
-    await runPromise;
+    await task.run();
 
     expect(states[0].isStale).toBe(true);
     expect(states.at(-1)?.data).toBe("ok");
@@ -81,84 +24,51 @@ describe("fromTaskState", () => {
   });
 });
 
-describe("fromTask", () => {
-  it("emits resolved data once per distinct value", async () => {
-    const task = new Task(async () => "value");
-    const values: string[] = [];
-
-    const subscription = fromTask(task).subscribe((value) =>
-      values.push(value),
-    );
-
-    await task.run();
-    await task.run();
-
-    expect(values).toEqual(["value"]);
-    subscription.unsubscribe();
-  });
-
-  it("forwards task errors", async () => {
-    const task = new Task(async () => {
-      throw new Error("boom");
-    });
-    const errorSpy = vi.fn();
-
-    const subscription = fromTask(task).subscribe({
-      next: () => {},
-      error: errorSpy,
-    });
-
-    await task.run();
-
-    expect(errorSpy).toHaveBeenCalledWith(
-      expect.objectContaining({ message: "boom" }),
-    );
-    subscription.unsubscribe();
-  });
-});
-
 describe("toTask", () => {
   it("resolves on first value and unsubscribes", async () => {
     const unsubscribe = vi.fn();
-    let observer: { next: (value: string) => void } | undefined;
+    let observer: Observer<string> | undefined;
 
-    const observable = createObservable<string>((obs) => {
-      observer = obs;
-      return unsubscribe;
+    const taskFn = toTask<string>({
+      subscribe: (obs) => {
+        observer = obs;
+        return { unsubscribe };
+      },
     });
 
-    const taskFn = toTask(observable);
     const promise = taskFn();
-
     observer?.next("first");
 
     await expect(promise).resolves.toBe("first");
     expect(unsubscribe).toHaveBeenCalledTimes(1);
   });
 
-  it("handles synchronous emissions with an AbortSignal", async () => {
-    const controller = new AbortController();
-    const observable = createObservable<string>((observer) => {
-      observer.next("sync");
+  it("handles synchronous next during subscribe", async () => {
+    const unsubscribe = vi.fn();
+
+    const taskFn = toTask<string>({
+      subscribe: (observer) => {
+        observer.next("sync");
+        return { unsubscribe };
+      },
     });
 
-    const taskFn = toTask(observable);
-
-    await expect(taskFn(controller.signal)).resolves.toBe("sync");
+    await expect(taskFn()).resolves.toBe("sync");
+    expect(unsubscribe).toHaveBeenCalledTimes(1);
   });
 
   it("rejects on observable error and unsubscribes", async () => {
     const unsubscribe = vi.fn();
-    let observer: { error?: (err: unknown) => void } | undefined;
+    let observer: Observer<string> | undefined;
 
-    const observable = createObservable<unknown>((obs) => {
-      observer = obs;
-      return unsubscribe;
+    const taskFn = toTask<string>({
+      subscribe: (obs) => {
+        observer = obs;
+        return { unsubscribe };
+      },
     });
 
-    const taskFn = toTask(observable);
     const promise = taskFn();
-
     const error = new Error("fail");
     observer?.error?.(error);
 
@@ -166,16 +76,29 @@ describe("toTask", () => {
     expect(unsubscribe).toHaveBeenCalledTimes(1);
   });
 
-  it("unsubscribes on complete without resolving", async () => {
-    const unsubscribe = vi.fn();
-    const observable = createObservable<string>((observer) => {
-      observer.complete?.();
-      return unsubscribe;
+  it("rejects immediately if signal is already aborted", async () => {
+    const controller = new AbortController();
+    controller.abort();
+
+    const taskFn = toTask<string>({
+      subscribe: () => ({ unsubscribe: () => undefined }),
     });
 
-    const taskFn = toTask(observable);
-    const promise = taskFn();
+    await expect(taskFn(controller.signal)).rejects.toMatchObject({
+      name: "AbortError",
+    });
+  });
 
+  it("unsubscribes on complete without resolving", async () => {
+    const unsubscribe = vi.fn();
+    const taskFn = toTask<string>({
+      subscribe: (observer) => {
+        observer.complete?.();
+        return { unsubscribe };
+      },
+    });
+
+    const promise = taskFn();
     let settled = false;
     promise.then(
       () => {
@@ -187,29 +110,35 @@ describe("toTask", () => {
     );
 
     await Promise.resolve();
-
     expect(unsubscribe).toHaveBeenCalledTimes(1);
     expect(settled).toBe(false);
   });
 
-  it("rejects immediately if signal is already aborted", async () => {
+  it("creates AbortError without DOMException", async () => {
+    const originalDOMException = globalThis.DOMException;
+    // @ts-expect-error intentional runtime override for test coverage
+    globalThis.DOMException = undefined;
+
     const controller = new AbortController();
     controller.abort();
-    const observable = createObservable<string>(() => {});
-
-    const taskFn = toTask(observable);
+    const taskFn = toTask<string>({
+      subscribe: () => ({ unsubscribe: () => undefined }),
+    });
 
     await expect(taskFn(controller.signal)).rejects.toMatchObject({
       name: "AbortError",
+      message: "Aborted",
     });
+
+    globalThis.DOMException = originalDOMException;
   });
 
   it("rejects on abort and unsubscribes", async () => {
     const unsubscribe = vi.fn();
-    const observable = createObservable<string>(() => unsubscribe);
-
     const controller = new AbortController();
-    const taskFn = toTask(observable);
+    const taskFn = toTask<string>({
+      subscribe: () => ({ unsubscribe }),
+    });
 
     const promise = taskFn(controller.signal);
     controller.abort(createAbortError());

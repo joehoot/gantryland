@@ -2,7 +2,6 @@ import { describe, expect, it, vi } from "vitest";
 import {
   MemoryCacheStore,
   cache,
-  cacheKey,
   invalidateOnResolve,
   staleWhileRevalidate,
 } from "../index";
@@ -490,11 +489,5 @@ describe("invalidateOnResolve", () => {
 
     await expect(promise).rejects.toHaveProperty("name", "AbortError");
     expect(store.has("a")).toBe(true);
-  });
-});
-
-describe("cacheKey", () => {
-  it("joins parts with colons", () => {
-    expect(cacheKey("user", 1, true, null)).toBe("user:1:true:null");
   });
 });

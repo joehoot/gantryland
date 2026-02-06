@@ -18,15 +18,6 @@ export type StorageCacheStoreOptions = {
      * Key prefix used to scope stored entries.
      */
     prefix?: string;
-    /**
-     * Serialize a cache entry for storage.
-     */
-    serialize?: (entry: CacheEntry<unknown>) => string;
-    /**
-     * Deserialize a cache entry from storage.
-     * Returning undefined treats the entry as invalid.
-     */
-    deserialize?: (raw: string) => CacheEntry<unknown> | undefined;
 };
 /**
  * CacheStore backed by a Storage-like interface.
@@ -35,14 +26,12 @@ export type StorageCacheStoreOptions = {
 export declare class StorageCacheStore implements CacheStore {
     private storage;
     private prefix;
-    private serialize;
-    private deserialize;
     private listeners;
     /**
      * Create a StorageCacheStore.
      *
      * @param storage - Backing Storage-like implementation.
-     * @param options - Serialization and prefix options.
+     * @param options - Prefix options.
      */
     constructor(storage: StorageLike, options?: StorageCacheStoreOptions);
     /**
@@ -124,30 +113,19 @@ export declare class StorageCacheStore implements CacheStore {
     private listKeys;
 }
 /**
- * Options for FileCacheStore.
- */
-export type FileCacheStoreOptions = {
-    /**
-     * Write the cache file with indentation.
-     */
-    pretty?: boolean;
-};
-/**
  * CacheStore persisted to a JSON file (Node.js only).
  * The file stores a plain JSON object keyed by the stringified cache key.
  */
 export declare class FileCacheStore implements CacheStore {
     private filePath;
-    private pretty;
     private store;
     private listeners;
     /**
      * Create a FileCacheStore.
      *
      * @param filePath - JSON file path for persistence.
-     * @param options - Persistence options.
      */
-    constructor(filePath: string, options?: FileCacheStoreOptions);
+    constructor(filePath: string);
     /**
      * Get a cache entry by key.
      *

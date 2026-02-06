@@ -52,14 +52,12 @@ stop();
 - `throttle(options)`
 - `queue(options?)`
 
-Options:
+Options are inline object params on each API:
 
-```typescript
-type PollOptions = { intervalMs: number; immediate?: boolean };
-type DebounceOptions = { waitMs: number };
-type ThrottleOptions = { windowMs: number };
-type QueueOptions = { concurrency?: number };
-```
+- `pollTask(task, { intervalMs, immediate? }, ...args)`
+- `debounce({ waitMs })`
+- `throttle({ windowMs })`
+- `queue({ concurrency? })`
 
 ## Semantics
 
