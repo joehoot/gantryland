@@ -11,8 +11,8 @@ Target: move Gantryland from strong OSS readiness to clear enterprise-grade conf
 
 ## P0 - CI quality gates
 
-- [ ] Enforce required checks on PRs: build, test, typecheck, and release guard.
-- [ ] Add and enforce lint/format checks.
+- [ ] Enforce required checks on PRs/default-branch merges in the active CI provider (build, test, typecheck, release guard, lint/format, coverage, and API delta).
+- [x] Add lint/format checks to the CI quality-gate workflow.
 - [x] Add coverage reporting and minimum coverage thresholds.
 - [x] Add public API delta checks (for example, declaration/API report checks).
 
@@ -52,7 +52,7 @@ Progress notes:
 ### Week 1
 
 - [x] Deliver all P0 trust/governance docs.
-- [ ] Deliver core CI gates and coverage thresholds.
+- [x] Deliver core CI gates and coverage thresholds.
 - [x] N/A: add PR template (solo-maintained repo).
 
 ### Week 2
@@ -65,9 +65,15 @@ Progress notes:
 
 - [ ] Required CI checks protect the default branch.
 - [x] Security and support policies are discoverable from root docs.
-- [ ] Coverage thresholds are enforced in PR workflows.
+- [ ] Coverage thresholds are enforced in provider-validated PR/default-branch workflows.
 - [x] Public API change process is documented and verified.
 - [x] New consumers can assess adoption risk quickly from docs.
 
 P1 consumer confidence policy is documented in `docs/adoption/consumer-confidence.md`.
 P1 enterprise adoption playbooks are documented in `docs/adoption/enterprise-playbooks.md`.
+
+Execution status (provider-side evidence still required):
+
+- Deferred by maintainer for now (since 2026-02-06); resume when CI-provider enforcement work is prioritized.
+- Confirm at least one PR/pipeline run where all required checks pass.
+- Confirm branch/default-merge protection blocks merges when any required check fails.

@@ -6,7 +6,8 @@ Target: remove unconventional monorepo setup patterns and align Gantryland with 
 
 - [x] Add a core CI workflow for pull requests.
 - [x] Enforce baseline required checks in CI workflow: `npm run lint`, `npm run format:check`, `npm run typecheck`, `npm run build`, `npm run test:coverage`, and `npm run release:guard:changeset`.
-- [ ] Add typecheck/lint checks if introduced, and enforce them as required CI gates.
+- [x] Add lint/typecheck checks to the CI quality-gate workflow.
+- [ ] Enforce lint/typecheck checks as required gates in the active CI provider.
 - [x] Verify CI uses a pinned Node version strategy that matches documented support.
 
 ## P0 - Publish script hardening
@@ -46,3 +47,9 @@ Notes:
 - Provider-agnostic required-check policy is documented in `docs/ci/quality-gates.md`.
 - Provider-side required-check validation steps are documented in `docs/ci/enforcement-runbook.md`.
 - "Required CI gates" and "PR pipeline pass" still require CI-provider protection policy and a validated pull-request run.
+
+Execution status (provider-side evidence still required):
+
+- Deferred by maintainer for now (since 2026-02-06); resume when CI-provider enforcement work is prioritized.
+- Evidence of one successful pull-request pipeline run that includes all required gates.
+- Evidence that default-branch protection blocks merge when a required check is failing.

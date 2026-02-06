@@ -2,6 +2,8 @@
 
 This runbook is CI-provider-agnostic. Use it to enforce and verify required checks for `main`.
 
+Current repo status: this verification is intentionally deferred for now in solo-maintainer operations; treat this runbook as the procedure to execute when enforcement work is resumed.
+
 ## Inputs
 
 - Default branch name: `main`
