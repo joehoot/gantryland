@@ -105,6 +105,22 @@ describe("debounce", () => {
 
     vi.useRealTimers();
   });
+
+  it("rejects when the TaskFn throws synchronously", async () => {
+    vi.useFakeTimers();
+    const error = new Error("boom");
+    const taskFn = vi.fn(() => {
+      throw error;
+    });
+    const debounced = debounce<string>({ waitMs: 10 })(taskFn);
+
+    const promise = debounced();
+    const expectation = expect(promise).rejects.toBe(error);
+    await vi.advanceTimersByTimeAsync(10);
+
+    await expectation;
+    vi.useRealTimers();
+  });
 });
 
 describe("throttle", () => {
@@ -119,6 +135,8 @@ describe("throttle", () => {
     const first = throttled();
     const second = throttled();
 
+    await flushMicrotasks();
+
     expect(first).toBe(second);
     expect(taskFn).toHaveBeenCalledTimes(1);
 
@@ -127,10 +145,43 @@ describe("throttle", () => {
 
     vi.setSystemTime(new Date("2024-01-01T00:00:00.200Z"));
     const third = throttled();
+
+    await flushMicrotasks();
     expect(taskFn).toHaveBeenCalledTimes(2);
 
     await third;
     vi.useRealTimers();
+  });
+
+  it("ignores later signals and arguments within the window", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2024-01-01T00:00:00.000Z"));
+
+    const taskFn = vi.fn(async (_signal: AbortSignal | undefined, value: number) => value);
+    const throttled = throttle<number, [number]>({ windowMs: 100 })(taskFn);
+    const firstSignal = new AbortController().signal;
+    const secondSignal = new AbortController().signal;
+
+    const first = throttled(firstSignal, 1);
+    const second = throttled(secondSignal, 2);
+
+    expect(first).toBe(second);
+    await expect(first).resolves.toBe(1);
+    expect(taskFn).toHaveBeenCalledTimes(1);
+    expect(taskFn).toHaveBeenCalledWith(firstSignal, 1);
+
+    vi.useRealTimers();
+  });
+
+  it("rejects when the TaskFn throws synchronously", async () => {
+    const error = new Error("boom");
+    const taskFn = vi.fn(() => {
+      throw error;
+    });
+    const throttled = throttle<string>({ windowMs: 50 })(taskFn);
+
+    await expect(throttled()).rejects.toBe(error);
+    expect(taskFn).toHaveBeenCalledTimes(1);
   });
 });
 
@@ -210,5 +261,26 @@ describe("queue", () => {
 
     deferred.resolve("done");
     await first;
+  });
+
+  it("rejects with AbortError when already aborted", async () => {
+    const taskFn = vi.fn(async () => "ok");
+    const queued = queue<string>()(taskFn);
+    const controller = new AbortController();
+    controller.abort();
+
+    await expect(queued(controller.signal)).rejects.toMatchObject({ name: "AbortError" });
+    expect(taskFn).not.toHaveBeenCalled();
+  });
+
+  it("rejects when the TaskFn throws synchronously", async () => {
+    const error = new Error("boom");
+    const taskFn = vi.fn(() => {
+      throw error;
+    });
+    const queued = queue<string>()(taskFn);
+
+    await expect(queued()).rejects.toBe(error);
+    expect(taskFn).toHaveBeenCalledTimes(1);
   });
 });

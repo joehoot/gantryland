@@ -3,8 +3,8 @@ import type { Task, TaskFn } from "@gantryland/task";
 /**
  * Configuration for polling a Task.
  *
- * @property intervalMs - Milliseconds between runs
- * @property immediate - Run immediately before waiting the interval
+ * @property intervalMs - Milliseconds between runs.
+ * @property immediate - Run immediately before waiting the interval.
  */
 export type PollOptions = {
   intervalMs: number;
@@ -14,7 +14,7 @@ export type PollOptions = {
 /**
  * Configuration for debouncing a TaskFn.
  *
- * @property waitMs - Milliseconds to wait after the last call
+ * @property waitMs - Milliseconds to wait after the last call.
  */
 export type DebounceOptions = {
   waitMs: number;
@@ -23,7 +23,7 @@ export type DebounceOptions = {
 /**
  * Configuration for throttling a TaskFn.
  *
- * @property windowMs - Milliseconds in the throttle window
+ * @property windowMs - Milliseconds in the throttle window.
  */
 export type ThrottleOptions = {
   windowMs: number;
@@ -32,7 +32,7 @@ export type ThrottleOptions = {
 /**
  * Configuration for queueing a TaskFn.
  *
- * @property concurrency - Maximum number of in-flight TaskFn runs
+ * @property concurrency - Maximum number of in-flight TaskFn runs.
  */
 export type QueueOptions = {
   concurrency?: number;
@@ -41,22 +41,23 @@ export type QueueOptions = {
 /**
  * Poll a Task on a fixed interval.
  *
- * Calls `task.run(...args)` on every tick. If `immediate` is false, the
- * first run waits for the interval. Errors from `task.run` are not caught
- * and will stop further scheduling.
+ * Calls `task.run(...args)` on every tick. If `immediate` is false, the first
+ * run waits for the interval. Errors from `task.run` are not caught and stop
+ * further scheduling.
  *
- * @template T - The type of the resolved data
- * @template Args - Arguments forwarded to task.run
- * @param task - Task instance to poll
- * @param options - Polling configuration
- * @param args - Arguments forwarded to task.run
- * @returns A stop function that cancels future ticks
+ * @template T - Resolved data type.
+ * @template Args - Arguments forwarded to task.run.
+ * @param task - Task instance to poll.
+ * @param options - Polling configuration.
+ * @param args - Arguments forwarded to task.run.
+ * @returns A stop function that cancels future ticks.
  *
  * @example
  * ```typescript
  * const task = new Task(fetchStatus);
  * const stop = pollTask(task, { intervalMs: 5000, immediate: true });
- * // later: stop();
+ * // later
+ * stop();
  * ```
  */
 export const pollTask = <T, Args extends unknown[] = []>(
@@ -91,20 +92,22 @@ export const pollTask = <T, Args extends unknown[] = []>(
 /**
  * Debounce a TaskFn so only the last call within the window executes.
  *
- * Superseded calls reject with AbortError. The latest signal and arguments
- * are used when the wait window elapses. If the latest signal aborts before
- * execution, the returned promise rejects with AbortError.
+ * Superseded calls reject with AbortError. The latest signal and arguments are
+ * used when the wait window elapses. If the latest signal aborts before
+ * execution, the returned promise rejects with AbortError. If the TaskFn throws
+ * synchronously, the returned promise rejects with that error.
  *
- * @template T - The type of the resolved data
- * @template Args - Arguments forwarded to the TaskFn
- * @param options - Debounce configuration
- * @returns A combinator that wraps a TaskFn with debounce behavior
+ * @template T - Resolved data type.
+ * @template Args - Arguments forwarded to the TaskFn.
+ * @param options - Debounce configuration.
+ * @returns A combinator that wraps a TaskFn with debounce behavior.
  *
  * @example
  * ```typescript
- * const debounced = debounce({ waitMs: 300 })((signal, query: string) =>
- *   fetch(`/api/search?q=${query}`, { signal }).then((r) => r.json())
- * );
+ * const search = (signal: AbortSignal, query: string) =>
+ *   fetch(`/api/search?q=${query}`, { signal }).then((r) => r.json());
+ *
+ * const debounced = pipe(search, debounce({ waitMs: 300 }));
  * ```
  */
 export const debounce =
@@ -155,7 +158,8 @@ export const debounce =
             reject(createAbortError());
             return;
           }
-          void taskFn(activeSignal, ...activeArgs)
+          void Promise.resolve()
+            .then(() => taskFn(activeSignal, ...activeArgs))
             .then(resolve)
             .catch(reject)
             .finally(() => {
@@ -170,19 +174,22 @@ export const debounce =
  * Throttle a TaskFn so calls share one run per window.
  *
  * Calls within the window share the in-flight promise and ignore the new
- * signal and arguments. If the TaskFn runs longer than the window, a new
- * call after the window starts a concurrent run.
+ * signal and arguments (the first call's signal and args are used). If the
+ * TaskFn runs longer than the window, a new call after the window starts a
+ * concurrent run. If the TaskFn throws synchronously, the returned promise
+ * rejects with that error.
  *
- * @template T - The type of the resolved data
- * @template Args - Arguments forwarded to the TaskFn
- * @param options - Throttle configuration
- * @returns A combinator that wraps a TaskFn with throttle behavior
+ * @template T - Resolved data type.
+ * @template Args - Arguments forwarded to the TaskFn.
+ * @param options - Throttle configuration.
+ * @returns A combinator that wraps a TaskFn with throttle behavior.
  *
  * @example
  * ```typescript
- * const throttled = throttle({ windowMs: 1000 })((signal) =>
- *   fetch("/api/telemetry", { method: "POST", signal }).then((r) => r.json())
- * );
+ * const sendTelemetry = (signal?: AbortSignal) =>
+ *   fetch("/api/telemetry", { method: "POST", signal }).then((r) => r.json());
+ *
+ * const throttled = pipe(sendTelemetry, throttle({ windowMs: 1000 }));
  * ```
  */
 export const throttle =
@@ -196,9 +203,11 @@ export const throttle =
       if (inFlight && now - lastRun < options.windowMs) return inFlight;
 
       lastRun = now;
-      inFlight = taskFn(signal, ...args).finally(() => {
-        inFlight = null;
-      });
+      inFlight = Promise.resolve()
+        .then(() => taskFn(signal, ...args))
+        .finally(() => {
+          inFlight = null;
+        });
 
       return inFlight;
     };
@@ -208,20 +217,25 @@ export const throttle =
  * Queue a TaskFn with limited concurrency.
  *
  * Calls execute in order with at most the configured concurrency. If an
- * AbortSignal fires before a run starts, the call is removed from the queue
- * and the promise rejects with AbortError.
+ * AbortSignal fires before a run starts, the call is removed from the queue and
+ * the returned promise rejects with AbortError. If the TaskFn throws
+ * synchronously, the returned promise rejects with that error.
  *
- * @template T - The type of the resolved data
- * @template Args - Arguments forwarded to the TaskFn
- * @param options - Queue configuration
- * @returns A combinator that wraps a TaskFn with queueing behavior
+ * @template T - Resolved data type.
+ * @template Args - Arguments forwarded to the TaskFn.
+ * @param options - Queue configuration.
+ * @returns A combinator that wraps a TaskFn with queueing behavior.
  *
  * @example
  * ```typescript
- * const queued = queue({ concurrency: 2 })((signal, payload: Payload) =>
- *   fetch("/api/write", { method: "POST", body: JSON.stringify(payload), signal })
- *     .then((r) => r.json())
- * );
+ * const write = (signal: AbortSignal, payload: Payload) =>
+ *   fetch("/api/write", {
+ *     method: "POST",
+ *     body: JSON.stringify(payload),
+ *     signal,
+ *   }).then((r) => r.json());
+ *
+ * const queued = pipe(write, queue({ concurrency: 2 }));
  * ```
  */
 export const queue =
@@ -252,7 +266,8 @@ export const queue =
             started = true;
             signal?.removeEventListener("abort", onAbort);
             active += 1;
-            void taskFn(signal, ...args)
+            void Promise.resolve()
+              .then(() => taskFn(signal, ...args))
               .then(resolve)
               .catch(reject)
               .finally(() => {
