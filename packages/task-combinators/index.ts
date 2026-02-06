@@ -7,6 +7,12 @@ const isAbortError = (err: unknown): boolean => {
   return (err as Error).name === "AbortError";
 };
 
+const toError = (err: unknown): Error => {
+  if (err instanceof Error) return err;
+  if (typeof err === "string") return new Error(err);
+  return new Error("Unknown error");
+};
+
 const createAbortError = (): Error => {
   if (typeof DOMException !== "undefined") {
     return new DOMException("Aborted", "AbortError");
@@ -148,7 +154,10 @@ export const tapError =
   (taskFn: TaskFn<T, Args>): TaskFn<T, Args> =>
   (signal?: AbortSignal, ...args: Args) =>
     taskFn(signal, ...args).catch((err) => {
-      if (!isAbortError(err)) fn(err);
+      if (!isAbortError(err)) {
+        fn(err);
+        throw toError(err);
+      }
       throw err;
     });
 
@@ -165,8 +174,11 @@ export const tapAbort =
   (taskFn: TaskFn<T, Args>): TaskFn<T, Args> =>
   (signal?: AbortSignal, ...args: Args) =>
     taskFn(signal, ...args).catch((err) => {
-      if (isAbortError(err)) fn(err);
-      throw err;
+      if (isAbortError(err)) {
+        fn(err);
+        throw err;
+      }
+      throw toError(err);
     });
 
 /**
@@ -275,7 +287,7 @@ export const retry =
         lastError = err;
       }
     }
-    throw lastError;
+    throw toError(lastError);
   };
 
 /**
@@ -318,7 +330,13 @@ export const timeout =
 
       taskFn(signal, ...args)
         .then(resolve)
-        .catch(reject)
+        .catch((err) => {
+          if (isAbortError(err)) {
+            reject(err);
+            return;
+          }
+          reject(toError(err));
+        })
         .finally(() => {
           clearTimeout(timer);
           signal?.removeEventListener("abort", onAbort);
@@ -372,7 +390,11 @@ export const timeoutAbort =
             finish(() => reject(new TimeoutError()));
             return;
           }
-          finish(() => reject(err));
+          if (isAbortError(err)) {
+            finish(() => reject(err));
+            return;
+          }
+          finish(() => reject(toError(err)));
         })
         .finally(() => {
           clearTimeout(timer);
@@ -396,7 +418,7 @@ export const timeoutWith =
     timeout<T, Args>(ms)(taskFn)(signal, ...args).catch((err) => {
       if (isAbortError(err)) throw err;
       if (err instanceof TimeoutError) return fallback(signal, ...args);
-      throw err;
+      throw toError(err);
     });
 
 /**
@@ -504,9 +526,9 @@ export const retryWhen =
       } catch (err) {
         if (isAbortError(err)) throw err;
         attempt += 1;
-        if (attempt > maxAttempts) throw err;
+        if (attempt > maxAttempts) throw toError(err);
         const should = await shouldRetry(err, attempt);
-        if (!should) throw err;
+        if (!should) throw toError(err);
         options.onRetry?.(err, attempt);
         const delay = options.delayMs?.(attempt, err) ?? 0;
         if (delay > 0) await sleep(delay, signal);

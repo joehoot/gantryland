@@ -115,7 +115,7 @@ type TaskState<T> = {
 ```
 
 - `data`: last successful result, or `undefined` before any success.
-- `error`: last error, or `undefined` if none. AbortError is not stored.
+- `error`: last error, or `undefined` if none. AbortError is not stored; non-Error throws are normalized to Error.
 - `isLoading`: true while a run is in-flight.
 - `isStale`: true before the first run.
 
@@ -135,7 +135,7 @@ stale (initial) -> run() -> loading -> data | error
 
 - Latest run wins; older results are ignored.
 - AbortError is swallowed and does not set `error`.
-- Failures preserve existing `data` and set `error`.
+- Failures preserve existing `data` and set `error` (normalized to Error).
 - `run(...args)` resolves with `T` on success and `undefined` on error/abort/superseded.
 
 ## API
@@ -220,10 +220,6 @@ task.define((signal) => fetch("/api/users/42", { signal }).then((r) => r.json())
 await task.run();
 ```
 
-```typescript
-task.define((signal) => fetch("/api/users/42", { signal }).then((r) => r.json()));
-```
-
 #### task.resolveWith
 
 ```typescript
@@ -293,6 +289,33 @@ task.dispose();
 ## Common patterns
 
 Use these patterns for most usage.
+
+### Using run return values
+
+```typescript
+const task = new Task(async () => "ok");
+
+const result = await task.run();
+if (result !== undefined) {
+  console.log("success", result);
+}
+```
+
+### Error handling
+
+```typescript
+const task = new Task(async () => {
+  throw new Error("boom");
+});
+
+await task.run();
+
+const { error } = task.getState();
+if (error) {
+  // always an Error instance
+  // report or recover
+}
+```
 
 ### Shared singleton
 
@@ -521,29 +544,4 @@ await userTask.runPath("/users/42");
 ```bash
 npm test
 npx vitest packages/task/test
-```
-### Using run return values
-
-```typescript
-const task = new Task(async () => "ok");
-
-const result = await task.run();
-if (result !== undefined) {
-  console.log("success", result);
-}
-```
-
-### Error handling
-
-```typescript
-const task = new Task(async () => {
-  throw new Error("boom");
-});
-
-await task.run();
-
-const { error } = task.getState();
-if (error) {
-  // report or recover
-}
 ```

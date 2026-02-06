@@ -105,9 +105,23 @@ describe("Task", () => {
     const runPromise = task.run();
     expect(task.getState().isLoading).toBe(true);
     task.cancel();
-    await runPromise;
+    await expect(runPromise).resolves.toBe(undefined);
 
     expect(task.getState().isLoading).toBe(false);
+    expect(task.getState().error).toBe(undefined);
+  });
+
+  it("resolves undefined when canceled immediately after run starts", async () => {
+    const task = new Task((signal) =>
+      new Promise<string>((_, reject) => {
+        signal?.addEventListener("abort", () => reject(createAbortError()), { once: true });
+      })
+    );
+
+    const runPromise = task.run();
+    task.cancel();
+
+    await expect(runPromise).resolves.toBe(undefined);
     expect(task.getState().error).toBe(undefined);
   });
 
