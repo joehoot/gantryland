@@ -5,13 +5,14 @@ Point-in-time session snapshot for continuing 0.3.0 release preparation.
 ## Current state
 
 - Monorepo: `gantryland` (`@gantryland/*` packages, Node + TypeScript workspaces)
-- Latest commit: `09db45d` (`chore: standardize release guides and simplify scripts`)
+- Latest commit: `30edb93` (`docs: add handoff guides and normalize release documentation`)
 - Last validation run passed (`npm run release:status`, build/tests, 182 tests)
 
 ## What changed
 
 - Release docs are standardized under `docs/releasing/`
 - Root release scripts in `package.json` are simplified and aligned with docs
+- Handoff docs are now organized under `docs/handoff/`
 
 ## Release commands
 
