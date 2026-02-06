@@ -471,7 +471,9 @@ const userTask = new Task(
 );
 
 export function UserPanel() {
-  const { data, isLoading, error } = useTask(userTask);
+  const [, { data, isLoading, error }] = useTask(() => userTask, {
+    mode: "factory",
+  });
   if (isLoading) return <Spinner />;
   if (error) return <ErrorView error={error} />;
   return <UserCard user={data} />;

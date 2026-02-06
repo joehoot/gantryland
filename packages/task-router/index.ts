@@ -49,7 +49,11 @@ export const matchRoute = (pattern: string, path: string): RouteMatch | null => 
     const patternSegment = patternSegments[i];
     const pathSegment = pathSegments[i];
     if (patternSegment.startsWith(":")) {
-      params[patternSegment.slice(1)] = decodeURIComponent(pathSegment);
+      try {
+        params[patternSegment.slice(1)] = decodeURIComponent(pathSegment);
+      } catch {
+        return null;
+      }
       continue;
     }
     if (patternSegment !== pathSegment) return null;

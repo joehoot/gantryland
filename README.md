@@ -45,6 +45,7 @@ If `release:ready` fails, fix the issue and rerun it. The changeset remains vali
 
 ```bash
 npm run release:changeset
+npm run release:status
 npm run release:changelog
 npm run release:check
 npm run release:ready
@@ -52,4 +53,4 @@ npm run release:ready
 
 If `release:ready` fails after generating versions/changelogs, keep those changes, fix the code, and rerun.
 
-See `CONTRIBUTING.md` for release guidance.
+See `RELEASING.md` and `CONTRIBUTING.md` for release guidance.

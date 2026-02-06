@@ -474,11 +474,13 @@ const userTask = new Task((signal) =>
 );
 
 export function UserPanel() {
-  const { data, error, isLoading, isStale, run } = useTask(userTask);
+  const [task, { data, error, isLoading, isStale }] = useTask(() => userTask, {
+    mode: "factory",
+  });
 
   if (isStale || isLoading) return <Spinner />;
   if (error) return <ErrorView error={error} />;
-  return <UserCard user={data} onRefresh={run} />;
+  return <UserCard user={data} onRefresh={() => task.run()} />;
 }
 ```
 

@@ -18,9 +18,11 @@
     "publish": "npm publish --workspaces",
     "release:changeset": "changeset",
     "release:changelog": "npm run changeset:version",
+    "release:guard:changeset": "changeset status --since main",
+    "release:status": "changeset status && npm run release:check",
     "release:check": "npm run build && npm test",
     "release:prepare": "npm run release:changelog && npm run release:check",
-    "release:ready": "changeset status --since main && npm run release:prepare",
+    "release:ready": "npm run release:guard:changeset && npm run release:prepare",
     "test": "vitest run",
     "changeset:version": "changeset version",
     "changeset:publish": "changeset publish"

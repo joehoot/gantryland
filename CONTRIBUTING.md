@@ -21,7 +21,10 @@ Choose the version bump based on the impact:
 ## Local release (manual)
 
 ```bash
+npm run release:status
 npx changeset version
 npm run build
 npx changeset publish
 ```
+
+For bump policy and coordinated monorepo release guidance, see `RELEASING.md`.

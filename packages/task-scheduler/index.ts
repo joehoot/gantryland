@@ -42,8 +42,8 @@ export type QueueOptions = {
  * Poll a Task on a fixed interval.
  *
  * Calls `task.run(...args)` on every tick. If `immediate` is false, the first
- * run waits for the interval. Errors from `task.run` are not caught and stop
- * further scheduling.
+ * run waits for the interval. If `task.run` throws, polling stops because the
+ * thrown error rejects the current tick.
  *
  * @template T - Resolved data type.
  * @template Args - Arguments forwarded to task.run.

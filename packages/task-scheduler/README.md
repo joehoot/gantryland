@@ -97,7 +97,7 @@ Task -> pollTask -> run(...args) on interval
 
 ## Run semantics
 
-- `pollTask` calls `task.run(...args)` on each tick. Errors from `task.run` are not caught and stop further scheduling.
+- `pollTask` calls `task.run(...args)` on each tick. If `task.run` throws (for example, no TaskFn is defined), the polling loop stops.
 - `debounce` is latest-wins. Superseded calls reject with AbortError, and the last call executes after `waitMs`.
 - `throttle` shares one in-flight promise per window. Later calls within the window ignore their signal and args.
 - `queue` runs in FIFO order with bounded concurrency. If a signal aborts before start, the call is removed and rejects with AbortError.
@@ -162,7 +162,7 @@ const search = (signal: AbortSignal, query: string) =>
 
 const searchTask = new Task(pipe(search, debounce({ waitMs: 300 })));
 
-await searchTask.run(new AbortController().signal, "shoes");
+await searchTask.run("shoes");
 ```
 
 ### Throttle telemetry

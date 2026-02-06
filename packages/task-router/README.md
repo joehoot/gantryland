@@ -115,6 +115,7 @@ path -> matchRoute -> params -> run(params)
 
 - `matchRoute` returns `null` when the pattern does not match the path.
 - Params are decoded with `decodeURIComponent` and always returned as strings.
+- Invalid encoded params are treated as no match and return `null`.
 - `buildPath` encodes params, throws if a param is missing, and always returns a leading slash.
 - `createRouteTask` uses the latest params snapshot; `run(params)` updates params before running.
 - `getParams` returns a copy; mutating it does not change internal params.

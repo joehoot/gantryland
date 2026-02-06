@@ -7,6 +7,10 @@ describe("matchRoute", () => {
     expect(match).toEqual({ params: { id: "abc 123" }, path: "/users/abc%20123" });
   });
 
+  it("returns null when path params cannot be decoded", () => {
+    expect(matchRoute("/users/:id", "/users/%E0%A4%A")).toBeNull();
+  });
+
   it("returns null when segments differ", () => {
     expect(matchRoute("/users/:id", "/teams/1")).toBeNull();
     expect(matchRoute("/users/:id", "/users/1/extra")).toBeNull();
