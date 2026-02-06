@@ -7,6 +7,7 @@ Cache primitives and combinators for `@gantryland/task`. Compose caching into Ta
 - Works with any TaskFn, no framework coupling.
 - Built-in in-memory store with tag invalidation and events.
 - Stale-while-revalidate and dedupe support out of the box.
+- AbortError is propagated; failed runs do not update cache or invalidation.
 - Works in browser and Node.js with no dependencies.
 
 ## Installation
@@ -121,11 +122,15 @@ type CacheEntry<T> = {
 }
 ```
 
+Timestamps are epoch milliseconds.
+
 ### CacheEvent
 
 Stores can emit events to power analytics, logging, or invalidation tracing.
 
 Event types: `hit`, `miss`, `stale`, `set`, `invalidate`, `clear`, `revalidate`, `revalidateError`.
+
+`revalidateError` includes the error on the event payload.
 
 ### CacheKey
 
@@ -149,21 +154,23 @@ staleWhileRevalidate(): miss -> fetch -> store -> return
 - Fresh hit returns cached data and emits `hit`.
 - Miss or stale fetches, stores on resolve, and emits `miss` or `stale` then `set`.
 - Dedupe is on by default; concurrent calls for the same key share one promise.
-- When deduped, only the first caller's AbortSignal is used.
-- If the task rejects (including AbortError), the cache is not updated.
+- When deduped, only the first caller's AbortSignal is used; later AbortSignals do not cancel the shared promise.
+- If the task rejects (including AbortError), the cache is not updated and the rejection propagates.
 
 ### staleWhileRevalidate
 
 - Fresh hit returns cached data and emits `hit`.
 - Stale within the window returns cached data, emits `stale` then `revalidate`, and revalidates in the background.
+- Dedupe is on by default; when deduped, only the first caller's AbortSignal is used for miss/refresh.
 - Background revalidation does not use the caller's AbortSignal.
 - Background errors emit `revalidateError`, are ignored, and do not update the cache.
+- If the task rejects (including AbortError), the cache is not updated and the rejection propagates.
 - Miss or beyond the stale window fetches and stores on resolve.
 
 ### invalidateOnResolve
 
 - Invalidates keys or tags only after the task resolves.
-- If the task rejects (including AbortError), no invalidation happens.
+- If the task rejects (including AbortError), no invalidation happens and the rejection propagates.
 
 ## API
 

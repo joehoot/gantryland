@@ -8,6 +8,8 @@ export type CacheKey = string | number | symbol;
 /**
  * Cache entry payload with metadata.
  *
+ * Timestamps use epoch milliseconds.
+ *
  * @template T - Cached value type
  *
  * @property value - Cached value
@@ -55,6 +57,8 @@ export type CacheEvent = {
 /**
  * Minimal cache store interface.
  *
+ * Optional methods enable eventing and tag invalidation.
+ *
  * @property get - Return a cache entry by key
  * @property set - Store a cache entry by key
  * @property delete - Remove a cache entry by key
@@ -81,6 +85,7 @@ export type CacheStore = {
  * In-memory CacheStore with tag support.
  *
  * Emits cache events on set, delete, clear, and tag invalidation.
+ * Listener errors are caught and logged.
  *
  * @example
  * ```typescript
@@ -139,7 +144,7 @@ export class MemoryCacheStore implements CacheStore {
   /**
    * Clear all entries.
    *
-   * @returns Nothing
+   * @returns Returns nothing.
    */
   clear(): void {
     this.store.clear();
@@ -180,7 +185,7 @@ export class MemoryCacheStore implements CacheStore {
   /**
    * Emit a cache event to listeners.
    *
-   * Listener errors are caught and logged.
+   * Listener errors are caught and logged to `console.error`.
    *
    * @param event - Cache event payload
    */
@@ -312,10 +317,17 @@ const resolveWithDedupe = async <T, Args extends unknown[] = []>(
   const pending = dedupe ? getPendingMap(store) : undefined;
   if (pending) {
     const inFlight = pending.get(key) as Promise<T> | undefined;
-    if (inFlight) return inFlight;
+    if (inFlight) {
+      if (onError) {
+        inFlight.catch((error) => {
+          onError(error);
+        });
+      }
+      return inFlight;
+    }
   }
 
-  const promise = taskFn(signal, ...args)
+  const promise = Promise.resolve().then(() => taskFn(signal, ...args))
     .then((value) => {
       setEntry(store, key, value, options.tags, previous);
       return value;
@@ -338,13 +350,14 @@ const resolveWithDedupe = async <T, Args extends unknown[] = []>(
  * Returns cached data when fresh; otherwise runs the TaskFn and stores the result.
  * If the TaskFn rejects (including AbortError), the cache is not updated.
  * Dedupe is enabled by default; when deduped, only the first caller's AbortSignal is used.
+ * The returned TaskFn rejects when the underlying TaskFn rejects.
  *
  * @template T - Resolved data type
  * @template Args - TaskFn argument tuple
  * @param key - Cache key for the entry
  * @param store - CacheStore implementation
  * @param options - Cache behavior options
- * @returns A combinator that wraps a TaskFn
+ * @returns A combinator that returns a TaskFn resolving to cached or fresh data
  *
  * @example
  * ```typescript
@@ -374,15 +387,18 @@ export const cache =
  * Return cached data and refresh in the background when stale.
  *
  * Returns cached data when fresh, or when within the stale window.
+ * If the TaskFn rejects (including AbortError), the cache is not updated.
+ * Dedupe is enabled by default; when deduped, only the first caller's AbortSignal is used.
  * Background revalidation does not use the caller's AbortSignal.
  * Background errors emit `revalidateError`, are ignored, and do not update the cache.
+ * The returned TaskFn rejects when the underlying TaskFn rejects.
  *
  * @template T - Resolved data type
  * @template Args - TaskFn argument tuple
  * @param key - Cache key for the entry
  * @param store - CacheStore implementation
  * @param options - Cache behavior options
- * @returns A combinator that wraps a TaskFn
+ * @returns A combinator that returns a TaskFn resolving to cached or fresh data
  *
  * @example
  * ```typescript
@@ -446,12 +462,13 @@ export type InvalidateTarget<T> =
  *
  * Supports keys, key arrays, tags, or a resolver function.
  * If the TaskFn rejects (including AbortError), no invalidation happens.
+ * The returned TaskFn rejects when the underlying TaskFn rejects.
  *
  * @template T - Resolved data type
  * @template Args - TaskFn argument tuple
  * @param target - Keys, tags, or resolver for invalidation
  * @param store - CacheStore implementation
- * @returns A combinator that wraps a TaskFn
+ * @returns A combinator that returns a TaskFn resolving to the original result
  *
  * @example
  * ```typescript

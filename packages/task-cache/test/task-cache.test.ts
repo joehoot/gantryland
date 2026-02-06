@@ -87,6 +87,26 @@ describe("cache", () => {
     vi.useRealTimers();
   });
 
+  it("rejects when the TaskFn throws synchronously", async () => {
+    const store = new MemoryCacheStore();
+    const taskFn = cache("key", store)(() => {
+      throw new Error("boom");
+    });
+
+    await expect(taskFn()).rejects.toThrow("boom");
+    expect(store.get("key")).toBeUndefined();
+  });
+
+  it("does not cache when the TaskFn rejects", async () => {
+    const store = new MemoryCacheStore();
+    const taskFn = cache("key", store)(async () => {
+      throw new Error("nope");
+    });
+
+    await expect(taskFn()).rejects.toThrow("nope");
+    expect(store.get("key")).toBeUndefined();
+  });
+
   it("does not cache when aborted", async () => {
     const store = new MemoryCacheStore();
     const controller = new AbortController();
@@ -94,7 +114,7 @@ describe("cache", () => {
       return new Promise<string>((_, reject) => {
         if (!signal) return reject(new Error("missing signal"));
         if (signal.aborted) return reject(createAbortError());
-        signal.addEventListener("abort", () => reject(createAbortError()));
+        signal.addEventListener("abort", () => reject(createAbortError()), { once: true });
       });
     });
 
@@ -127,6 +147,22 @@ describe("cache", () => {
     const second = taskFn();
 
     deferred.resolve("value");
+    await expect(Promise.all([first, second])).resolves.toEqual(["value", "value"]);
+  });
+
+  it("ignores later abort signals when deduped", async () => {
+    const store = new MemoryCacheStore();
+    const deferred = createDeferred<string>();
+    const taskFn = cache("key", store)(() => deferred.promise);
+
+    const controller = new AbortController();
+    const first = taskFn(controller.signal);
+    const secondController = new AbortController();
+    const second = taskFn(secondController.signal);
+
+    secondController.abort();
+    deferred.resolve("value");
+
     await expect(Promise.all([first, second])).resolves.toEqual(["value", "value"]);
   });
 
@@ -164,6 +200,33 @@ describe("staleWhileRevalidate", () => {
     vi.useRealTimers();
   });
 
+  it("passes the caller signal on a miss", async () => {
+    const store = new MemoryCacheStore();
+    const controller = new AbortController();
+    let received: AbortSignal | undefined;
+    const taskFn = staleWhileRevalidate("key", store, { ttl: 50, staleTtl: 50 })(
+      async (signal) => {
+        received = signal;
+        return "data";
+      }
+    );
+
+    await taskFn(controller.signal);
+    expect(received).toBe(controller.signal);
+  });
+
+  it("rejects on miss when the TaskFn errors", async () => {
+    const store = new MemoryCacheStore();
+    const taskFn = staleWhileRevalidate("key", store, { ttl: 50, staleTtl: 50 })(
+      async () => {
+        throw new Error("boom");
+      }
+    );
+
+    await expect(taskFn()).rejects.toThrow("boom");
+    expect(store.get("key")).toBeUndefined();
+  });
+
   it("ignores background revalidation errors", async () => {
     const store = new MemoryCacheStore();
     const events: string[] = [];
@@ -193,6 +256,36 @@ describe("staleWhileRevalidate", () => {
     vi.useRealTimers();
   });
 
+  it("emits revalidateError when deduped revalidation fails", async () => {
+    const store = new MemoryCacheStore();
+    const events: string[] = [];
+    store.subscribe((event) => events.push(event.type));
+
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2024-01-01T00:00:00.000Z"));
+    store.set("key", {
+      value: "cached",
+      createdAt: Date.now(),
+      updatedAt: Date.now() - 20,
+    });
+
+    const deferred = createDeferred<string>();
+    const cacheTaskFn = cache("key", store, { ttl: 10 })(() => deferred.promise);
+    const inFlight = cacheTaskFn();
+
+    const taskFn = staleWhileRevalidate("key", store, { ttl: 10, staleTtl: 30 })(
+      () => deferred.promise
+    );
+    await expect(taskFn()).resolves.toBe("cached");
+
+    deferred.reject(new Error("boom"));
+    await inFlight.catch(() => {});
+    await Promise.resolve();
+
+    expect(events).toContain("revalidateError");
+    vi.useRealTimers();
+  });
+
   it("returns stale data and revalidates in background", async () => {
     const store = new MemoryCacheStore();
     const deferred = createDeferred<string>();
@@ -207,6 +300,13 @@ describe("staleWhileRevalidate", () => {
 
     await Promise.resolve();
 
+    const revalidated = createDeferred<void>();
+    const unsubscribe = store.subscribe((event) => {
+      if (event.type === "set" && event.entry?.value === "updated") {
+        revalidated.resolve();
+      }
+    });
+
     const next = createDeferred<string>();
     const nextTaskFn = staleWhileRevalidate("key", store, { ttl: 10, staleTtl: 30 })(
       () => next.promise
@@ -218,7 +318,39 @@ describe("staleWhileRevalidate", () => {
 
     next.resolve("updated");
     await next.promise;
+    await revalidated.promise;
+    unsubscribe();
     expect(store.get<string>("key")?.value).toBe("updated");
+    vi.useRealTimers();
+  });
+
+  it("does not pass a caller signal to background revalidation", async () => {
+    const store = new MemoryCacheStore();
+    const controller = new AbortController();
+    const deferred = createDeferred<string>();
+    let received: AbortSignal | undefined;
+
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2024-01-01T00:00:00.000Z"));
+
+    store.set("key", {
+      value: "cached",
+      createdAt: Date.now(),
+      updatedAt: Date.now() - 20,
+    });
+
+    const taskFn = staleWhileRevalidate("key", store, { ttl: 10, staleTtl: 30 })(
+      async (signal) => {
+        received = signal;
+        return deferred.promise;
+      }
+    );
+
+    await expect(taskFn(controller.signal)).resolves.toBe("cached");
+    deferred.resolve("updated");
+    await deferred.promise;
+
+    expect(received).toBeUndefined();
     vi.useRealTimers();
   });
 
@@ -273,6 +405,38 @@ describe("invalidateOnResolve", () => {
     await taskFn();
 
     expect(store.has("user:1")).toBe(false);
+  });
+
+  it("does not invalidate when the TaskFn rejects", async () => {
+    const store = new MemoryCacheStore();
+    store.set("a", { value: 1, createdAt: 1, updatedAt: 1 });
+
+    const taskFn = invalidateOnResolve("a", store)(async () => {
+      throw new Error("boom");
+    });
+
+    await expect(taskFn()).rejects.toThrow("boom");
+    expect(store.has("a")).toBe(true);
+  });
+
+  it("does not invalidate when the TaskFn aborts", async () => {
+    const store = new MemoryCacheStore();
+    store.set("a", { value: 1, createdAt: 1, updatedAt: 1 });
+
+    const taskFn = invalidateOnResolve("a", store)(async (signal) => {
+      return new Promise<void>((_, reject) => {
+        if (!signal) return reject(new Error("missing signal"));
+        if (signal.aborted) return reject(createAbortError());
+        signal.addEventListener("abort", () => reject(createAbortError()), { once: true });
+      });
+    });
+
+    const controller = new AbortController();
+    const promise = taskFn(controller.signal);
+    controller.abort();
+
+    await expect(promise).rejects.toHaveProperty("name", "AbortError");
+    expect(store.has("a")).toBe(true);
   });
 });
 
