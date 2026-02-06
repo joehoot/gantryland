@@ -2,48 +2,43 @@
 
 Thanks for contributing to gantryland.
 
-## Local quality workflow
+## Local workflow
 
-Run these checks before opening a PR:
+Run the full gate locally before opening a PR:
 
 ```bash
-npm run lint
-npm run format:check
-npm run typecheck
-npm run build
-npm run api:check
-npm test
-npm run test:coverage
+npm run release:check
 ```
 
 Use `npm run format` and `npm run lint:fix` to apply autoformat and safe fixes locally.
 
-## Autoformat and strict checks
+## CI gate commands
 
-- This repo uses Biome as the source of truth for linting and formatting.
-- Workspace `.vscode/settings.json` enables format-on-save and Biome code actions on save.
-- CI enforces `lint`, `format:check`, `typecheck`, `build`, `test:coverage`, and release guard checks.
-- Required quality gates and provider-agnostic branch-protection policy are documented in `docs/ci/quality-gates.md`.
-- API deltas are checked by comparing built declarations to `docs/api/*.d.ts` snapshots (`npm run api:check`).
-- When API changes are intentional, regenerate baselines with `npm run api:update` and commit the updated snapshots.
+- `npm run lint`
+- `npm run format:check`
+- `npm run typecheck`
+- `npm run build`
+- `npm run api:check`
+- `npm run test:coverage`
+- `npm run release:guard:changeset`
 
-## TypeScript strictness policy
+Details: `docs/ci/quality-gates.md`.
 
-`strict` mode is enabled for all packages with additional flags: `noImplicitOverride`, `noUncheckedIndexedAccess`, and `noFallthroughCasesInSwitch`.
+## Tooling and TypeScript
+
+- Biome is the lint/format source of truth.
+- TypeScript uses strict mode plus `noImplicitOverride`, `noUncheckedIndexedAccess`, and `noFallthroughCasesInSwitch`.
 
 Deferred strictness flags:
 
 - `exactOptionalPropertyTypes`: deferred until package option types are refactored to avoid broad API churn.
 - `noPropertyAccessFromIndexSignature`: deferred until map-like helper APIs are normalized across packages.
 
-## Package-level authoring gate
+## Authoring standard
 
-When changing package-level files, validate your edits against the authoring guides before merging:
+When changing package source/docs/tests, follow:
 
-- Source code changes: `docs/authoring/source-code.md`
-- JSDoc changes: `docs/authoring/jsdoc.md`
-- Package README/docs changes: `docs/authoring/package-docs.md`
-- Tests changes: `docs/authoring/tests.md`
+- `docs/authoring/README.md`
 
 ## Changesets
 
@@ -61,7 +56,7 @@ Choose the version bump based on the impact:
 - Minor: new features, additive API changes
 - Major: breaking changes
 
-## Local release (manual)
+## Local release
 
 ```bash
 npm run release:status
@@ -71,5 +66,4 @@ npm run release:publish
 ```
 
 For bump policy and coordinated monorepo release guidance, see `docs/releasing/process.md`.
-For session continuity and handoff standards, see `docs/handoff/README.md`.
 For support and security reporting, see `SUPPORT.md` and `SECURITY.md`.

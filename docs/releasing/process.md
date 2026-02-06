@@ -1,6 +1,6 @@
 # Releasing Gantryland
 
-This guide defines release policy for the `@gantryland/*` monorepo and keeps changeset bumps consistent.
+This guide defines the release workflow for the `@gantryland/*` monorepo.
 
 ## Release commands
 
@@ -23,7 +23,6 @@ npm run release:publish
 `release:guard:changeset` is intended for CI pull request checks against `main`.
 See `docs/ci/quality-gates.md` for the full provider-agnostic required gate policy.
 See `docs/releasing/provenance.md` for signed-tag and publication traceability requirements.
-`publish:workspaces` is available for explicit workspace publish operations and is intentionally named to avoid npm lifecycle ambiguity.
 
 ## Bump policy
 
@@ -64,6 +63,6 @@ When creating a changeset:
 
 ## Practical examples
 
-- Fix `matchRoute` malformed decode handling in `task-router`: `@gantryland/task-router` -> `patch`.
-- Add a new combinator in `task-combinators`: `@gantryland/task-combinators` -> `minor`.
-- Remove an export alias in `task-combinators`: `@gantryland/task-combinators` -> `major`.
+- Bug fix without API break -> `patch`.
+- Additive API change -> `minor`.
+- Breaking API change -> `major`.

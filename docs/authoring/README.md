@@ -1,32 +1,40 @@
-# Authoring Guides
+# Authoring Standard
 
-These guides define Gantryland package standards for source code, JSDoc, package docs, and tests.
+Use this file as the single authoring standard for package source code, docs, and tests.
 
-## Guides
+## Core rules
 
-- [`docs/authoring/source-code.md`](source-code.md) - Source-code authoring guide for package APIs and runtime behavior.
-- [`docs/authoring/jsdoc.md`](jsdoc.md) - JSDoc structure and behavior clarity requirements.
-- [`docs/authoring/package-docs.md`](package-docs.md) - Package documentation structure and content standards.
-- [`docs/authoring/tests.md`](tests.md) - Deterministic testing patterns and coverage expectations.
+- Keep APIs small, composable, and behavior-first.
+- Keep cancellation semantics explicit and consistent (`AbortError`, latest-wins behavior).
+- Prefer deterministic behavior and deterministic tests.
+- Keep docs aligned with runtime behavior.
+- Use existing Gantryland terminology consistently (`Task`, `TaskFn`, `TaskState`, `AbortError`, `TimeoutError`).
 
-## Scope boundaries
+## Source code
 
-- `source-code.md` defines implementation and runtime behavior rules only.
-- `jsdoc.md` defines API comment structure and behavior wording.
-- `package-docs.md` defines package documentation structure and examples.
-- `tests.md` defines behavioral test coverage and deterministic testing style.
+- Prefer straightforward control flow over abstraction.
+- Keep internal helpers private unless intentionally exported.
+- Clean up `AbortSignal` listeners and timers on all paths.
+- Prevent double-settle in race-prone code.
 
-## Recommended usage order
+## JSDoc and package docs
 
-1. Start with `source-code.md` for source behavior and API shape.
-2. Use `jsdoc.md` and `package-docs.md` while documenting the package.
-3. Use `tests.md` to verify behavior and edge-case coverage.
+- Document behavior, not implementation.
+- Be explicit about success/error/abort outcomes.
+- Keep examples minimal, real, and compilable.
+- Avoid marketing language and ambiguous wording.
 
-## Contributor gate requirement
+## Tests
 
-For any package-level change, contributors must validate edited files against the matching authoring guide before merge:
+- Test observable behavior, not internals.
+- Cover success, error, and abort paths when relevant.
+- Use deterministic control (deferred promises/fake timers as needed).
+- Keep test names outcome-focused and readable.
 
-- Source implementation -> `source-code.md`
-- JSDoc updates -> `jsdoc.md`
-- Package docs/README updates -> `package-docs.md`
-- Tests updates -> `tests.md`
+## Pre-merge check
+
+Run:
+
+```bash
+npm run release:check
+```

@@ -1,21 +1,10 @@
 # Release Guides
 
-These guides define Gantryland release policy and coordinated release-readiness tracking.
+These guides define the release workflow and provenance requirements.
 
 ## Guides
 
 - [`docs/releasing/process.md`](process.md) - Release commands, bump policy, and monorepo package selection guidance.
 - [`docs/releasing/provenance.md`](provenance.md) - Release provenance requirements for signed tags and publish traceability.
-- [`docs/releasing/0.3.0-audit.md`](0.3.0-audit.md) - Coordinated `0.3.0` release audit checklist and findings log.
 
-## Scope boundaries
-
-- `process.md` defines reusable release workflow and versioning policy.
-- `provenance.md` defines artifact traceability and signing expectations.
-- `0.3.0-audit.md` captures one release train's operational checklist and findings.
-
-## Recommended usage order
-
-1. Start with `process.md` for current release workflow and bump policy.
-2. Apply `provenance.md` before tagging and publishing.
-3. Use `0.3.0-audit.md` only when reviewing or continuing `0.3.0` audit context.
+Use `process.md` first, then apply `provenance.md` before tagging/publishing.

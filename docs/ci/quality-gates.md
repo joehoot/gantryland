@@ -21,9 +21,8 @@ npm run release:guard:changeset
 
 ## Required checks policy
 
-Protect the default branch by requiring a passing status check for each quality gate above.
+Protect the default branch by requiring a passing CI verification status check.
 
-- Keep check names stable so branch protection rules do not drift.
 - Run checks on a pinned Node.js major version aligned with `package.json` `engines.node`.
 - Keep the pipeline non-interactive and deterministic (`npm ci`, no prompts, no manual approvals for gate jobs).
 
@@ -31,5 +30,3 @@ Protect the default branch by requiring a passing status check for each quality 
 
 The current reference pipeline lives at `.github/workflows/ci.yml`.
 If you use a different CI provider, mirror the same gate commands and required-check policy there.
-
-Use `docs/ci/enforcement-runbook.md` to validate provider-side required-check enforcement when that provider-side setup is scheduled.
