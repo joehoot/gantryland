@@ -5,6 +5,7 @@ This guide defines the release workflow for the `@gantryland/*` monorepo.
 Current release scope:
 
 - `@gantryland/task`
+- `@gantryland/task-react`
 - `@gantryland/task-combinators`
 - `@gantryland/task-cache`
 

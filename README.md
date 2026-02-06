@@ -7,6 +7,7 @@ If you are new here: run setup, then open the package README you need.
 ## Packages
 
 - [@gantryland/task](packages/task/)
+- [@gantryland/task-react](packages/task-react/)
 - [@gantryland/task-cache](packages/task-cache/)
 - [@gantryland/task-combinators](packages/task-combinators/)
 

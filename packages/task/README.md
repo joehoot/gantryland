@@ -147,6 +147,7 @@ await task.run();
 
 ## Related packages
 
+- [@gantryland/task-react](../task-react/) - Minimal React hooks for Task interop
 - [@gantryland/task-combinators](../task-combinators/) - TaskFn composition and control-flow operators
 - [@gantryland/task-cache](../task-cache/) - Cache combinators and in-memory store
 

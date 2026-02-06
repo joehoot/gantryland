@@ -2,6 +2,7 @@
   "files": [],
   "references": [
     { "path": "packages/task" },
+    { "path": "packages/task-react" },
     { "path": "packages/task-cache" },
     { "path": "packages/task-combinators" }
   ]

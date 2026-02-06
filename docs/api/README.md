@@ -5,6 +5,7 @@ This directory stores declaration snapshots used for public API delta checks.
 ## Tracked baselines
 
 - `docs/api/task.d.ts`
+- `docs/api/task-react.d.ts`
 - `docs/api/task-combinators.d.ts`
 - `docs/api/task-cache.d.ts`
 

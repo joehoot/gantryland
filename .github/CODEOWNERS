@@ -3,6 +3,7 @@
 
 # Package owners
 /packages/task/ @joehoot
+/packages/task-react/ @joehoot
 /packages/task-cache/ @joehoot
 /packages/task-combinators/ @joehoot
 
