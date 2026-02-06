@@ -4,6 +4,6 @@
 "@gantryland/task-combinators": minor
 ---
 
-- Roll up the 0.3.0 release across the full Gantryland monorepo for changes since 0.2.3.
-- Align docs, API semantics, and tests across packages; include route matching hardening for malformed encoded params.
-- Prepare coordinated versioning and changelog generation for publish readiness.
+- Release 0.3.0 for the distilled Gantryland core packages since 0.2.3.
+- Keep docs, API baselines, and tests aligned with the three-package model.
+- Publish a single coordinated release for `@gantryland/task`, `@gantryland/task-combinators`, and `@gantryland/task-cache`.

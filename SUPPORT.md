@@ -16,6 +16,6 @@ Support is best-effort for:
 ## What to include in requests
 
 - Package name(s) and version(s)
-- Runtime and tooling versions (Node.js, TypeScript, React where relevant)
+- Runtime and tooling versions (Node.js, TypeScript)
 - Minimal reproduction code
 - Observed behavior and expected behavior
