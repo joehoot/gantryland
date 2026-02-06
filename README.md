@@ -25,17 +25,13 @@ Use `npm run format` and `npm run lint:fix` for local auto-fixes.
 ```bash
 npm run release:changeset
 npm run release:status
-npm run release:changelog
-npm run release:ready
+npm run release:version
 npm run release:publish
 ```
 
 ## Docs
 
 - [Contributing](CONTRIBUTING.md)
-- [Release process](docs/releasing/process.md)
-- [Release provenance](docs/releasing/provenance.md)
 - [API baselines](docs/api/README.md)
-- [CI gates](docs/ci/quality-gates.md)
 - [Support](SUPPORT.md)
 - [Security](SECURITY.md)

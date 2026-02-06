@@ -16,10 +16,6 @@ Use `npm run format` and `npm run lint:fix` to apply autoformat and safe fixes l
 
 CI also runs `npm run release:guard:changeset`.
 
-Details: `docs/ci/quality-gates.md`.
-
-Follow `docs/authoring/README.md` for package source/docs/test edits.
-
 ## Changesets
 
 We use Changesets to manage versions and changelogs for the `@gantryland/*` packages.
@@ -40,10 +36,15 @@ Choose the version bump based on the impact:
 
 ```bash
 npm run release:status
-npm run release:changelog
+npm run release:version
 npm run release:check
 npm run release:publish
 ```
 
-For bump policy and coordinated monorepo release guidance, see `docs/releasing/process.md`.
+Use the smallest bump that matches user-visible impact:
+
+- Patch: bug fixes, refactors that preserve behavior, docs/tests changes
+- Minor: additive exports or optional capabilities
+- Major: breaking API or incompatible behavior changes
+
 For support and security reporting, see `SUPPORT.md` and `SECURITY.md`.
