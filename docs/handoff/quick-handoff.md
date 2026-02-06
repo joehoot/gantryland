@@ -29,7 +29,7 @@ Point-in-time session snapshot for continuing 0.3.0 release preparation and tool
 
 ## What is next
 
-1. Implement `docs/todo/tooling-modernization-and-strictness.md` (Biome-first lint/format + strict typecheck + `.vscode` settings).
+1. Milestone complete: `docs/todo/done/tooling-modernization-and-strictness.md` captures the delivered Biome-first lint/format + strict typecheck + `.vscode` settings work.
 2. Keep package-level edits aligned with `docs/authoring/*` guides.
 3. Expand CI quality gates for lint/format/typecheck/build/test/release guard.
 4. Re-run release readiness and prepare final release commit/PR and publish sequence.

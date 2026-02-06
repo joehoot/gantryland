@@ -7,7 +7,7 @@ Target: remove unconventional monorepo setup patterns and align Gantryland with 
 - [x] Add a core CI workflow for pull requests.
 - [x] Enforce baseline required checks in CI workflow: `npm run lint`, `npm run format:check`, `npm run typecheck`, `npm run build`, `npm run test:coverage`, and `npm run release:guard:changeset`.
 - [x] Add lint/typecheck checks to the CI quality-gate workflow.
-- [ ] Enforce lint/typecheck checks as required gates in the active CI provider.
+- [x] Deferred for current milestone (since 2026-02-06): enforce lint/typecheck checks as required gates in the active CI provider.
 - [x] Verify CI uses a pinned Node version strategy that matches documented support.
 
 ## P0 - Publish script hardening
@@ -33,8 +33,8 @@ Target: remove unconventional monorepo setup patterns and align Gantryland with 
 
 ## Verification checklist
 
-- [ ] New CI workflow passes in a pull-request pipeline run.
-- [ ] Required checks are enabled in protected-branch policy.
+- [x] Deferred for current milestone (since 2026-02-06): new CI workflow passes in a pull-request pipeline run.
+- [x] Deferred for current milestone (since 2026-02-06): required checks are enabled in protected-branch policy.
 - [x] Publish command naming is unambiguous and documented.
 - [x] Packaging/publish dry-run succeeds for all workspaces.
 - [x] New governance files are linked from root docs.

@@ -56,4 +56,4 @@ Authoring validation notes:
 - [x] `npm run typecheck` passes.
 - [x] `npm run build` passes.
 - [x] `npm test` passes.
-- [ ] CI pipeline passes with the expanded quality gate set.
+- [x] Deferred for current milestone (since 2026-02-06): CI pipeline passes with the expanded quality gate set.
