@@ -4,10 +4,8 @@ import {
   all,
   backoff,
   catchError,
-  concat,
   defer,
   flatMap,
-  lazy,
   map,
   mapError,
   pipe,
@@ -449,10 +447,6 @@ describe("task-combinators", () => {
     await expect(taskFn(controller.signal)).rejects.toMatchObject({ name: "AbortError" });
   });
 
-  it("concat is an alias of sequence", () => {
-    expect(concat).toBe(sequence);
-  });
-
   it("defer creates a task function at call time", async () => {
     let created = 0;
     const taskFn = defer(() => {
@@ -464,9 +458,6 @@ describe("task-combinators", () => {
     await expect(taskFn()).resolves.toBe(2);
   });
 
-  it("lazy is an alias of defer", () => {
-    expect(lazy).toBe(defer);
-  });
 
   it("retryWhen retries based on predicate and respects maxAttempts", async () => {
     let attempts = 0;

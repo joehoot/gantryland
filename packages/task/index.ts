@@ -21,6 +21,8 @@ type Unsubscribe = () => void;
 /**
  * Async function signature executed by a Task.
  *
+ * Task treats AbortError as cancellation and does not store it in TaskState.
+ *
  * @template T - The type of the resolved data
  * @template Args - Arguments forwarded by run
  * @param signal - Optional AbortSignal for cancellation

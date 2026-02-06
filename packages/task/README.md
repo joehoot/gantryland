@@ -134,6 +134,7 @@ stale (initial) -> run() -> loading -> data | error
 ## Run semantics
 
 - Latest run wins; older results are ignored.
+- Each run clears `error` and sets `isLoading` true before calling the TaskFn.
 - AbortError is swallowed and does not set `error`.
 - Failures preserve existing `data` and set `error` (normalized to Error).
 - `run(...args)` resolves with `T` on success and `undefined` on error/abort/superseded.

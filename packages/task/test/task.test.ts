@@ -91,6 +91,25 @@ describe("Task", () => {
     expect(error?.message).toBe("boom");
   });
 
+  it("clears error when a new run starts", async () => {
+    const task = new Task<string>(async () => {
+      throw new Error("boom");
+    });
+
+    await task.run();
+    expect(task.getState().error?.message).toBe("boom");
+
+    const deferred = createDeferred<string>();
+    task.define(() => deferred.promise);
+
+    const runPromise = task.run();
+    expect(task.getState().isLoading).toBe(true);
+    expect(task.getState().error).toBe(undefined);
+
+    deferred.resolve("ok");
+    await runPromise;
+  });
+
   it("clears loading without error on abort", async () => {
     const task = new Task((signal) =>
       new Promise<string>((_, reject) => {

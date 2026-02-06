@@ -495,10 +495,6 @@ export const sequence =
     return results as T;
   };
 
-/**
- * Alias for sequence.
- */
-export const concat = sequence;
 
 /**
  * Defers creation of a TaskFn until run time.
@@ -509,10 +505,6 @@ export const defer =
   (signal?: AbortSignal, ...args: Args) =>
     factory()(signal, ...args);
 
-/**
- * Alias for defer.
- */
-export const lazy = defer;
 
 type RetryWhenOptions = {
   maxAttempts?: number;

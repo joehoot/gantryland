@@ -165,10 +165,8 @@ Order matters. Use `pipe` to make intent explicit.
 | [`all`](#all) | Parallel array results | `TaskFn` |
 | [`race`](#race) | First-to-settle | `TaskFn` |
 | [`sequence`](#sequence) | Sequential results | `TaskFn` |
-| [`concat`](#concat) | Alias for sequence | `TaskFn` |
 | **Factories** |  |  |
 | [`defer`](#defer) | Defer TaskFn creation | `TaskFn` |
-| [`lazy`](#lazy) | Alias for defer | `TaskFn` |
 
 ### pipe
 
@@ -324,19 +322,11 @@ race(fetchPrimary, fetchReplica)
 
 ### sequence
 
-Run TaskFns sequentially and return all results. `concat` is an alias.
+Run TaskFns sequentially and return all results.
 Checks the AbortSignal before each run and propagates AbortError.
 
 ```typescript
 sequence(fetchUser, fetchTeams)
-```
-
-### concat
-
-Alias for `sequence`.
-
-```typescript
-concat(fetchUser, fetchTeams)
 ```
 
 ### defer
@@ -345,14 +335,6 @@ Defer creation of a TaskFn until run time. Propagates AbortError.
 
 ```typescript
 defer(() => fetchUserTaskFn(id))
-```
-
-### lazy
-
-Alias for `defer`.
-
-```typescript
-lazy(() => fetchUserTaskFn(id))
 ```
 
 ### TimeoutError
