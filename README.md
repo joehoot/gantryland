@@ -2,6 +2,8 @@
 
 Gantryland is a TypeScript monorepo of small async workflow libraries published as `@gantryland/*`.
 
+If you are new here: run setup, then open the package README you need.
+
 ## Packages
 
 - [@gantryland/task](packages/task/)
@@ -37,7 +39,6 @@ npm run release:publish
 ## Docs
 
 - [Contributing](CONTRIBUTING.md)
-- [Authoring standard](docs/authoring/README.md)
 - [Release process](docs/releasing/process.md)
 - [Release provenance](docs/releasing/provenance.md)
 - [API baselines](docs/api/README.md)

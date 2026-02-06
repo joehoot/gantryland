@@ -25,7 +25,6 @@
     "format:check": "biome format .",
     "typecheck": "tsc -b --pretty false",
     "prepack": "npm run build",
-    "publish:workspaces": "npm publish --workspaces",
     "release:changeset": "changeset",
     "release:changelog": "changeset version",
     "release:guard:changeset": "changeset status --since main",

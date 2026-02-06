@@ -1,6 +1,6 @@
 # CI Quality Gates
 
-This document is the provider-agnostic source of truth for pull-request verification.
+Provider-agnostic pull-request verification policy.
 
 ## Required gate commands
 
@@ -23,10 +23,10 @@ npm run release:guard:changeset
 
 Protect the default branch by requiring a passing CI verification status check.
 
-- Run checks on a pinned Node.js major version aligned with `package.json` `engines.node`.
-- Keep the pipeline non-interactive and deterministic (`npm ci`, no prompts, no manual approvals for gate jobs).
+- Use a pinned Node.js major aligned with `package.json` `engines.node`.
+- Keep the pipeline deterministic (`npm ci`, no prompts, no manual approvals).
 
 ## CI provider location
 
-The current reference pipeline lives at `.github/workflows/ci.yml`.
-If you use a different CI provider, mirror the same gate commands and required-check policy there.
+Reference implementation: `.github/workflows/ci.yml`.
+If you use another provider, mirror the same commands and policy.

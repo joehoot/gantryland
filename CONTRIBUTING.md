@@ -2,7 +2,7 @@
 
 Thanks for contributing to gantryland.
 
-## Local workflow
+## Fast path
 
 Run the full gate locally before opening a PR:
 
@@ -12,33 +12,13 @@ npm run release:check
 
 Use `npm run format` and `npm run lint:fix` to apply autoformat and safe fixes locally.
 
-## CI gate commands
+`release:check` runs: lint, format check, typecheck, build, API delta check, and coverage tests.
 
-- `npm run lint`
-- `npm run format:check`
-- `npm run typecheck`
-- `npm run build`
-- `npm run api:check`
-- `npm run test:coverage`
-- `npm run release:guard:changeset`
+CI also runs `npm run release:guard:changeset`.
 
 Details: `docs/ci/quality-gates.md`.
 
-## Tooling and TypeScript
-
-- Biome is the lint/format source of truth.
-- TypeScript uses strict mode plus `noImplicitOverride`, `noUncheckedIndexedAccess`, and `noFallthroughCasesInSwitch`.
-
-Deferred strictness flags:
-
-- `exactOptionalPropertyTypes`: deferred until package option types are refactored to avoid broad API churn.
-- `noPropertyAccessFromIndexSignature`: deferred until map-like helper APIs are normalized across packages.
-
-## Authoring standard
-
-When changing package source/docs/tests, follow:
-
-- `docs/authoring/README.md`
+Follow `docs/authoring/README.md` for package source/docs/test edits.
 
 ## Changesets
 
@@ -56,7 +36,7 @@ Choose the version bump based on the impact:
 - Minor: new features, additive API changes
 - Major: breaking changes
 
-## Local release
+## Release
 
 ```bash
 npm run release:status
