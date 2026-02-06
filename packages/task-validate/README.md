@@ -16,11 +16,13 @@ npm install @gantryland/task-validate
 ## Contents
 
 - [Quick start](#quick-start)
+- [At a glance](#at-a-glance)
 - [Design goals](#design-goals)
-- [When to use task-validate](#when-to-use-task-validate)
-- [When not to use task-validate](#when-not-to-use-task-validate)
+- [When to use](#when-to-use)
+- [When not to use](#when-not-to-use)
 - [Core concepts](#core-concepts)
 - [Flow](#flow)
+- [Behavior](#behavior)
 - [API](#api)
 - [Common patterns](#common-patterns)
 - [Integrations](#integrations)
@@ -47,19 +49,32 @@ const task = new Task(
 
 This example shows Zod validation with ValidationError on failure.
 
+## At a glance
+
+```typescript
+import { validate, fromPredicate } from "@gantryland/task-validate";
+
+type User = { id: string };
+
+const isUser = (input: unknown): input is User =>
+  !!input && typeof (input as User).id === "string";
+
+const withUser = validate(fromPredicate(isUser));
+```
+
 ## Design goals
 
 - Be schema-library agnostic.
 - Keep validation in TaskFn pipelines.
 - Provide a consistent error shape.
 
-## When to use task-validate
+## When to use
 
 - You want validation in TaskFn composition.
 - You use a schema library with `safeParse`.
 - You want type guards to enforce output shape.
 
-## When not to use task-validate
+## When not to use
 
 - You want automatic schema generation.
 - You need complex, multi-step validation flows.
@@ -85,6 +100,12 @@ When validation fails, `ValidationError` is thrown and can carry `issues` from y
 ```text
 TaskFn -> validate(validator) -> TaskFn
 ```
+
+## Behavior
+
+- `validate` runs the TaskFn first, then passes the resolved value to `parse`.
+- Validation failures reject with `ValidationError` carrying `issues`.
+- Errors from the TaskFn, including `AbortError`, are passed through.
 
 ## API
 
