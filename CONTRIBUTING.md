@@ -18,7 +18,7 @@ CI also runs `npm run release:guard:changeset`.
 
 ## Changesets
 
-We use Changesets to manage versions and changelogs for the `@gantryland/*` packages.
+We use Changesets to manage versions for the `@gantryland/*` packages.
 
 When you make a change that should be released, add a changeset:
 
