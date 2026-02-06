@@ -1,6 +1,6 @@
-# Package Authoring Guide (LLM Instructions)
+# Package Authoring Guide
 
-Use this guide to design, implement, and document Gantryland packages. The reference tone and rigor are `packages/task/index.ts`, `packages/task-combinators/index.ts`, `JSDOC_AUTHORING.md`, and `README_AUTHORING.md`.
+Use this guide to design, implement, and document Gantryland packages. The reference tone and rigor are `packages/task/index.ts`, `packages/task-combinators/index.ts`, `docs/authoring/jsdoc.md`, and `docs/authoring/readme.md`.
 
 ## Goals
 - Optimize for developer experience, ergonomics, and comprehension.
@@ -37,8 +37,8 @@ Use this guide to design, implement, and document Gantryland packages. The refer
 - Preserve existing data on error unless the API explicitly resets it.
 
 ## Documentation Requirements
-- JSDoc must follow `JSDOC_AUTHORING.md`.
-- README must follow `README_AUTHORING.md`.
+- JSDoc must follow `docs/authoring/jsdoc.md`.
+- README must follow `docs/authoring/readme.md`.
 - JSDoc, README, and tests must agree on semantics.
 
 ## Tests

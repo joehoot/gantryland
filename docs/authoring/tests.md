@@ -1,6 +1,6 @@
-# Test Authoring Guide (LLM Instructions)
+# Test Authoring Guide
 
-Use this guide when writing or updating unit tests in Gantryland packages. The reference tone and rigor are `packages/task/test/task.test.ts`, `PACKAGE_AUTHORING.md`, `JSDOC_AUTHORING.md`, and `README_AUTHORING.md`. The goal is to ensure tests are deterministic, behavior-first, and aligned with documented semantics.
+Use this guide when writing or updating unit tests in Gantryland packages. The reference tone and rigor are `packages/task/test/task.test.ts`, `docs/authoring/package.md`, `docs/authoring/jsdoc.md`, and `docs/authoring/readme.md`. The goal is to ensure tests are deterministic, behavior-first, and aligned with documented semantics.
 
 ## Goals
 - Prove observable behavior, not implementation details.

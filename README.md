@@ -9,6 +9,7 @@ Gantryland is a suite of modern, composable tools for async workflows. Packages 
 ## Contents
 
 - [Packages](#packages)
+- [Authoring guides](#authoring-guides)
 - [Development](#development)
 - [Pre Publishing](#pre-publishing)
 - [Release process](#release-process)
@@ -25,6 +26,14 @@ Gantryland is a suite of modern, composable tools for async workflows. Packages 
 - [@gantryland/task-scheduler](packages/task-scheduler/) - Polling, debounce, throttle, and queue combinators.
 - [@gantryland/task-storage](packages/task-storage/) - Persistent cache stores for browser and Node.js.
 - [@gantryland/task-validate](packages/task-validate/) - Validation combinators for schema-agnostic parsing.
+
+## Authoring guides
+
+- [Authoring index](docs/authoring/README.md)
+- [Package authoring](docs/authoring/package.md)
+- [JSDoc authoring](docs/authoring/jsdoc.md)
+- [README authoring](docs/authoring/readme.md)
+- [Test authoring](docs/authoring/tests.md)
 
 ## Development
 

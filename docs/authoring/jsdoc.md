@@ -1,4 +1,4 @@
-# JSDoc Authoring Guide (LLM Instructions)
+# JSDoc Authoring Guide
 
 Use this guide when writing or updating JSDoc in Gantryland source files. The goal is maximum developer ergonomics: fast comprehension, predictable behavior, and actionable examples. Keep docs aligned with actual runtime behavior.
 
