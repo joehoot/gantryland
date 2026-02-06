@@ -3,8 +3,9 @@
 Minimal observable primitives for Task. Designed for small, dependency-free interop with libraries that consume observables.
 
 - Tiny Observable/Observer contracts for easy adapters.
-- Convert Task state or results to observables.
+- Convert Task state or results into observables.
 - Convert observables into TaskFn.
+- Observable -> TaskFn respects AbortSignal.
 - Works in browser and Node.js with no dependencies.
 
 ## Installation
@@ -16,11 +17,13 @@ npm install @gantryland/task-observable
 ## Contents
 
 - [Quick start](#quick-start)
+- [At a glance](#at-a-glance)
 - [Design goals](#design-goals)
 - [When to use task-observable](#when-to-use-task-observable)
 - [When not to use task-observable](#when-not-to-use-task-observable)
 - [Core concepts](#core-concepts)
 - [Flow](#flow)
+- [Run semantics](#run-semantics)
 - [API](#api)
 - [Common patterns](#common-patterns)
 - [Integrations](#integrations)
@@ -47,6 +50,22 @@ subscription.unsubscribe();
 ```
 
 This example shows Task results as an observable stream.
+
+## At a glance
+
+```typescript
+import { Task } from "@gantryland/task";
+import { createObservable, fromTaskState, toTask } from "@gantryland/task-observable";
+
+const task = new Task(async () => "ready");
+const state$ = fromTaskState(task);
+
+const observable = createObservable<string>((observer) => {
+  observer.next("first");
+});
+
+const taskFn = toTask(observable);
+```
 
 ## Design goals
 
@@ -86,8 +105,9 @@ type Observable<T> = {
 ### Task interop
 
 - `fromTaskState` emits every Task state change.
-- `fromTask` emits resolved data values only.
-- `toTask` converts an observable to a TaskFn and resolves on the first `next`.
+- `fromTask` emits when `isLoading` is false, `isStale` is false, and `data` is defined.
+- `fromTask` dedupes by reference equality and forwards Task errors.
+- `toTask` resolves on the first `next`, rejects on `error`/abort, and cleans up on `complete`.
 
 ## Flow
 
@@ -96,6 +116,14 @@ Task -> fromTaskState -> Observable<TaskState>
 Task -> fromTask -> Observable<T>
 Observable<T> -> toTask -> TaskFn<T>
 ```
+
+## Run semantics
+
+- `fromTaskState` emits every Task state change in order.
+- `fromTask` emits only when `isLoading` is false, `isStale` is false, and `data` is defined.
+- `fromTask` dedupes by reference equality and forwards Task errors to `observer.error`.
+- `toTask` resolves on the first `next`, rejects on `error`, and rejects with `AbortError` on abort.
+- `toTask` does not resolve on `complete`; a complete without a `next` leaves the TaskFn pending.
 
 ## API
 
@@ -114,6 +142,7 @@ Observable<T> -> toTask -> TaskFn<T>
 ### createObservable
 
 Create a minimal observable from a subscribe function.
+If the subscribe function does not return an unsubscribe callback, the subscription uses a no-op.
 
 ```typescript
 createObservable((observer) => {
@@ -143,21 +172,11 @@ fromTask(task)
 ### toTask
 
 Convert an observable into a TaskFn. Only the first value is used.
+Rejects with `AbortError` when aborted and does not resolve on `complete` without a `next` value.
 
 ```typescript
 const taskFn = toTask(observable)
 ```
-
-### Guarantees
-
-- `fromTaskState` emits every Task state change.
-- `fromTask` emits only after successful resolution.
-- `toTask` respects abort and rejects on observable errors.
-
-### Gotchas
-
-- `fromTask` does not emit on `error` or `cancel`.
-- `toTask` resolves on the first `next` only.
 
 ## Common patterns
 

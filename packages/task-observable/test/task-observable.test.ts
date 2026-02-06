@@ -44,6 +44,14 @@ describe("createObservable", () => {
 
     expect(next).toHaveBeenCalledWith(2);
   });
+
+  it("returns a no-op unsubscribe when none is provided", () => {
+    const observable = createObservable<number>(() => {});
+
+    const subscription = observable.subscribe(() => {});
+
+    expect(() => subscription.unsubscribe()).not.toThrow();
+  });
 });
 
 describe("fromTaskState", () => {
@@ -119,6 +127,17 @@ describe("toTask", () => {
     expect(unsubscribe).toHaveBeenCalledTimes(1);
   });
 
+  it("handles synchronous emissions with an AbortSignal", async () => {
+    const controller = new AbortController();
+    const observable = createObservable<string>((observer) => {
+      observer.next("sync");
+    });
+
+    const taskFn = toTask(observable);
+
+    await expect(taskFn(controller.signal)).resolves.toBe("sync");
+  });
+
   it("rejects on observable error and unsubscribes", async () => {
     const unsubscribe = vi.fn();
     let observer: { error?: (err: unknown) => void } | undefined;
@@ -136,6 +155,32 @@ describe("toTask", () => {
 
     await expect(promise).rejects.toBe(error);
     expect(unsubscribe).toHaveBeenCalledTimes(1);
+  });
+
+  it("unsubscribes on complete without resolving", async () => {
+    const unsubscribe = vi.fn();
+    const observable = createObservable<string>((observer) => {
+      observer.complete?.();
+      return unsubscribe;
+    });
+
+    const taskFn = toTask(observable);
+    const promise = taskFn();
+
+    let settled = false;
+    promise.then(
+      () => {
+        settled = true;
+      },
+      () => {
+        settled = true;
+      }
+    );
+
+    await Promise.resolve();
+
+    expect(unsubscribe).toHaveBeenCalledTimes(1);
+    expect(settled).toBe(false);
   });
 
   it("rejects immediately if signal is already aborted", async () => {
