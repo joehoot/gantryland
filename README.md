@@ -10,6 +10,7 @@ Gantryland is a suite of modern, composable tools for async workflows. Packages 
 
 - [Packages](#packages)
 - [Authoring guides](#authoring-guides)
+- [Release guides](#release-guides)
 - [Development](#development)
 - [Pre-publishing](#pre-publishing)
 - [Release process](#release-process)
@@ -35,6 +36,12 @@ Gantryland is a suite of modern, composable tools for async workflows. Packages 
 - [Package docs authoring](docs/authoring/package-docs.md)
 - [Test authoring](docs/authoring/tests.md)
 
+## Release guides
+
+- [Release index](docs/releasing/README.md)
+- [Release process](docs/releasing/process.md)
+- [0.3.0 audit tracker](docs/releasing/0.3.0-audit.md)
+
 ## Development
 
 ```bash
@@ -56,10 +63,9 @@ If `release:ready` fails, fix the issue and rerun it. The changeset remains vali
 npm run release:changeset
 npm run release:status
 npm run release:changelog
-npm run release:check
 npm run release:ready
 ```
 
 If `release:ready` fails after generating versions/changelogs, keep those changes, fix the code, and rerun.
 
-See `RELEASING.md` and `CONTRIBUTING.md` for release guidance.
+See `docs/releasing/process.md` and `CONTRIBUTING.md` for release guidance.

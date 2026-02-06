@@ -22,9 +22,9 @@ Choose the version bump based on the impact:
 
 ```bash
 npm run release:status
-npx changeset version
-npm run build
-npx changeset publish
+npm run release:changelog
+npm run release:check
+npm run changeset:publish
 ```
 
-For bump policy and coordinated monorepo release guidance, see `RELEASING.md`.
+For bump policy and coordinated monorepo release guidance, see `docs/releasing/process.md`.
