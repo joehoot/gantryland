@@ -19,7 +19,7 @@ Target: move Gantryland from strong OSS readiness to clear enterprise-grade conf
 Progress notes:
 
 - CI workflow now runs `lint`, `format:check`, `typecheck`, `build`, `test`, and release guard.
-- Remaining work is enforcement via required status checks in GitHub branch protection, plus coverage and API delta automation.
+- Remaining work is enforcement via required checks in protected-branch policy, plus coverage and API delta automation.
 
 ## P1 - OSS consumer confidence
 
@@ -58,7 +58,7 @@ Progress notes:
 
 ## Exit criteria
 
-- [ ] Required CI checks protect `main`.
+- [ ] Required CI checks protect the default branch.
 - [ ] Security and support policies are discoverable from root docs.
 - [ ] Coverage thresholds are enforced in PR workflows.
 - [ ] Public API change process is documented and verified.

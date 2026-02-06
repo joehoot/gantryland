@@ -56,4 +56,4 @@ Authoring validation notes:
 - [x] `npm run typecheck` passes.
 - [x] `npm run build` passes.
 - [x] `npm test` passes.
-- [ ] CI workflow passes with the expanded quality gate set.
+- [ ] CI pipeline passes with the expanded quality gate set.
