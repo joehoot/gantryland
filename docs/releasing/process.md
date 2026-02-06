@@ -11,14 +11,17 @@ npm run release:changeset
 npm run release:status
 npm run release:changelog
 npm run release:ready
+npm run release:publish
 ```
 
 - `release:changeset`: creates a new `.changeset/*.md` entry.
 - `release:status`: non-interactive check for pending changesets plus build/test.
 - `release:changelog`: applies versions and updates package changelogs.
 - `release:ready`: guard changesets, apply versions/changelogs, then build/test.
+- `release:publish`: reruns release checks, then publishes with Changesets.
 
 `release:guard:changeset` is intended for CI pull request checks against `main`.
+`publish:workspaces` is available for explicit workspace publish operations and is intentionally named to avoid npm lifecycle ambiguity.
 
 ## Bump policy
 

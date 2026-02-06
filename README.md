@@ -12,6 +12,7 @@ Gantryland is a suite of modern, composable tools for async workflows. Packages 
 - [Authoring guides](#authoring-guides)
 - [Release guides](#release-guides)
 - [Handoff guides](#handoff-guides)
+- [Community and security](#community-and-security)
 - [Development](#development)
 - [Pre-publishing](#pre-publishing)
 - [Release process](#release-process)
@@ -49,6 +50,13 @@ Gantryland is a suite of modern, composable tools for async workflows. Packages 
 - [Quick handoff](docs/handoff/quick-handoff.md)
 - [Handoff authoring](docs/handoff/authoring.md)
 
+## Community and security
+
+- [Contributing](CONTRIBUTING.md)
+- [Support](SUPPORT.md)
+- [Security policy](SECURITY.md)
+- [Code of conduct](CODE_OF_CONDUCT.md)
+
 ## Development
 
 ```bash
@@ -71,6 +79,7 @@ npm run release:changeset
 npm run release:status
 npm run release:changelog
 npm run release:ready
+npm run release:publish
 ```
 
 If `release:ready` fails after generating versions/changelogs, keep those changes, fix the code, and rerun.

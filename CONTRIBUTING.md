@@ -24,8 +24,9 @@ Choose the version bump based on the impact:
 npm run release:status
 npm run release:changelog
 npm run release:check
-npm run changeset:publish
+npm run release:publish
 ```
 
 For bump policy and coordinated monorepo release guidance, see `docs/releasing/process.md`.
 For session continuity and handoff standards, see `docs/handoff/README.md`.
+For support and security reporting, see `SUPPORT.md` and `SECURITY.md`.

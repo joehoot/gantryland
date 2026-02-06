@@ -2,6 +2,9 @@
   "name": "gantryland",
   "private": true,
   "type": "module",
+  "engines": {
+    "node": ">=20"
+  },
   "workspaces": ["packages/*"],
   "repository": {
     "type": "git",
@@ -14,14 +17,16 @@
   "scripts": {
     "build": "tsc -b",
     "clean": "tsc -b --clean",
+    "prepack": "npm run build",
     "prepublishOnly": "npm run build",
-    "publish": "npm publish --workspaces",
+    "publish:workspaces": "npm publish --workspaces",
     "release:changeset": "changeset",
     "release:changelog": "changeset version",
     "release:guard:changeset": "changeset status --since main",
     "release:status": "changeset status && npm run release:check",
     "release:check": "npm run build && npm test",
     "release:ready": "npm run release:guard:changeset && npm run release:changelog && npm run release:check",
+    "release:publish": "npm run release:check && npm run changeset:publish",
     "test": "vitest run",
     "changeset:publish": "changeset publish"
   },
