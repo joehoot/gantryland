@@ -16,11 +16,13 @@ npm install @gantryland/task-router
 ## Contents
 
 - [Quick start](#quick-start)
+- [At a glance](#at-a-glance)
 - [Design goals](#design-goals)
-- [When to use task-router](#when-to-use-task-router)
-- [When not to use task-router](#when-not-to-use-task-router)
+- [When to use](#when-to-use)
+- [When not to use](#when-not-to-use)
 - [Core concepts](#core-concepts)
 - [Flow](#flow)
+- [Run semantics](#run-semantics)
 - [API](#api)
 - [Common patterns](#common-patterns)
 - [Integrations](#integrations)
@@ -43,19 +45,33 @@ await userTask.runPath("/users/123");
 
 This example shows a route pattern bound to a Task and run by path.
 
+## At a glance
+
+```typescript
+import { buildPath, createPathTask, matchRoute } from "@gantryland/task-router";
+
+const userTask = createPathTask("/users/:id", (params) => (signal) =>
+  fetch(`/api/users/${params.id}`, { signal }).then((r) => r.json())
+);
+
+const match = matchRoute("/users/:id", "/users/123");
+const path = buildPath("/users/:id", { id: "123" });
+await userTask.runPath("/users/123");
+```
+
 ## Design goals
 
 - Keep routing helpers tiny and composable.
 - Avoid a full router dependency.
 - Make params explicit and easy to reuse.
 
-## When to use task-router
+## When to use
 
 - You want a small route matcher for Task.
 - You need param-driven TaskFns.
 - You want to build or validate paths with params.
 
-## When not to use task-router
+## When not to use
 
 - You need nested routes, loaders, or history management.
 - You need wildcard or regex route matching.
@@ -71,11 +87,20 @@ Patterns support `:param` segments. `matchRoute` returns `{ params, path }` when
 `createRouteTask` and `createPathTask` return a `RouteTask`, a wrapper around a Task with param helpers.
 
 ```typescript
-type RouteTask<T> = {
-  task: Task<T>;
+import type { Task } from "@gantryland/task";
+
+type RouteParams = Record<string, string>;
+
+type RouteMatch = {
+  params: RouteParams;
+  path: string;
+};
+
+type RouteTask<T, Args extends unknown[] = []> = {
+  task: Task<T, Args>;
   getParams: () => RouteParams;
   setParams: (params: RouteParams) => void;
-  run: (params?: RouteParams) => Promise<T | undefined>;
+  run: (params?: RouteParams, ...args: Args) => Promise<T | undefined>;
 };
 ```
 
@@ -85,6 +110,15 @@ type RouteTask<T> = {
 pattern + params -> TaskFn -> Task
 path -> matchRoute -> params -> run(params)
 ```
+
+## Run semantics
+
+- `matchRoute` returns `null` when the pattern does not match the path.
+- Params are decoded with `decodeURIComponent` and always returned as strings.
+- `buildPath` encodes params, throws if a param is missing, and always returns a leading slash.
+- `createRouteTask` uses the latest params snapshot; `run(params)` updates params before running.
+- `getParams` returns a copy; mutating it does not change internal params.
+- `run` and `runPath` resolve to data on success or `undefined` on error, abort, or superseded runs (Task latest-wins).
 
 ## API
 
@@ -129,6 +163,8 @@ const routeTask = createRouteTask((params) => (signal) =>
 
 Create a RouteTask from a path pattern. Adds `runPath` convenience.
 
+If `initialPath` is provided and matches the pattern, its params seed the task.
+
 ```typescript
 const routeTask = createPathTask(
   "/users/:id",
@@ -136,16 +172,10 @@ const routeTask = createPathTask(
 );
 ```
 
-### Guarantees
+### Notes
 
-- `matchRoute` returns `null` for non-matching paths.
-- `buildPath` encodes params.
-- `createPathTask` throws if a path does not match the pattern.
-
-### Gotchas
-
+- `createPathTask` throws if `runPath` receives a path that does not match the pattern.
 - Patterns support `:param` segments only (no wildcards).
-- `buildPath` throws if a param is missing.
 
 ## Common patterns
 
