@@ -28,3 +28,4 @@ npm run changeset:publish
 ```
 
 For bump policy and coordinated monorepo release guidance, see `docs/releasing/process.md`.
+For session continuity and handoff standards, see `docs/handoff/README.md`.

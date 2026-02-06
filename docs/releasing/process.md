@@ -1,17 +1,10 @@
 # Releasing Gantryland
 
-This guide defines release policy for the `@gantryland/*` monorepo and keeps Changeset bumps consistent.
-
-## Happy path
-
-```bash
-npm run release:changeset
-npm run release:status
-npm run release:changelog
-npm run release:ready
-```
+This guide defines release policy for the `@gantryland/*` monorepo and keeps changeset bumps consistent.
 
 ## Release commands
+
+Typical local workflow:
 
 ```bash
 npm run release:changeset

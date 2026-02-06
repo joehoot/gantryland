@@ -11,6 +11,7 @@ Gantryland is a suite of modern, composable tools for async workflows. Packages 
 - [Packages](#packages)
 - [Authoring guides](#authoring-guides)
 - [Release guides](#release-guides)
+- [Handoff guides](#handoff-guides)
 - [Development](#development)
 - [Pre-publishing](#pre-publishing)
 - [Release process](#release-process)
@@ -41,6 +42,12 @@ Gantryland is a suite of modern, composable tools for async workflows. Packages 
 - [Release index](docs/releasing/README.md)
 - [Release process](docs/releasing/process.md)
 - [0.3.0 audit tracker](docs/releasing/0.3.0-audit.md)
+
+## Handoff guides
+
+- [Handoff index](docs/handoff/README.md)
+- [Quick handoff](docs/handoff/quick-handoff.md)
+- [Handoff authoring](docs/handoff/authoring.md)
 
 ## Development
 
