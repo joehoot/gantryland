@@ -1,11 +1,8 @@
 # @gantryland/task-logger
 
-Logging utilities for Task and task-cache. Capture TaskFn execution timing, Task state transitions, and cache events with a consistent logger interface.
+Structured logging helpers for `Task`, `TaskFn`, and cache events.
 
-- Structured log events with customizable logger backends.
-- TaskFn wrappers and Task state subscriptions.
-- Cache event logging with optional labels.
-- Works in browser and Node.js with no dependencies.
+Use this package to instrument task lifecycles with consistent event shape while keeping logger backend choice fully pluggable.
 
 ## Installation
 
@@ -13,34 +10,18 @@ Logging utilities for Task and task-cache. Capture TaskFn execution timing, Task
 npm install @gantryland/task-logger
 ```
 
-## Contents
-
-- [Quick start](#quick-start)
-- [At a glance](#at-a-glance)
-- [Design goals](#design-goals)
-- [When to use](#when-to-use)
-- [When not to use](#when-not-to-use)
-- [Core concepts](#core-concepts)
-- [Flow](#flow)
-- [Run semantics](#run-semantics)
-- [API](#api)
-- [Common patterns](#common-patterns)
-- [Integrations](#integrations)
-- [Related packages](#related-packages)
-- [Tests](#tests)
-
 ## Quick start
 
 ```typescript
 import { Task } from "@gantryland/task";
-import { logTask, logTaskState, logCache, createLogger } from "@gantryland/task-logger";
-import { MemoryCacheStore, cache } from "@gantryland/task-cache";
+import { cache, MemoryCacheStore } from "@gantryland/task-cache";
 import { pipe } from "@gantryland/task-combinators";
+import { createLogger, logCache, logTask, logTaskState } from "@gantryland/task-logger";
 
 const logger = createLogger({ prefix: "[app]" });
 const store = new MemoryCacheStore();
 
-const task = new Task(
+const usersTask = new Task(
   pipe(
     (signal) => fetch("/api/users", { signal }).then((r) => r.json()),
     logTask({ label: "users", logger }),
@@ -48,60 +29,41 @@ const task = new Task(
   )
 );
 
-const unsubscribeTask = logTaskState(task, { label: "users", logger });
-const unsubscribeCache = logCache(store, { label: "cache", logger });
+const stopTaskLogs = logTaskState(usersTask, { label: "users", logger });
+const stopCacheLogs = logCache(store, { label: "cache", logger });
 
-await task.run();
+await usersTask.run();
 
-unsubscribeTask();
-unsubscribeCache();
+stopTaskLogs();
+stopCacheLogs();
 ```
-
-This example shows TaskFn execution, Task state transitions, and cache events.
-
-## At a glance
-
-```typescript
-import { Task } from "@gantryland/task";
-import { logTask, logTaskState } from "@gantryland/task-logger";
-
-const task = new Task(
-  logTask({ label: "profile" })((signal) =>
-    fetch("/api/profile", { signal }).then((r) => r.json())
-  )
-);
-
-const unsubscribe = logTaskState(task, { label: "profile" });
-await task.run();
-unsubscribe();
-```
-
-## Design goals
-
-- Make logging opt-in and composable.
-- Keep log payloads structured and consistent.
-- Avoid coupling to specific logging vendors.
 
 ## When to use
 
-- You want structured logs for Task execution.
-- You need cache event logging.
-- You want minimal instrumentation overhead.
+- You want consistent lifecycle logs for task execution.
+- You want cache event visibility for hit/miss/invalidate flows.
+- You want observability without committing to a tracing vendor.
 
 ## When not to use
 
-- You need full tracing with distributed context.
-- You do not want logging in production at all.
+- You need distributed tracing context propagation.
+- You do not want runtime logging overhead in this layer.
 
-## Core concepts
+## Exports
 
-### Logger and LogEvent
+- `consoleLogger(event)`
+- `createLogger({ prefix?, logger? })`
+- `logTask(options?)`
+- `logTaskState(task, options?)`
+- `logCache(store, options?)`
 
-You provide a `Logger` function that receives structured `LogEvent` objects.
+Core event types:
 
 ```typescript
+type LogLevel = "debug" | "info" | "warn" | "error";
+
 type LogEvent = {
-  level: "debug" | "info" | "warn" | "error";
+  level: LogLevel;
   message: string;
   meta?: Record<string, unknown>;
 };
@@ -109,122 +71,45 @@ type LogEvent = {
 type Logger = (event: LogEvent) => void;
 ```
 
-### TaskFn vs Task instance logging
+## Semantics
 
-- `logTask` wraps a TaskFn and logs start/success/error/abort with duration.
-- `logTaskState` subscribes to a Task instance and logs state transitions.
+- `logTask`
+  - Logs `start` before execution.
+  - Logs `success` with `durationMs` on resolve.
+  - Logs `abort` at `debug` level for `AbortError`.
+  - Logs `error` with `durationMs` and `error` metadata for non-abort failures.
+  - Always rethrows.
+- `logTaskState`
+  - Subscribes to task state transitions.
+  - Logs `start` when loading begins (including immediate subscribe during in-flight state).
+  - Logs terminal transition as `success`/`error`/`abort` based on resulting state.
+  - Uses data reference equality to infer success vs abort when no error is present.
+- `logCache`
+  - Subscribes to cache events and logs `${label} ${event.type}` at `debug` level.
+  - Includes `key` in `meta` when present.
+  - Returns no-op unsubscribe if store has no `subscribe`.
 
-### Cache logging
+## Patterns
 
-`logCache` listens to CacheStore events and logs them. It requires a store that implements `subscribe`.
-
-## Flow
-
-```text
-logTask: TaskFn -> start -> success/error/abort
-logTaskState: Task -> subscribe -> transitions
-logCache: CacheStore -> subscribe -> events
-```
-
-## Run semantics
-
-- `logTask` logs `start` before calling the TaskFn and always rethrows errors.
-- AbortError is logged as `debug` with an `abort` message.
-- `logTaskState` infers success vs abort from TaskState changes; a completion without error that keeps the same data reference logs as `abort`.
-- `logTaskState` logs `start` immediately if you subscribe while a run is already in-flight.
-- `logCache` returns a no-op unsubscribe when the store does not expose `subscribe`.
-
-## API
-
-### API at a glance
-
-| Member | Purpose | Returns |
-| --- | --- | --- |
-| **Loggers** |  |  |
-| [`consoleLogger`](#consolelogger) | Console logger backend | `Logger` |
-| [`createLogger`](#createlogger) | Prefix and wrap a logger | `Logger` |
-| **Task logging** |  |  |
-| [`logTask`](#logtask) | Log TaskFn execution | `(taskFn) => TaskFn` |
-| [`logTaskState`](#logtaskstate) | Log Task state transitions | `() => void` |
-| **Cache logging** |  |  |
-| [`logCache`](#logcache) | Log cache events | `() => void` |
-
-### consoleLogger
-
-Console-based logger implementation.
-
-```typescript
-import { consoleLogger } from "@gantryland/task-logger";
-```
-
-### createLogger
-
-Create a logger with an optional prefix.
-
-```typescript
-const logger = createLogger({ prefix: "[api]", logger: consoleLogger });
-```
-
-### logTask
-
-Wrap a TaskFn and log start/success/error/abort with duration metadata.
-
-```typescript
-logTask({ label: "users", logger })
-```
-
-### logTaskState
-
-Subscribe to a Task instance and log lifecycle transitions. Returns an unsubscribe function.
-
-```typescript
-const unsubscribe = logTaskState(task, { label: "users", logger });
-```
-
-### logCache
-
-Subscribe to cache events and log them. Returns an unsubscribe function.
-
-```typescript
-const unsubscribe = logCache(store, { label: "cache", logger });
-```
-
-### Guarantees
-
-- `logTask` always rethrows errors after logging.
-- AbortError is logged as `debug` with an `abort` message.
-- `logCache` is a no-op if the store does not support `subscribe`.
-- `logTaskState` logs `start` immediately if you subscribe while a run is already in-flight.
-
-### Gotchas
-
-- `logTaskState` infers aborts from state changes; it does not inspect AbortSignal.
-- If a run resolves to the same data reference as the previous success, `logTaskState` logs it as `abort`.
-- Logging adds minimal overhead, but it is still I/O.
-
-## Common patterns
-
-Use these patterns for most usage.
-
-### Custom logger with structured output
+### 1) JSON logger backend
 
 ```typescript
 import type { LogEvent } from "@gantryland/task-logger";
+import { createLogger } from "@gantryland/task-logger";
 
 const jsonLogger = (event: LogEvent) => {
-  const payload = { ...event, ts: new Date().toISOString() };
-  console.log(JSON.stringify(payload));
+  console.log(JSON.stringify({ ...event, ts: new Date().toISOString() }));
 };
 
 const logger = createLogger({ prefix: "[tasks]", logger: jsonLogger });
 ```
 
-### Logging TaskFn execution
+### 2) TaskFn execution instrumentation
 
 ```typescript
 import { Task } from "@gantryland/task";
-import { logTask } from "@gantryland/task-logger";
 import { pipe, retry } from "@gantryland/task-combinators";
+import { logTask } from "@gantryland/task-logger";
 
 const task = new Task(
   pipe(
@@ -235,22 +120,20 @@ const task = new Task(
 );
 ```
 
-### Logging Task state transitions
+### 3) Task state transition logging
 
 ```typescript
 import { Task } from "@gantryland/task";
 import { logTaskState } from "@gantryland/task-logger";
 
-const task = new Task((signal) =>
-  fetch("/api/profile", { signal }).then((r) => r.json())
-);
+const task = new Task((signal) => fetch("/api/profile", { signal }).then((r) => r.json()));
 
 const unsubscribe = logTaskState(task, { label: "profile" });
 await task.run();
 unsubscribe();
 ```
 
-### Logging cache events
+### 4) Cache event logging
 
 ```typescript
 import { MemoryCacheStore } from "@gantryland/task-cache";
@@ -259,61 +142,18 @@ import { logCache } from "@gantryland/task-logger";
 const store = new MemoryCacheStore();
 const unsubscribe = logCache(store, { label: "cache" });
 
-store.set("users", { value: [], createdAt: Date.now(), updatedAt: Date.now() });
 unsubscribe();
-```
-
-### Combined Task + cache logging
-
-```typescript
-import { Task } from "@gantryland/task";
-import { MemoryCacheStore, cache } from "@gantryland/task-cache";
-import { logTask, logCache, createLogger } from "@gantryland/task-logger";
-import { pipe } from "@gantryland/task-combinators";
-
-const logger = createLogger({ prefix: "[app]" });
-const store = new MemoryCacheStore();
-
-const task = new Task(
-  pipe(
-    (signal) => fetch("/api/users", { signal }).then((r) => r.json()),
-    logTask({ label: "users", logger }),
-    cache("users", store, { ttl: 60_000 })
-  )
-);
-
-const unsubscribeCache = logCache(store, { label: "cache", logger });
-await task.run();
-unsubscribeCache();
-```
-
-## Integrations
-
-Compose with other Gantryland utilities. This section shows common pairings.
-
-### Use with task-cache
-
-```typescript
-import { MemoryCacheStore, cache } from "@gantryland/task-cache";
-import { logCache } from "@gantryland/task-logger";
-
-const store = new MemoryCacheStore();
-const unsubscribe = logCache(store, { label: "cache" });
-
-// Wrap TaskFns with cache(...) and logTask(...) as needed.
 ```
 
 ## Related packages
 
-- [@gantryland/task](../task/) - Core Task abstraction
-- [@gantryland/task-combinators](../task-combinators/) - Composable TaskFn operators
-- [@gantryland/task-cache](../task-cache/) - Cache combinators and stores
+- [@gantryland/task](../task/) - Task execution and state primitive
+- [@gantryland/task-combinators](../task-combinators/) - TaskFn composition and control-flow operators
+- [@gantryland/task-cache](../task-cache/) - Cache combinators and in-memory store
 - [@gantryland/task-storage](../task-storage/) - Persistent CacheStore implementations
-- [@gantryland/task-hooks](../task-hooks/) - React bindings
 
-## Tests
+## Test this package
 
 ```bash
-npm test
 npx vitest packages/task-logger/test
 ```

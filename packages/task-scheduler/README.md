@@ -1,34 +1,14 @@
 # @gantryland/task-scheduler
 
-Scheduling utilities and combinators for Task and TaskFn. Use this package to poll Tasks on a fixed interval and to debounce, throttle, or queue TaskFns with explicit AbortSignal behavior.
+Scheduling utilities for `Task` and `TaskFn`.
 
-- Poll Tasks on a fixed interval with a stop handle.
-- Debounce TaskFns with latest-wins semantics and AbortError supersession.
-- Throttle TaskFns with shared in-flight promises per window.
-- Queue TaskFns with bounded concurrency and pre-start abort handling.
-- Works in browser and Node.js with no dependencies.
+Use this package for polling, debouncing, throttling, and queueing while keeping abort behavior explicit.
 
 ## Installation
 
 ```bash
 npm install @gantryland/task-scheduler
 ```
-
-## Contents
-
-- [Quick start](#quick-start)
-- [At a glance](#at-a-glance)
-- [Design goals](#design-goals)
-- [When to use task-scheduler](#when-to-use-task-scheduler)
-- [When not to use task-scheduler](#when-not-to-use-task-scheduler)
-- [Core concepts](#core-concepts)
-- [Flow](#flow)
-- [Run semantics](#run-semantics)
-- [API](#api)
-- [Common patterns](#common-patterns)
-- [Integrations](#integrations)
-- [Related packages](#related-packages)
-- [Tests](#tests)
 
 ## Quick start
 
@@ -37,147 +17,99 @@ import { Task } from "@gantryland/task";
 import { debounce, pollTask } from "@gantryland/task-scheduler";
 import { pipe } from "@gantryland/task-combinators";
 
-const fetchUsers = (signal?: AbortSignal) =>
-  fetch("/api/users", { signal }).then((r) => r.json());
+const searchTask = new Task(
+  pipe(
+    (signal, query: string) =>
+      fetch(`/api/search?q=${encodeURIComponent(query)}`, { signal }).then((r) =>
+        r.json()
+      ),
+    debounce({ waitMs: 250 })
+  )
+);
 
-const task = new Task(pipe(fetchUsers, debounce({ waitMs: 300 })));
+await searchTask.run("shoe");
 
-const stop = pollTask(task, { intervalMs: 5000, immediate: true });
-// later
+const stop = pollTask(searchTask, { intervalMs: 10_000, immediate: true }, "shoe");
 stop();
 ```
 
-## At a glance
+## When to use
+
+- You want a tiny scheduling layer for existing tasks.
+- You need latest-wins debounce for user-driven input.
+- You need simple throttle or bounded FIFO concurrency.
+- You want fixed-interval polling with an explicit stop handle.
+
+## When not to use
+
+- You need distributed job queues or cron orchestration.
+- You need persistence/priority/retry policy in the scheduler itself.
+
+## Exports
+
+- `pollTask(task, options, ...args)`
+- `debounce(options)`
+- `throttle(options)`
+- `queue(options?)`
+
+Options:
 
 ```typescript
-import { debounce, pollTask, queue, throttle } from "@gantryland/task-scheduler";
-
-const debounced = debounce({ waitMs: 300 });
-const throttled = throttle({ windowMs: 1000 });
-const queued = queue({ concurrency: 2 });
-const stop = pollTask(task, { intervalMs: 5000, immediate: true });
+type PollOptions = { intervalMs: number; immediate?: boolean };
+type DebounceOptions = { waitMs: number };
+type ThrottleOptions = { windowMs: number };
+type QueueOptions = { concurrency?: number };
 ```
 
-## Design goals
+## Semantics
 
-- Keep schedulers small and composable.
-- Separate Task-level polling from TaskFn-level scheduling.
-- Make AbortSignal behavior explicit and predictable.
+- `pollTask`
+  - Calls `task.run(...args)` each interval.
+  - Starts immediately unless `immediate: false`.
+  - If `task.run` rejects, polling loop stops.
+- `debounce`
+  - Latest call wins within `waitMs`.
+  - Superseded calls reject with `AbortError`.
+- `throttle`
+  - Shares one in-flight promise per throttle window.
+  - Calls inside the window reuse the first call's args/signal.
+- `queue`
+  - FIFO execution with bounded concurrency.
+  - If signal aborts before start, entry is removed and rejects with `AbortError`.
 
-## When to use task-scheduler
+## Patterns
 
-- You want to poll a Task on a fixed interval.
-- You want debounce or throttle for user-driven TaskFns.
-- You need bounded concurrency with a FIFO queue.
-
-## When not to use task-scheduler
-
-- You need a full job queue or cron system.
-- You need retries, persistence, or priority scheduling.
-
-## Core concepts
-
-### Task vs TaskFn utilities
-
-- `pollTask` works on a Task instance and calls `task.run(...args)` on an interval.
-- `debounce`, `throttle`, and `queue` wrap a TaskFn and return a new TaskFn.
-
-### Abort behavior
-
-- Debounce rejects superseded calls with AbortError.
-- Throttle reuses the in-flight promise within the window and ignores later signals.
-- Queue removes entries that abort before start and rejects with AbortError.
-
-## Flow
-
-```text
-TaskFn -> debounce/throttle/queue -> Task
-Task -> pollTask -> run(...args) on interval
-```
-
-## Run semantics
-
-- `pollTask` calls `task.run(...args)` on each tick. If `task.run` throws (for example, no TaskFn is defined), the polling loop stops.
-- `debounce` is latest-wins. Superseded calls reject with AbortError, and the last call executes after `waitMs`.
-- `throttle` shares one in-flight promise per window. Later calls within the window ignore their signal and args.
-- `queue` runs in FIFO order with bounded concurrency. If a signal aborts before start, the call is removed and rejects with AbortError.
-- If a wrapped TaskFn throws synchronously, the returned promise rejects with that error.
-
-## API
-
-### API at a glance
-
-| Member | Purpose | Returns |
-| --- | --- | --- |
-| **Task** |  |  |
-| [`pollTask`](#polltask) | Poll a Task on an interval | `() => void` |
-| **TaskFn** |  |  |
-| [`debounce`](#debounce) | Debounce a TaskFn | `(taskFn) => TaskFn` |
-| [`throttle`](#throttle) | Throttle a TaskFn | `(taskFn) => TaskFn` |
-| [`queue`](#queue) | Queue a TaskFn | `(taskFn) => TaskFn` |
-
-### pollTask
-
-Start polling a Task on an interval. Returns a stop function.
-
-```typescript
-const stop = pollTask(task, { intervalMs: 5000, immediate: true });
-```
-
-### debounce
-
-Debounce a TaskFn. Only the last call within the window executes.
-
-```typescript
-const debounced = debounce({ waitMs: 250 });
-```
-
-### throttle
-
-Throttle a TaskFn. At most one in-flight call per window.
-
-```typescript
-const throttled = throttle({ windowMs: 1000 });
-```
-
-### queue
-
-Queue a TaskFn with limited concurrency.
-
-```typescript
-const queued = queue({ concurrency: 2 });
-```
-
-## Common patterns
-
-### Debounce search input
+### 1) Debounced search task
 
 ```typescript
 import { Task } from "@gantryland/task";
 import { debounce } from "@gantryland/task-scheduler";
 import { pipe } from "@gantryland/task-combinators";
 
-const search = (signal: AbortSignal, query: string) =>
-  fetch(`/api/search?q=${encodeURIComponent(query)}`, { signal }).then((r) => r.json());
+const searchTask = new Task(
+  pipe(
+    (signal, q: string) =>
+      fetch(`/api/search?q=${encodeURIComponent(q)}`, { signal }).then((r) => r.json()),
+    debounce({ waitMs: 300 })
+  )
+);
 
-const searchTask = new Task(pipe(search, debounce({ waitMs: 300 })));
-
-await searchTask.run("shoes");
+await searchTask.run("laptop");
 ```
 
-### Throttle telemetry
+### 2) Throttled telemetry
 
 ```typescript
-import { throttle } from "@gantryland/task-scheduler";
 import { pipe } from "@gantryland/task-combinators";
+import { throttle } from "@gantryland/task-scheduler";
 
 const sendTelemetry = (signal?: AbortSignal) =>
   fetch("/api/telemetry", { method: "POST", signal }).then((r) => r.json());
 
-const throttled = pipe(sendTelemetry, throttle({ windowMs: 1000 }));
+const throttledTelemetry = pipe(sendTelemetry, throttle({ windowMs: 1_000 }));
 ```
 
-### Queue concurrent writes
+### 3) Queued writes with concurrency
 
 ```typescript
 import { Task } from "@gantryland/task";
@@ -186,87 +118,45 @@ import { pipe } from "@gantryland/task-combinators";
 
 type Payload = { id: string };
 
-const write = (signal: AbortSignal, payload: Payload) =>
-  fetch("/api/write", {
-    method: "POST",
-    body: JSON.stringify(payload),
-    signal,
-  }).then((r) => r.json());
-
-const writeTask = new Task(pipe(write, queue({ concurrency: 2 })));
-```
-
-### Poll a Task for updates
-
-```typescript
-import { Task } from "@gantryland/task";
-import { pollTask } from "@gantryland/task-scheduler";
-
-const statusTask = new Task((signal) =>
-  fetch("/api/status", { signal }).then((r) => r.json())
-);
-
-const stop = pollTask(statusTask, { intervalMs: 10_000, immediate: true });
-
-// later
-stop();
-```
-
-### Combine with task-combinators
-
-```typescript
-import { Task } from "@gantryland/task";
-import { debounce } from "@gantryland/task-scheduler";
-import { pipe, retry, timeout } from "@gantryland/task-combinators";
-
-const task = new Task(
+const writeTask = new Task(
   pipe(
-    (signal) => fetch("/api/search", { signal }).then((r) => r.json()),
-    retry(1),
-    timeout(4000),
-    debounce({ waitMs: 300 })
+    (signal, payload: Payload) =>
+      fetch("/api/write", {
+        method: "POST",
+        signal,
+        body: JSON.stringify(payload),
+      }).then((r) => r.json()),
+    queue({ concurrency: 2 })
   )
 );
+
+await writeTask.run({ id: "p1" });
 ```
 
-## Integrations
+### 4) Poll a status task
 
-### React usage with task-hooks
-
-```tsx
+```typescript
 import { Task } from "@gantryland/task";
 import { pollTask } from "@gantryland/task-scheduler";
-import { useTaskState } from "@gantryland/task-hooks";
-import { useEffect } from "react";
 
 const statusTask = new Task((signal) =>
   fetch("/api/status", { signal }).then((r) => r.json())
 );
 
-export function StatusPanel() {
-  const state = useTaskState(statusTask);
+const stop = pollTask(statusTask, { intervalMs: 5_000, immediate: true });
 
-  useEffect(() => {
-    const stop = pollTask(statusTask, { intervalMs: 5000, immediate: true });
-    return () => stop();
-  }, []);
-
-  if (state.isLoading) return <Spinner />;
-  return <StatusView status={state.data} />;
-}
+stop();
 ```
 
 ## Related packages
 
-- [@gantryland/task](../task/) - Core Task abstraction
-- [@gantryland/task-combinators](../task-combinators/) - Composable TaskFn operators
-- [@gantryland/task-hooks](../task-hooks/) - React bindings
-- [@gantryland/task-cache](../task-cache/) - Cache combinators and stores
-- [@gantryland/task-logger](../task-logger/) - Logging utilities
+- [@gantryland/task](../task/) - Task execution and state primitive
+- [@gantryland/task-combinators](../task-combinators/) - TaskFn composition and control-flow operators
+- [@gantryland/task-cache](../task-cache/) - Cache combinators and in-memory store
+- [@gantryland/task-hooks](../task-hooks/) - React bindings for Task state
 
-## Tests
+## Test this package
 
 ```bash
-npm test
 npx vitest packages/task-scheduler/test
 ```
