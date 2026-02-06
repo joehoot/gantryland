@@ -1,6 +1,6 @@
 # @gantryland/task-hooks
 
-React hooks for `@gantryland/task`. Build reactive UIs over Task state with stable instances and ergonomic helpers. Requires React 18+ (uses `useSyncExternalStore`).
+React hooks for `@gantryland/task`. Build reactive UIs over Task state with stable instances and ergonomic helpers. Requires React 18+ (uses `useSyncExternalStore`). Stable Task identity is preserved per component lifetime.
 
 - Stable Task instances across component lifetimes.
 - Auto-run helpers for common lifecycle patterns.
@@ -16,11 +16,13 @@ npm install @gantryland/task-hooks
 ## Contents
 
 - [Quick start](#quick-start)
+- [At a glance](#at-a-glance)
 - [Design goals](#design-goals)
-- [When to use task-hooks](#when-to-use-task-hooks)
-- [When not to use task-hooks](#when-not-to-use-task-hooks)
+- [When to use](#when-to-use)
+- [When not to use](#when-not-to-use)
 - [Core concepts](#core-concepts)
 - [Flow](#flow)
+- [Run semantics](#run-semantics)
 - [API](#api)
 - [Common patterns](#common-patterns)
 - [Integrations](#integrations)
@@ -52,24 +54,50 @@ export function UserPanel() {
 
 This example shows a stable Task instance that runs on mount.
 
+## At a glance
+
+```tsx
+import { useTask, useTaskRun, useTaskState } from "@gantryland/task-hooks";
+
+const [task] = useTask(fetchUsers);
+const run = useTaskRun(task);
+const isLoading = useTaskState(task, { select: (s) => s.isLoading });
+```
+
 ## Design goals
 
 - Keep hook APIs small and explicit.
 - Ensure Tasks remain stable across renders.
 - Make it easy to subscribe to minimal state.
 
-## When to use task-hooks
+## When to use
 
 - You want reactive UI over Task state.
 - You need to run tasks on mount or dependency changes.
 - You want stable `run()`/`cancel()` callbacks.
 
-## When not to use task-hooks
+## When not to use
 
 - You are not in a React runtime.
 - You need stream semantics instead of Task state.
 
 ## Core concepts
+
+### TaskFn and TaskState
+
+```ts
+type TaskFn<T, Args extends unknown[] = []> = (
+  signal?: AbortSignal,
+  ...args: Args
+) => Promise<T>;
+
+type TaskState<T> = {
+  data: T | undefined;
+  error: Error | undefined;
+  isLoading: boolean;
+  isStale: boolean;
+};
+```
 
 ### Task instance is stable
 
@@ -95,6 +123,14 @@ useTask -> subscribe -> render
 useTaskOnce/useTaskRun -> run when conditions match
 ```
 
+## Run semantics
+
+- `useTaskOnce` checks the task state on initial mount and runs only once when stale and not loading.
+- `useTaskRun` auto mode runs when `deps` change; `args` are passed to `run()` but are not tracked.
+- `useTaskRun` resolves with data on success and `undefined` on error, abort, or superseded runs (Task latest-wins).
+- `useTaskAbort` calls `task.cancel()`; AbortError is not stored in Task state.
+- `useTaskState` for nullable tasks returns a stale fallback state unless you provide one.
+
 ## API
 
 ### API at a glance
@@ -107,7 +143,7 @@ useTaskOnce/useTaskRun -> run when conditions match
 | [`useTaskState`](#usetaskstate) | Subscribe to state or slice | `TaskState` or selected value |
 | [`useTaskRun`](#usetaskrun) | Stable run callback | `(...args) => Promise<T | undefined>` |
 | [`useTaskResult`](#usetaskresult) | Full TaskState | `TaskState` |
-| [`useTaskError`](#usetaskerror) | Error-only selector | `unknown | undefined` |
+| [`useTaskError`](#usetaskerror) | Error-only selector | `Error | undefined` |
 | [`useTaskAbort`](#usetaskabort) | Stable cancel callback | `() => void` |
 
 ### useTask
@@ -155,6 +191,8 @@ const run = useTaskRun(task);
 const runUser = useTaskRun(task, { auto: true, deps: [userId], args: [userId] });
 ```
 
+When the task is `null` or `undefined`, the returned function is a no-op that resolves `undefined`.
+
 ### useTaskResult
 
 Convenience wrapper for `useTaskState`.
@@ -188,7 +226,8 @@ const cancel = useTaskAbort(task);
 ### Gotchas
 
 - Use `mode: "factory"` when passing a Task factory.
-- `useTaskRun` auto mode only re-runs when deps change.
+- `useTaskRun` auto mode only re-runs when deps change (args are not tracked).
+- `useTask` ignores later TaskFn changes; use `task.define()` to update behavior.
 
 ## Common patterns
 

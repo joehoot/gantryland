@@ -15,25 +15,33 @@ const DEFAULT_TASK_STATE = {
   isStale: true,
 } as const satisfies TaskState<unknown>;
 
-/**
- * Runs a task on mount if it's stale and not already loading.
- * Only triggers on initial render - ignores later changes to the task.
- *
- * @template T - The type of the task's resolved data
- * @param task - The Task instance to run
- * @param options - Optional options
- *
- * @example
- * ```typescript
- * const [task] = useTask(() => new Task(fetchUsers));
- * useTaskOnce(task); // runs on mount if stale
- * ```
- */
 type UseTaskOnceOptions<T> = {
   enabled?: boolean;
   when?: (state: TaskState<T>) => boolean;
 };
 
+/**
+ * Run a task on mount if it is stale and not already loading.
+ * Only checks on the initial render and ignores later task changes.
+ *
+ * @template T - The task's resolved data type
+ * @template Args - Arguments forwarded by Task.run
+ * @param task - The Task instance to run
+ * @param options - Optional configuration for conditional runs
+ * @returns void
+ *
+ * @example
+ * ```typescript
+ * const [task] = useTask(fetchUsers);
+ * useTaskOnce(task);
+ * ```
+ *
+ * @example
+ * ```typescript
+ * useTaskOnce(task, { enabled: false });
+ * useTaskOnce(task, { when: (state) => state.isStale && !state.isLoading });
+ * ```
+ */
 export const useTaskOnce = <T, Args extends unknown[] = []>(
   task: Task<T, Args>,
   options: UseTaskOnceOptions<T> = {}
@@ -59,7 +67,30 @@ type UseTaskRunOptions<Args extends unknown[]> = {
 };
 
 /**
- * Returns a stable run() callback. Optionally auto-runs when deps change.
+ * Return a stable run() callback and optionally auto-run on dependency changes.
+ * Auto-runs are driven by deps; args are passed through but not tracked.
+ * When task is null/undefined, the callback resolves to undefined.
+ *
+ * @template T - The task's resolved data type
+ * @template Args - Arguments forwarded by Task.run
+ * @param task - The Task instance to run, or null/undefined for a no-op
+ * @param options - Auto-run options and dependency tracking (deps control re-runs)
+ * @returns A stable function that resolves with task data or undefined
+ *
+ * @example
+ * ```typescript
+ * const run = useTaskRun(task);
+ * await run();
+ * ```
+ *
+ * @example
+ * ```typescript
+ * const runUser = useTaskRun(task, {
+ *   auto: true,
+ *   deps: [userId],
+ *   args: [userId],
+ * });
+ * ```
  */
 export const useTaskRun = <T, Args extends unknown[] = []>(
   task: Task<T, Args> | null | undefined,
@@ -80,38 +111,45 @@ export const useTaskRun = <T, Args extends unknown[] = []>(
   return run;
 };
 
-/**
- * Subscribes to a task's state reactively using useSyncExternalStore.
- * Re-renders the component when the task state changes.
- *
- * @template T - The type of the task's resolved data
- * @param task - The Task instance to subscribe to, or null/undefined
- * @param fallbackState - Optional state to use when task is null/undefined.
- *                        Defaults to a stale state.
- * @param select - Optional selector to derive a value from state.
- * @returns The current TaskState
- *
- * @example
- * ```typescript
- * // Basic usage
- * const state = useTaskState(userTask);
- * const { data, error, isLoading, isStale } = state;
- *
- * // With nullable task
- * const state = useTaskState(maybeTask);
- *
- * // With custom fallback
- * const state = useTaskState(task, { data: [], error: undefined, isLoading: false, isStale: false });
- * ```
- */
 type UseTaskStateOptions<T, U> = {
   fallbackState?: TaskState<T>;
   select?: (state: TaskState<T>) => U;
 };
 
+/**
+ * Subscribe to a task's state and re-render on changes.
+ *
+ * @template T - The task's resolved data type
+ * @template Args - Arguments forwarded by Task.run
+ * @param task - The Task instance to subscribe to, or null/undefined
+ * @returns The current TaskState
+ *
+ * @example
+ * ```typescript
+ * const state = useTaskState(userTask);
+ * const { data, error, isLoading, isStale } = state;
+ * ```
+ */
 export function useTaskState<T, Args extends unknown[] = []>(
   task: Task<T, Args> | null | undefined
 ): TaskState<T>;
+/**
+ * Subscribe to a task's state and select a slice of state.
+ * When task is null/undefined, returns fallbackState or a stale default.
+ *
+ * @template T - The task's resolved data type
+ * @template U - The selected return type
+ * @template Args - Arguments forwarded by Task.run
+ * @param task - The Task instance to subscribe to, or null/undefined
+ * @param options - Optional fallback state and selector
+ * @returns The selected value
+ *
+ * @example
+ * ```typescript
+ * const isLoading = useTaskState(task, { select: (s) => s.isLoading });
+ * const state = useTaskState(task, { fallbackState: customFallback });
+ * ```
+ */
 export function useTaskState<T, U, Args extends unknown[] = []>(
   task: Task<T, Args> | null | undefined,
   options: UseTaskStateOptions<T, U>
@@ -136,7 +174,19 @@ export function useTaskState<T, U, Args extends unknown[] = []>(
 }
 
 /**
- * Convenience wrapper for useTaskState.
+ * Return the full TaskState for a task.
+ * When task is null/undefined, returns fallbackState or a stale default.
+ *
+ * @template T - The task's resolved data type
+ * @template Args - Arguments forwarded by Task.run
+ * @param task - The Task instance to subscribe to, or null/undefined
+ * @param options - Optional fallback state
+ * @returns The current TaskState
+ *
+ * @example
+ * ```typescript
+ * const { data, error } = useTaskResult(task);
+ * ```
  */
 export const useTaskResult = <T, Args extends unknown[] = []>(
   task: Task<T, Args> | null | undefined,
@@ -148,7 +198,19 @@ export const useTaskResult = <T, Args extends unknown[] = []>(
   });
 
 /**
- * Subscribes to just the error field.
+ * Subscribe to the task's error field.
+ * When task is null/undefined, uses fallbackState or a stale default.
+ *
+ * @template T - The task's resolved data type
+ * @template Args - Arguments forwarded by Task.run
+ * @param task - The Task instance to subscribe to, or null/undefined
+ * @param options - Optional fallback state
+ * @returns The current error, if any
+ *
+ * @example
+ * ```typescript
+ * const error = useTaskError(task);
+ * ```
  */
 export const useTaskError = <T, Args extends unknown[] = []>(
   task: Task<T, Args> | null | undefined,
@@ -160,54 +222,63 @@ export const useTaskError = <T, Args extends unknown[] = []>(
   });
 
 /**
- * Returns a stable cancel() callback.
+ * Return a stable cancel() callback.
+ * Safe to call when task is null/undefined.
+ *
+ * @template T - The task's resolved data type
+ * @template Args - Arguments forwarded by Task.run
+ * @param task - The Task instance to cancel, or null/undefined
+ * @returns A stable callback that cancels in-flight work
+ *
+ * @example
+ * ```typescript
+ * const cancel = useTaskAbort(task);
+ * cancel();
+ * ```
  */
 export const useTaskAbort = <T, Args extends unknown[] = []>(
   task: Task<T, Args> | null | undefined
 ): (() => void) => useCallback(() => task?.cancel(), [task]);
 
-/**
- * Creates a Task instance and subscribes to its state.
- * The task instance is stable across renders.
- *
- * @template T - The type of the task's resolved data
- * @param arg - TaskFn or factory function that creates the Task. Called once on mount.
- * @param options - Optional options. Use { mode: "factory" } when passing a factory.
- * @returns A tuple of [Task, TaskState]
- *
- * @example
- * ```typescript
- * // Create task with TaskFn
- * const [task, { data, isLoading }] = useTask(fetchUsers);
- *
- * // Run on mount
- * useTaskOnce(task);
- *
- * // Manual refetch
- * const handleRefresh = () => task.run();
- *
- * // With pipe combinators
- * const [task, state] = useTask(
- *   () =>
- *     new Task(
- *       pipe(
- *         fetchUsers,
- *         retry(2),
- *         timeout(5000)
- *       )
- *     ),
- *   { mode: "factory" }
- * );
- * ```
- */
 type UseTaskOptions = {
   mode?: "fn" | "factory";
 };
 
+/**
+ * Create a Task instance from a TaskFn and subscribe to its state.
+ * The Task instance is stable across renders and ignores later TaskFn changes.
+ *
+ * @template T - The task's resolved data type
+ * @template Args - Arguments forwarded by Task.run
+ * @param fn - TaskFn to wrap in a Task instance
+ * @param options - Optional options
+ * @returns A tuple of [Task, TaskState]
+ *
+ * @example
+ * ```typescript
+ * const [task, { data, isLoading }] = useTask(fetchUsers);
+ * useTaskOnce(task);
+ * ```
+ */
 export function useTask<T, Args extends unknown[] = []>(
   fn: TaskFn<T, Args>,
   options?: UseTaskOptions
 ): [Task<T, Args>, TaskState<T>];
+/**
+ * Create a Task instance via a factory and subscribe to its state.
+ * Use mode: "factory" so the function is not treated as a TaskFn.
+ *
+ * @template T - The task's resolved data type
+ * @template Args - Arguments forwarded by Task.run
+ * @param create - Factory function that returns a Task
+ * @param options - Options with mode: "factory"
+ * @returns A tuple of [Task, TaskState]
+ *
+ * @example
+ * ```typescript
+ * const [task, state] = useTask(() => new Task(fetchUsers), { mode: "factory" });
+ * ```
+ */
 export function useTask<T, Args extends unknown[] = []>(
   create: () => Task<T, Args>,
   options: UseTaskOptions

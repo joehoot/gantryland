@@ -22,7 +22,7 @@ const defaultState = {
 describe("useTaskOnce", () => {
   it("runs the task on mount when stale", async () => {
     const task = new Task(async () => "ok");
-    const runSpy = vi.spyOn(task, "run").mockResolvedValue();
+    const runSpy = vi.spyOn(task, "run").mockResolvedValue(undefined);
 
     renderHook(() => useTaskOnce(task));
 
@@ -31,7 +31,7 @@ describe("useTaskOnce", () => {
 
   it("does not run when disabled or predicate returns false", async () => {
     const task = new Task(async () => "ok");
-    const runSpy = vi.spyOn(task, "run").mockResolvedValue();
+    const runSpy = vi.spyOn(task, "run").mockResolvedValue(undefined);
 
     renderHook(() => useTaskOnce(task, { enabled: false }));
     renderHook(() => useTaskOnce(task, { when: () => false }));
@@ -42,8 +42,8 @@ describe("useTaskOnce", () => {
   it("ignores later task changes", async () => {
     const first = new Task(async () => "first");
     const second = new Task(async () => "second");
-    const firstSpy = vi.spyOn(first, "run").mockResolvedValue();
-    const secondSpy = vi.spyOn(second, "run").mockResolvedValue();
+    const firstSpy = vi.spyOn(first, "run").mockResolvedValue(undefined);
+    const secondSpy = vi.spyOn(second, "run").mockResolvedValue(undefined);
 
     const { rerender } = renderHook(({ task }) => useTaskOnce(task), {
       initialProps: { task: first },
@@ -58,7 +58,7 @@ describe("useTaskOnce", () => {
   it("does not run when already settled", async () => {
     const task = new Task(async () => "ok");
     task.resolveWith("cached");
-    const runSpy = vi.spyOn(task, "run").mockResolvedValue();
+    const runSpy = vi.spyOn(task, "run").mockResolvedValue(undefined);
 
     renderHook(() => useTaskOnce(task));
 
@@ -80,7 +80,7 @@ describe("useTaskRun", () => {
 
   it("auto-runs when enabled and deps change", async () => {
     const task = new Task(async () => "ok");
-    const runSpy = vi.spyOn(task, "run").mockResolvedValue();
+    const runSpy = vi.spyOn(task, "run").mockResolvedValue(undefined);
 
     const { rerender } = renderHook(
       ({ dep }) => useTaskRun(task, { auto: true, deps: [dep] }),
@@ -90,6 +90,20 @@ describe("useTaskRun", () => {
     await waitFor(() => expect(runSpy).toHaveBeenCalledTimes(1));
     rerender({ dep: 2 });
     await waitFor(() => expect(runSpy).toHaveBeenCalledTimes(2));
+  });
+
+  it("does not auto-run when only args change", async () => {
+    const task = new Task(async () => "ok");
+    const runSpy = vi.spyOn(task, "run").mockResolvedValue(undefined);
+
+    const { rerender } = renderHook(
+      ({ dep, arg }) => useTaskRun(task, { auto: true, deps: [dep], args: [arg] }),
+      { initialProps: { dep: 1, arg: "a" } }
+    );
+
+    await waitFor(() => expect(runSpy).toHaveBeenCalledTimes(1));
+    rerender({ dep: 1, arg: "b" });
+    await waitFor(() => expect(runSpy).toHaveBeenCalledTimes(1));
   });
 
   it("returns a no-op when task is null", async () => {
@@ -165,6 +179,19 @@ describe("useTaskError", () => {
     });
 
     await waitFor(() => expect(result.current).toBe(error));
+  });
+
+  it("returns fallback error when task is null", () => {
+    const fallback = {
+      data: undefined,
+      error: new Error("fallback"),
+      isLoading: false,
+      isStale: true,
+    } as const;
+
+    const { result } = renderHook(() => useTaskError(null, { fallbackState: fallback }));
+
+    expect(result.current).toBe(fallback.error);
   });
 });
 
