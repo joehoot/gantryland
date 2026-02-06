@@ -16,11 +16,13 @@ npm install @gantryland/task-logger
 ## Contents
 
 - [Quick start](#quick-start)
+- [At a glance](#at-a-glance)
 - [Design goals](#design-goals)
 - [When to use task-logger](#when-to-use-task-logger)
 - [When not to use task-logger](#when-not-to-use-task-logger)
 - [Core concepts](#core-concepts)
 - [Flow](#flow)
+- [Run semantics](#run-semantics)
 - [API](#api)
 - [Common patterns](#common-patterns)
 - [Integrations](#integrations)
@@ -56,6 +58,23 @@ unsubscribeCache();
 ```
 
 This example shows TaskFn execution, Task state transitions, and cache events.
+
+## At a glance
+
+```typescript
+import { Task } from "@gantryland/task";
+import { logTask, logTaskState } from "@gantryland/task-logger";
+
+const task = new Task(
+  logTask({ label: "profile" })((signal) =>
+    fetch("/api/profile", { signal }).then((r) => r.json())
+  )
+);
+
+const unsubscribe = logTaskState(task, { label: "profile" });
+await task.run();
+unsubscribe();
+```
 
 ## Design goals
 
@@ -106,6 +125,14 @@ logTask: TaskFn -> start -> success/error/abort
 logTaskState: Task -> subscribe -> transitions
 logCache: CacheStore -> subscribe -> events
 ```
+
+## Run semantics
+
+- `logTask` logs `start` before calling the TaskFn and always rethrows errors.
+- AbortError is logged as `debug` with an `abort` message.
+- `logTaskState` infers success vs abort from TaskState changes; a completion without error that keeps the same data reference logs as `abort`.
+- `logTaskState` logs `start` immediately if you subscribe while a run is already in-flight.
+- `logCache` returns a no-op unsubscribe when the store does not expose `subscribe`.
 
 ## API
 
@@ -167,10 +194,12 @@ const unsubscribe = logCache(store, { label: "cache", logger });
 - `logTask` always rethrows errors after logging.
 - AbortError is logged as `debug` with an `abort` message.
 - `logCache` is a no-op if the store does not support `subscribe`.
+- `logTaskState` logs `start` immediately if you subscribe while a run is already in-flight.
 
 ### Gotchas
 
 - `logTaskState` infers aborts from state changes; it does not inspect AbortSignal.
+- If a run resolves to the same data reference as the previous success, `logTaskState` logs it as `abort`.
 - Logging adds minimal overhead, but it is still I/O.
 
 ## Common patterns

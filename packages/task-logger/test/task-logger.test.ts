@@ -134,6 +134,31 @@ describe("logTaskState", () => {
     unsubscribe();
   });
 
+  it("logs start when subscribing during an in-flight run", async () => {
+    const events: Array<{ message: string; level: string; meta?: Record<string, unknown> }> = [];
+    const now = vi.fn().mockReturnValueOnce(10).mockReturnValueOnce(25);
+    const deferred = createDeferred<string>();
+    const task = new Task(() => deferred.promise);
+
+    const runPromise = task.run();
+
+    const unsubscribe = logTaskState(task, {
+      label: "users",
+      logger: (event) => events.push(event),
+      now,
+    });
+
+    deferred.resolve("ok");
+    await runPromise;
+
+    expect(events).toEqual([
+      { level: "info", message: "users start" },
+      { level: "info", message: "users success", meta: { durationMs: 15 } },
+    ]);
+
+    unsubscribe();
+  });
+
   it("logs error transitions", async () => {
     const events: Array<{ message: string; level: string; meta?: Record<string, unknown> }> = [];
     const now = vi.fn().mockReturnValueOnce(5).mockReturnValueOnce(8);
