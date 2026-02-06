@@ -11,7 +11,7 @@ Gantryland is a suite of modern, composable tools for async workflows. Packages 
 - [Packages](#packages)
 - [Authoring guides](#authoring-guides)
 - [Development](#development)
-- [Pre Publishing](#pre-publishing)
+- [Pre-publishing](#pre-publishing)
 - [Release process](#release-process)
 
 ## Packages
@@ -30,9 +30,9 @@ Gantryland is a suite of modern, composable tools for async workflows. Packages 
 ## Authoring guides
 
 - [Authoring index](docs/authoring/README.md)
-- [Package authoring](docs/authoring/package.md)
+- [Source code authoring](docs/authoring/source-code.md)
 - [JSDoc authoring](docs/authoring/jsdoc.md)
-- [README authoring](docs/authoring/readme.md)
+- [Package docs authoring](docs/authoring/package-docs.md)
 - [Test authoring](docs/authoring/tests.md)
 
 ## Development
@@ -42,7 +42,7 @@ npm install
 npm run build
 ```
 
-## Pre Publishing
+## Pre-publishing
 
 ```bash
 npm run release:ready

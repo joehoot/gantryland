@@ -1,22 +1,22 @@
-# Package Authoring Guide
+# Source Code Authoring Guide
 
-Use this guide to design, implement, and document Gantryland packages. The reference tone and rigor are `packages/task/index.ts`, `packages/task-combinators/index.ts`, `docs/authoring/jsdoc.md`, and `docs/authoring/readme.md`.
+Use this guide to design and implement Gantryland package source code. The reference tone and rigor are `packages/task/index.ts` and `packages/task-combinators/index.ts`.
 
 ## Goals
 - Optimize for developer experience, ergonomics, and comprehension.
-- Preserve core behavior while improving clarity and consistency.
+- Preserve and clarify runtime behavior.
 - Keep APIs small, composable, and predictable.
 
 ## Core Principles
 - Behavior first: define observable behavior before implementation.
-- Cancellation is explicit: document AbortSignal usage and AbortError handling.
+- Cancellation is explicit: implement predictable AbortSignal behavior.
 - Determinism over cleverness: same inputs should yield the same outcomes.
 - Consistency across packages: naming, error handling, and semantics align.
 
 ## Package Design Checklist
 1. **API surface**: minimal exports, names aligned with existing packages.
 2. **TaskFn contract**: always `(signal?: AbortSignal, ...args) => Promise<T>`.
-3. **Abort semantics**: never swallow AbortError unless explicitly documented.
+3. **Abort semantics**: never swallow AbortError unless the package behavior requires it.
 4. **Return values**: state when a Promise resolves to `undefined`.
 5. **Latest-wins**: if applicable, state supersession behavior.
 6. **Synchronous vs async**: be explicit for fallbacks and hooks.
@@ -24,7 +24,7 @@ Use this guide to design, implement, and document Gantryland packages. The refer
 
 ## Implementation Guidelines
 - Prefer simple, readable control flow over abstraction.
-- Keep internal helpers private and documented only if non-obvious.
+- Keep internal helpers private unless they are part of the API.
 - Do not introduce stateful side effects unless required.
 - Use types to enforce ergonomics; avoid `unknown` leakage in public APIs.
 - Ensure AbortSignal cleanup (remove listeners, clear timers).
@@ -32,39 +32,21 @@ Use this guide to design, implement, and document Gantryland packages. The refer
 
 ## Error and Cancellation Rules
 - AbortError is a first-class cancellation signal.
-- Do not convert AbortError to another error unless documented.
-- If a helper normalizes errors (e.g., AbortError -> TimeoutError), document it clearly.
+- Do not convert AbortError to another error unless required by package semantics.
+- If a helper normalizes errors (e.g., AbortError -> TimeoutError), keep behavior consistent across all code paths.
 - Preserve existing data on error unless the API explicitly resets it.
-
-## Documentation Requirements
-- JSDoc must follow `docs/authoring/jsdoc.md`.
-- README must follow `docs/authoring/readme.md`.
-- JSDoc, README, and tests must agree on semantics.
-
-## Tests
-- Cover success, failure, and abort paths.
-- Include edge cases: retries, timeouts, and supersession behavior.
-- Include pre-start abort vs in-flight abort cases for queued or delayed work.
-- Prefer deterministic tests; use fake timers when needed.
 
 ## Naming and Terminology
 - Use `Task`, `TaskFn`, `TaskState`, `AbortError`, `TimeoutError` consistently.
 - Choose verbs that reflect behavior (e.g., `timeoutAbort` vs `timeout`).
 - Avoid synonyms that imply different semantics.
 
-## README Expectations
-- Quick start shows the primary workflow.
-- At a glance shows the smallest useful usage.
-- Run semantics are explicit when behavior is non-trivial.
-- Examples compile and use current exports.
-
 ## Final Review Checklist
-- API behavior documented in JSDoc and README.
-- Abort behavior explicitly stated.
-- All examples compile.
-- Tests cover major behaviors.
-- Dedupe and AbortSignal ownership are documented when applicable.
-- No duplicate or conflicting docs.
+- Public API is minimal and composable.
+- AbortSignal lifecycle is cleaned up in every path.
+- Error normalization is intentional and consistent.
+- Return values and state transitions are deterministic.
+- Start/abort/resolve races have a single completion path.
 
 ## Post-change Audit
 - Re-check AbortSignal lifecycle (remove listeners once a run starts).
