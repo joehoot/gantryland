@@ -51,6 +51,7 @@ Gantryland is a suite of modern, composable tools for async workflows. Packages 
 ## Adoption guides
 
 - [Consumer confidence guide](docs/adoption/consumer-confidence.md)
+- [Enterprise adoption playbooks](docs/adoption/enterprise-playbooks.md)
 
 ## API guides
 

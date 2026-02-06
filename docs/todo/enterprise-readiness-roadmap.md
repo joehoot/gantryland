@@ -34,10 +34,10 @@ Progress notes:
 
 ## P1 - Enterprise adoption readiness
 
-- [ ] Add architecture overview doc with package relationships.
-- [ ] Add recommended package-combination playbooks by use case.
-- [ ] Add benchmark guidance with reproducible scripts for core packages.
-- [ ] Add security posture notes (dependency policy and audit cadence).
+- [x] Add architecture overview doc with package relationships.
+- [x] Add recommended package-combination playbooks by use case.
+- [x] Add benchmark guidance with reproducible scripts for core packages.
+- [x] Add security posture notes (dependency policy and audit cadence).
 
 ## P2 - Contributor throughput
 
@@ -57,7 +57,7 @@ Progress notes:
 ### Week 2
 
 - [x] Deliver compatibility matrix and deprecation/migration policy.
-- [ ] Deliver architecture overview and benchmark harness notes.
+- [x] Deliver architecture overview and benchmark harness notes.
 - [x] Publish package lifecycle markers and changelog convention section.
 
 ## Exit criteria
@@ -69,3 +69,4 @@ Progress notes:
 - [x] New consumers can assess adoption risk quickly from docs.
 
 P1 consumer confidence policy is documented in `docs/adoption/consumer-confidence.md`.
+P1 enterprise adoption playbooks are documented in `docs/adoption/enterprise-playbooks.md`.
