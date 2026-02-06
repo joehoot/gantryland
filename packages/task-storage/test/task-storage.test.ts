@@ -132,7 +132,11 @@ describe("StorageCacheStore", () => {
     const storage = new MemoryStorage();
     const store = new StorageCacheStore(storage, {
       serialize: (entry) => `value:${(entry.value as number) ?? 0}`,
-      deserialize: (raw) => ({ value: Number(raw.split(":")[1]), createdAt: 1, updatedAt: 1 }),
+      deserialize: (raw) => ({
+        value: Number(raw.split(":")[1]),
+        createdAt: 1,
+        updatedAt: 1,
+      }),
     });
 
     store.set("a", { value: 7, createdAt: 1, updatedAt: 1 });
@@ -162,7 +166,7 @@ describe("FileCacheStore", () => {
     writeFileSync(
       filePath,
       JSON.stringify({ a: { value: 2, createdAt: 1, updatedAt: 1 } }),
-      "utf8"
+      "utf8",
     );
 
     const store = new FileCacheStore(filePath);

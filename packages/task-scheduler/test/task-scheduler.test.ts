@@ -2,14 +2,18 @@ import { describe, expect, it, vi } from "vitest";
 import { Task } from "@gantryland/task";
 import { debounce, pollTask, queue, throttle } from "../index";
 
-const createDeferred = <T,>() => {
-  let resolve: (value: T) => void;
-  let reject: (reason?: unknown) => void;
+const createDeferred = <T>() => {
+  let resolve: (value: T) => void = (_value) => {
+    throw new Error("Deferred resolve before initialization");
+  };
+  let reject: (reason?: unknown) => void = (_reason) => {
+    throw new Error("Deferred reject before initialization");
+  };
   const promise = new Promise<T>((res, rej) => {
     resolve = res;
     reject = rej;
   });
-  return { promise, resolve: resolve!, reject: reject! };
+  return { promise, resolve, reject };
 };
 
 const flushMicrotasks = async () => {
@@ -157,7 +161,9 @@ describe("throttle", () => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date("2024-01-01T00:00:00.000Z"));
 
-    const taskFn = vi.fn(async (_signal: AbortSignal | undefined, value: number) => value);
+    const taskFn = vi.fn(
+      async (_signal: AbortSignal | undefined, value: number) => value,
+    );
     const throttled = throttle<number, [number]>({ windowMs: 100 })(taskFn);
     const firstSignal = new AbortController().signal;
     const secondSignal = new AbortController().signal;
@@ -216,7 +222,11 @@ describe("queue", () => {
   });
 
   it("respects concurrency limits", async () => {
-    const deferreds = [createDeferred<string>(), createDeferred<string>(), createDeferred<string>()];
+    const deferreds = [
+      createDeferred<string>(),
+      createDeferred<string>(),
+      createDeferred<string>(),
+    ];
     const started: number[] = [];
     let index = 0;
     const taskFn = vi.fn(async () => {
@@ -243,7 +253,10 @@ describe("queue", () => {
 
     deferreds[1].resolve("two");
     deferreds[2].resolve("three");
-    await expect(Promise.all([second, third])).resolves.toEqual(["two", "three"]);
+    await expect(Promise.all([second, third])).resolves.toEqual([
+      "two",
+      "three",
+    ]);
   });
 
   it("rejects with AbortError when aborted before start", async () => {
@@ -269,7 +282,9 @@ describe("queue", () => {
     const controller = new AbortController();
     controller.abort();
 
-    await expect(queued(controller.signal)).rejects.toMatchObject({ name: "AbortError" });
+    await expect(queued(controller.signal)).rejects.toMatchObject({
+      name: "AbortError",
+    });
     expect(taskFn).not.toHaveBeenCalled();
   });
 

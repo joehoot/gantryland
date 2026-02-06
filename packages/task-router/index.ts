@@ -39,7 +39,10 @@ export type RouteTask<T, Args extends unknown[] = []> = {
  * // match?.params.id === "abc 123"
  * ```
  */
-export const matchRoute = (pattern: string, path: string): RouteMatch | null => {
+export const matchRoute = (
+  pattern: string,
+  path: string,
+): RouteMatch | null => {
   const patternSegments = trimSlashes(pattern).split("/").filter(Boolean);
   const pathSegments = trimSlashes(path).split("/").filter(Boolean);
   if (patternSegments.length !== pathSegments.length) return null;
@@ -48,6 +51,9 @@ export const matchRoute = (pattern: string, path: string): RouteMatch | null => 
   for (let i = 0; i < patternSegments.length; i += 1) {
     const patternSegment = patternSegments[i];
     const pathSegment = pathSegments[i];
+    if (patternSegment === undefined || pathSegment === undefined) {
+      return null;
+    }
     if (patternSegment.startsWith(":")) {
       try {
         params[patternSegment.slice(1)] = decodeURIComponent(pathSegment);
@@ -117,11 +123,11 @@ export const buildPath = (pattern: string, params: RouteParams): string => {
  */
 export const createRouteTask = <T, Args extends unknown[] = []>(
   taskForParams: (params: RouteParams) => TaskFn<T, Args>,
-  initialParams: RouteParams = {}
+  initialParams: RouteParams = {},
 ): RouteTask<T, Args> => {
   let currentParams = { ...initialParams };
   const task = new Task<T, Args>((signal, ...args) =>
-    taskForParams(currentParams)(signal, ...args)
+    taskForParams(currentParams)(signal, ...args),
   );
 
   const setParams = (params: RouteParams) => {
@@ -165,7 +171,7 @@ export const createRouteTask = <T, Args extends unknown[] = []>(
 export const createPathTask = <T, Args extends unknown[] = []>(
   pattern: string,
   taskForParams: (params: RouteParams) => TaskFn<T, Args>,
-  initialPath?: string
+  initialPath?: string,
 ): RouteTask<T, Args> & {
   runPath: (path: string, ...args: Args) => Promise<T | undefined>;
 } => {

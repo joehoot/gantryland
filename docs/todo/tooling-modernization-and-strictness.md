@@ -4,50 +4,56 @@ Target: adopt a fast, unified lint/format workflow, tighten TypeScript strictnes
 
 ## P0 - Select and install unified tooling
 
-- [ ] Adopt Biome as the primary lint + format tool for JS/TS/JSON/Markdown.
-- [ ] Add Biome config (`biome.json` or `biome.jsonc`) with strict lint defaults.
-- [ ] Add root scripts for linting and formatting (`lint`, `lint:fix`, `format`, `format:check`).
-- [ ] Remove or avoid parallel formatter/linter overlap (no duplicate Prettier/ESLint pipeline unless explicitly needed).
+- [x] Adopt Biome as the primary lint + format tool for JS/TS/JSON/Markdown.
+- [x] Add Biome config (`biome.json` or `biome.jsonc`) with strict lint defaults.
+- [x] Add root scripts for linting and formatting (`lint`, `lint:fix`, `format`, `format:check`).
+- [x] Remove or avoid parallel formatter/linter overlap (no duplicate Prettier/ESLint pipeline unless explicitly needed).
 
 ## P0 - VSCode project automation
 
-- [ ] Add `.vscode/settings.json` and commit it.
-- [ ] Enable format-on-save and code actions on save for this workspace.
-- [ ] Set Biome as the default formatter for supported file types.
-- [ ] Ensure editor behavior is consistent with `.editorconfig` and CI checks.
+- [x] Add `.vscode/settings.json` and commit it.
+- [x] Enable format-on-save and code actions on save for this workspace.
+- [x] Set Biome as the default formatter for supported file types.
+- [x] Ensure editor behavior is consistent with `.editorconfig` and CI checks.
 
 ## P0 - TypeScript strictness hardening
 
-- [ ] Add explicit `typecheck` script and enforce it in CI.
-- [ ] Tighten strict compiler flags in shared TS config where safe.
-- [ ] Fix resulting type issues across packages.
-- [ ] Document any intentionally deferred strictness flags with rationale.
+- [x] Add explicit `typecheck` script and enforce it in CI.
+- [x] Tighten strict compiler flags in shared TS config where safe.
+- [x] Fix resulting type issues across packages.
+- [x] Document any intentionally deferred strictness flags with rationale.
 
 ## P1 - CI and policy alignment
 
-- [ ] Update CI workflow to run `lint`, `format:check`, `typecheck`, `build`, and `test`.
-- [ ] Keep checks deterministic and non-interactive in CI.
-- [ ] Ensure failure messages are clear and actionable.
+- [x] Update CI workflow to run `lint`, `format:check`, `typecheck`, `build`, and `test`.
+- [x] Keep checks deterministic and non-interactive in CI.
+- [x] Ensure failure messages are clear and actionable.
 
 ## P1 - Repository cleanup and docs
 
-- [ ] Document local developer workflow for lint/format/typecheck commands.
-- [ ] Add a short section in `CONTRIBUTING.md` about autoformat and strict checks.
-- [ ] Confirm no conflicting formatting assumptions remain in docs/code.
+- [x] Document local developer workflow for lint/format/typecheck commands.
+- [x] Add a short section in `CONTRIBUTING.md` about autoformat and strict checks.
+- [x] Confirm no conflicting formatting assumptions remain in docs/code.
 
 ## P1 - Authoring policy enforcement
 
-- [ ] When package source code changes, review and validate the package against `docs/authoring/source-code.md`.
-- [ ] When JSDoc changes, validate against `docs/authoring/jsdoc.md`.
-- [ ] When package README/docs change, validate against `docs/authoring/package-docs.md`.
-- [ ] When tests change, validate against `docs/authoring/tests.md`.
-- [ ] Add a contributor note documenting this authoring-gate requirement for all package-level changes.
+- [x] When package source code changes, review and validate the package against `docs/authoring/source-code.md`.
+- [x] When JSDoc changes, validate against `docs/authoring/jsdoc.md`.
+- [x] When package README/docs change, validate against `docs/authoring/package-docs.md`.
+- [x] When tests change, validate against `docs/authoring/tests.md`.
+- [x] Add a contributor note documenting this authoring-gate requirement for all package-level changes.
+
+Authoring validation notes:
+
+- Source code updates were checked for deterministic behavior, AbortError semantics, and API consistency using `docs/authoring/source-code.md`.
+- No package JSDoc or package README changes were introduced in this pass; applicable guide checks were explicitly re-validated as no-op.
+- Test helper updates were validated for deterministic control-flow patterns and readable assertions using `docs/authoring/tests.md`.
 
 ## Verification checklist
 
-- [ ] `npm run lint` passes.
-- [ ] `npm run format:check` passes.
-- [ ] `npm run typecheck` passes.
-- [ ] `npm run build` passes.
-- [ ] `npm test` passes.
+- [x] `npm run lint` passes.
+- [x] `npm run format:check` passes.
+- [x] `npm run typecheck` passes.
+- [x] `npm run build` passes.
+- [x] `npm test` passes.
 - [ ] CI workflow passes with the expanded quality gate set.

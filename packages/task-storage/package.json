@@ -2,12 +2,7 @@
   "name": "@gantryland/task-storage",
   "version": "0.2.3",
   "description": "Persistent cache stores for @gantryland/task-cache",
-  "keywords": [
-    "task",
-    "cache",
-    "storage",
-    "persistence"
-  ],
+  "keywords": ["task", "cache", "storage", "persistence"],
   "type": "module",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
@@ -18,10 +13,7 @@
     },
     "./package.json": "./package.json"
   },
-  "files": [
-    "dist",
-    "README.md"
-  ],
+  "files": ["dist", "README.md"],
   "scripts": {
     "prepack": "tsc -b"
   },

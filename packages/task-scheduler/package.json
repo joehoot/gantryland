@@ -2,13 +2,7 @@
   "name": "@gantryland/task-scheduler",
   "version": "0.2.3",
   "description": "Scheduling utilities and combinators for @gantryland/task",
-  "keywords": [
-    "task",
-    "schedule",
-    "poll",
-    "debounce",
-    "throttle"
-  ],
+  "keywords": ["task", "schedule", "poll", "debounce", "throttle"],
   "type": "module",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
@@ -19,10 +13,7 @@
     },
     "./package.json": "./package.json"
   },
-  "files": [
-    "dist",
-    "README.md"
-  ],
+  "files": ["dist", "README.md"],
   "scripts": {
     "prepack": "tsc -b"
   },

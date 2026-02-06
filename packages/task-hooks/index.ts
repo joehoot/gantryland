@@ -44,7 +44,7 @@ type UseTaskOnceOptions<T> = {
  */
 export const useTaskOnce = <T, Args extends unknown[] = []>(
   task: Task<T, Args>,
-  options: UseTaskOnceOptions<T> = {}
+  options: UseTaskOnceOptions<T> = {},
 ): void => {
   const taskRef = useRef(task);
   const optionsRef = useRef(options);
@@ -94,17 +94,20 @@ type UseTaskRunOptions<Args extends unknown[]> = {
  */
 export const useTaskRun = <T, Args extends unknown[] = []>(
   task: Task<T, Args> | null | undefined,
-  options: UseTaskRunOptions<Args> = {}
+  options: UseTaskRunOptions<Args> = {},
 ): ((...args: Args) => Promise<T | undefined>) => {
   const { auto = false, deps = [], args } = options;
+  const autoArgsRef = useRef<Args | undefined>(args);
+  autoArgsRef.current = args;
   const run = useCallback(
-    (...runArgs: Args) => (task ? task.run(...runArgs) : Promise.resolve(undefined)),
-    [task]
+    (...runArgs: Args) =>
+      task ? task.run(...runArgs) : Promise.resolve(undefined),
+    [task],
   );
 
   useEffect(() => {
     if (!auto || !task) return;
-    const autoArgs = (args ?? ([] as unknown as Args)) as Args;
+    const autoArgs = (autoArgsRef.current ?? ([] as unknown as Args)) as Args;
     void task.run(...autoArgs);
   }, [task, auto, ...deps]);
 
@@ -131,7 +134,7 @@ type UseTaskStateOptions<T, U> = {
  * ```
  */
 export function useTaskState<T, Args extends unknown[] = []>(
-  task: Task<T, Args> | null | undefined
+  task: Task<T, Args> | null | undefined,
 ): TaskState<T>;
 /**
  * Subscribe to a task's state and select a slice of state.
@@ -152,14 +155,16 @@ export function useTaskState<T, Args extends unknown[] = []>(
  */
 export function useTaskState<T, U, Args extends unknown[] = []>(
   task: Task<T, Args> | null | undefined,
-  options: UseTaskStateOptions<T, U>
+  options: UseTaskStateOptions<T, U>,
 ): U;
 export function useTaskState<T, U, Args extends unknown[] = []>(
   task: Task<T, Args> | null | undefined,
-  options?: UseTaskStateOptions<T, U>
+  options?: UseTaskStateOptions<T, U>,
 ): TaskState<T> | U {
   const getState = () =>
-    task ? task.getState() : options?.fallbackState ?? (DEFAULT_TASK_STATE as TaskState<T>);
+    task
+      ? task.getState()
+      : (options?.fallbackState ?? (DEFAULT_TASK_STATE as TaskState<T>));
 
   const getSnapshot = () => {
     const state = getState();
@@ -169,7 +174,7 @@ export function useTaskState<T, U, Args extends unknown[] = []>(
   return useSyncExternalStore(
     (onStoreChange) => (task ? task.subscribe(onStoreChange) : () => {}),
     getSnapshot,
-    getSnapshot
+    getSnapshot,
   );
 }
 
@@ -190,7 +195,7 @@ export function useTaskState<T, U, Args extends unknown[] = []>(
  */
 export const useTaskResult = <T, Args extends unknown[] = []>(
   task: Task<T, Args> | null | undefined,
-  options?: { fallbackState?: TaskState<T> }
+  options?: { fallbackState?: TaskState<T> },
 ): TaskState<T> =>
   useTaskState<T, TaskState<T>, Args>(task, {
     fallbackState: options?.fallbackState,
@@ -214,7 +219,7 @@ export const useTaskResult = <T, Args extends unknown[] = []>(
  */
 export const useTaskError = <T, Args extends unknown[] = []>(
   task: Task<T, Args> | null | undefined,
-  options?: { fallbackState?: TaskState<T> }
+  options?: { fallbackState?: TaskState<T> },
 ): Error | undefined =>
   useTaskState(task, {
     fallbackState: options?.fallbackState,
@@ -237,7 +242,7 @@ export const useTaskError = <T, Args extends unknown[] = []>(
  * ```
  */
 export const useTaskAbort = <T, Args extends unknown[] = []>(
-  task: Task<T, Args> | null | undefined
+  task: Task<T, Args> | null | undefined,
 ): (() => void) => useCallback(() => task?.cancel(), [task]);
 
 type UseTaskOptions = {
@@ -262,7 +267,7 @@ type UseTaskOptions = {
  */
 export function useTask<T, Args extends unknown[] = []>(
   fn: TaskFn<T, Args>,
-  options?: UseTaskOptions
+  options?: UseTaskOptions,
 ): [Task<T, Args>, TaskState<T>];
 /**
  * Create a Task instance via a factory and subscribe to its state.
@@ -281,11 +286,11 @@ export function useTask<T, Args extends unknown[] = []>(
  */
 export function useTask<T, Args extends unknown[] = []>(
   create: () => Task<T, Args>,
-  options: UseTaskOptions
+  options: UseTaskOptions,
 ): [Task<T, Args>, TaskState<T>];
 export function useTask<T, Args extends unknown[] = []>(
   arg: TaskFn<T, Args> | (() => Task<T, Args>),
-  options: UseTaskOptions = {}
+  options: UseTaskOptions = {},
 ) {
   const [task] = useState(() => {
     if (options.mode === "factory") return (arg as () => Task<T, Args>)();

@@ -1,10 +1,18 @@
 import { describe, expect, it, vi } from "vitest";
-import { buildPath, createPathTask, createRouteTask, matchRoute } from "../index";
+import {
+  buildPath,
+  createPathTask,
+  createRouteTask,
+  matchRoute,
+} from "../index";
 
 describe("matchRoute", () => {
   it("matches params and decodes path segments", () => {
     const match = matchRoute("/users/:id", "/users/abc%20123");
-    expect(match).toEqual({ params: { id: "abc 123" }, path: "/users/abc%20123" });
+    expect(match).toEqual({
+      params: { id: "abc 123" },
+      path: "/users/abc%20123",
+    });
   });
 
   it("returns null when path params cannot be decoded", () => {
@@ -24,14 +32,17 @@ describe("buildPath", () => {
   });
 
   it("throws when a param is missing", () => {
-    expect(() => buildPath("/users/:id", {})).toThrow("Missing route param: id");
+    expect(() => buildPath("/users/:id", {})).toThrow(
+      "Missing route param: id",
+    );
   });
 });
 
 describe("createRouteTask", () => {
   it("runs with current params and exposes helpers", async () => {
-    const taskForParams = vi.fn((params: Record<string, string>) => async () =>
-      params.id ? `user:${params.id}` : "none"
+    const taskForParams = vi.fn(
+      (params: Record<string, string>) => async () =>
+        params.id ? `user:${params.id}` : "none",
     );
 
     const routeTask = createRouteTask(taskForParams, { id: "1" });
@@ -65,7 +76,7 @@ describe("createPathTask", () => {
   it("throws when path does not match", async () => {
     const routeTask = createPathTask("/users/:id", () => async () => "ok");
     await expect(routeTask.runPath("/teams/1")).rejects.toThrow(
-      "Path does not match pattern: /users/:id"
+      "Path does not match pattern: /users/:id",
     );
   });
 });

@@ -2,11 +2,7 @@
   "name": "@gantryland/task-logger",
   "version": "0.2.3",
   "description": "Logging utilities for @gantryland/task and task-cache",
-  "keywords": [
-    "task",
-    "logger",
-    "instrumentation"
-  ],
+  "keywords": ["task", "logger", "instrumentation"],
   "type": "module",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
@@ -17,10 +13,7 @@
     },
     "./package.json": "./package.json"
   },
-  "files": [
-    "dist",
-    "README.md"
-  ],
+  "files": ["dist", "README.md"],
   "scripts": {
     "prepack": "tsc -b"
   },

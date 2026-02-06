@@ -2,12 +2,7 @@
   "name": "@gantryland/task-combinators",
   "version": "0.2.3",
   "description": "Composable operators for @gantryland/task",
-  "keywords": [
-    "task",
-    "combinators",
-    "async",
-    "retry"
-  ],
+  "keywords": ["task", "combinators", "async", "retry"],
   "type": "module",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
@@ -18,10 +13,7 @@
     },
     "./package.json": "./package.json"
   },
-  "files": [
-    "dist",
-    "README.md"
-  ],
+  "files": ["dist", "README.md"],
   "scripts": {
     "prepack": "tsc -b"
   },

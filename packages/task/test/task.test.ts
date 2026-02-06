@@ -1,17 +1,22 @@
 import { describe, expect, it, vi } from "vitest";
 import { Task } from "../index";
 
-const createDeferred = <T,>() => {
-  let resolve: (value: T) => void;
-  let reject: (reason?: unknown) => void;
+const createDeferred = <T>() => {
+  let resolve: (value: T) => void = (_value) => {
+    throw new Error("Deferred resolve before initialization");
+  };
+  let reject: (reason?: unknown) => void = (_reason) => {
+    throw new Error("Deferred reject before initialization");
+  };
   const promise = new Promise<T>((res, rej) => {
     resolve = res;
     reject = rej;
   });
-  return { promise, resolve: resolve!, reject: reject! };
+  return { promise, resolve, reject };
 };
 
-const createAbortError = () => Object.assign(new Error("Aborted"), { name: "AbortError" });
+const createAbortError = () =>
+  Object.assign(new Error("Aborted"), { name: "AbortError" });
 
 describe("Task", () => {
   it("starts with a stale, idle state", () => {
@@ -49,8 +54,8 @@ describe("Task", () => {
   });
 
   it("passes args to run", async () => {
-    const task = new Task<string, [number, string]>(async (_signal, id, label) =>
-      Promise.resolve(`${id}:${label}`)
+    const task = new Task<string, [number, string]>(
+      async (_signal, id, label) => Promise.resolve(`${id}:${label}`),
     );
 
     await task.run(7, "ok");
@@ -111,14 +116,17 @@ describe("Task", () => {
   });
 
   it("clears loading without error on abort", async () => {
-    const task = new Task((signal) =>
-      new Promise<string>((_, reject) => {
-        if (signal?.aborted) {
-          reject(createAbortError());
-          return;
-        }
-        signal?.addEventListener("abort", () => reject(createAbortError()), { once: true });
-      })
+    const task = new Task(
+      (signal) =>
+        new Promise<string>((_, reject) => {
+          if (signal?.aborted) {
+            reject(createAbortError());
+            return;
+          }
+          signal?.addEventListener("abort", () => reject(createAbortError()), {
+            once: true,
+          });
+        }),
     );
 
     const runPromise = task.run();
@@ -131,10 +139,13 @@ describe("Task", () => {
   });
 
   it("resolves undefined when canceled immediately after run starts", async () => {
-    const task = new Task((signal) =>
-      new Promise<string>((_, reject) => {
-        signal?.addEventListener("abort", () => reject(createAbortError()), { once: true });
-      })
+    const task = new Task(
+      (signal) =>
+        new Promise<string>((_, reject) => {
+          signal?.addEventListener("abort", () => reject(createAbortError()), {
+            once: true,
+          });
+        }),
     );
 
     const runPromise = task.run();
@@ -263,10 +274,13 @@ describe("Task", () => {
     await task.run();
     expect(task.getState().data).toBe("data");
 
-    const pending = new Task((signal) =>
-      new Promise<string>((_, reject) => {
-        signal?.addEventListener("abort", () => reject(createAbortError()), { once: true });
-      })
+    const pending = new Task(
+      (signal) =>
+        new Promise<string>((_, reject) => {
+          signal?.addEventListener("abort", () => reject(createAbortError()), {
+            once: true,
+          });
+        }),
     );
     pending.resolveWith("cached");
     const runPromise = pending.run();
@@ -303,10 +317,13 @@ describe("Task", () => {
   });
 
   it("dispose removes listeners and aborts in-flight work", async () => {
-    const task = new Task((signal) =>
-      new Promise<string>((_, reject) => {
-        signal?.addEventListener("abort", () => reject(createAbortError()), { once: true });
-      })
+    const task = new Task(
+      (signal) =>
+        new Promise<string>((_, reject) => {
+          signal?.addEventListener("abort", () => reject(createAbortError()), {
+            once: true,
+          });
+        }),
     );
     let notified = 0;
 

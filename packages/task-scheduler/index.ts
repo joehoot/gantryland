@@ -146,7 +146,9 @@ export const debounce =
           reject(createAbortError());
         };
         signal?.addEventListener("abort", onAbort, { once: true });
-        pendingCleanups.push(() => signal?.removeEventListener("abort", onAbort));
+        pendingCleanups.push(() =>
+          signal?.removeEventListener("abort", onAbort),
+        );
 
         timer = setTimeout(() => {
           timer = null;

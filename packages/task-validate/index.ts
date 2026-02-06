@@ -87,11 +87,13 @@ export const validate =
  * const validator = fromSafeParse(User.safeParse);
  * ```
  */
-export const fromSafeParse = <T>(safeParse: (input: unknown) => {
-  success: boolean;
-  data?: T;
-  error?: unknown;
-}): Validator<T> => ({
+export const fromSafeParse = <T>(
+  safeParse: (input: unknown) => {
+    success: boolean;
+    data?: T;
+    error?: unknown;
+  },
+): Validator<T> => ({
   parse: (input) => {
     const result = safeParse(input);
     if (result.success) return result.data as T;
@@ -121,7 +123,7 @@ export const fromSafeParse = <T>(safeParse: (input: unknown) => {
  */
 export const fromPredicate = <T>(
   predicate: (input: unknown) => input is T,
-  error?: unknown
+  error?: unknown,
 ): Validator<T> => ({
   parse: (input) => {
     if (predicate(input)) return input;

@@ -277,20 +277,19 @@ const isFresh = (entry: CacheEntry<unknown>, ttl?: number): boolean => {
 const isWithinStale = (
   entry: CacheEntry<unknown>,
   ttl?: number,
-  staleTtl?: number
+  staleTtl?: number,
 ): boolean => {
   if (ttl === undefined) return false;
   const age = Date.now() - entry.updatedAt;
   return age > ttl && age <= ttl + (staleTtl ?? 0);
 };
 
-
 const setEntry = <T>(
   store: CacheStore,
   key: CacheKey,
   value: T,
   tags?: string[],
-  previous?: CacheEntry<T>
+  previous?: CacheEntry<T>,
 ): CacheEntry<T> => {
   const now = Date.now();
   const entry: CacheEntry<T> = {
@@ -311,7 +310,7 @@ const resolveWithDedupe = async <T, Args extends unknown[] = []>(
   args: Args,
   options: CacheOptions = {},
   previous?: CacheEntry<T>,
-  onError?: (error: unknown) => void
+  onError?: (error: unknown) => void,
 ): Promise<T> => {
   const dedupe = options.dedupe !== false;
   const pending = dedupe ? getPendingMap(store) : undefined;
@@ -327,7 +326,8 @@ const resolveWithDedupe = async <T, Args extends unknown[] = []>(
     }
   }
 
-  const promise = Promise.resolve().then(() => taskFn(signal, ...args))
+  const promise = Promise.resolve()
+    .then(() => taskFn(signal, ...args))
     .then((value) => {
       setEntry(store, key, value, options.tags, previous);
       return value;
@@ -370,7 +370,11 @@ const resolveWithDedupe = async <T, Args extends unknown[] = []>(
  * ```
  */
 export const cache =
-  <T, Args extends unknown[] = []>(key: CacheKey, store: CacheStore, options: CacheOptions = {}) =>
+  <T, Args extends unknown[] = []>(
+    key: CacheKey,
+    store: CacheStore,
+    options: CacheOptions = {},
+  ) =>
   (taskFn: TaskFn<T, Args>): TaskFn<T, Args> =>
   async (signal?: AbortSignal, ...args: Args) => {
     const entry = store.get<T>(key);
@@ -411,7 +415,11 @@ export const cache =
  * ```
  */
 export const staleWhileRevalidate =
-  <T, Args extends unknown[] = []>(key: CacheKey, store: CacheStore, options: CacheOptions = {}) =>
+  <T, Args extends unknown[] = []>(
+    key: CacheKey,
+    store: CacheStore,
+    options: CacheOptions = {},
+  ) =>
   (taskFn: TaskFn<T, Args>): TaskFn<T, Args> =>
   async (signal?: AbortSignal, ...args: Args) => {
     const entry = store.get<T>(key);
@@ -433,7 +441,7 @@ export const staleWhileRevalidate =
         entry,
         (error) => {
           store.emit?.({ type: "revalidateError", key, entry, error });
-        }
+        },
       ).catch(() => {
         // Background revalidation errors are ignored.
       });
@@ -481,12 +489,19 @@ export type InvalidateTarget<T> =
  * ```
  */
 export const invalidateOnResolve =
-  <T, Args extends unknown[] = []>(target: InvalidateTarget<T>, store: CacheStore) =>
+  <T, Args extends unknown[] = []>(
+    target: InvalidateTarget<T>,
+    store: CacheStore,
+  ) =>
   (taskFn: TaskFn<T, Args>): TaskFn<T, Args> =>
   async (signal?: AbortSignal, ...args: Args) => {
     const result = await taskFn(signal, ...args);
     const resolved = typeof target === "function" ? target(result) : target;
-    if (typeof resolved === "object" && !Array.isArray(resolved) && "tags" in resolved) {
+    if (
+      typeof resolved === "object" &&
+      !Array.isArray(resolved) &&
+      "tags" in resolved
+    ) {
       store.invalidateTags?.(resolved.tags);
       return result;
     }

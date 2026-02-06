@@ -7,17 +7,22 @@ import {
   staleWhileRevalidate,
 } from "../index";
 
-const createDeferred = <T,>() => {
-  let resolve: (value: T) => void;
-  let reject: (reason?: unknown) => void;
+const createDeferred = <T>() => {
+  let resolve: (value: T) => void = (_value) => {
+    throw new Error("Deferred resolve before initialization");
+  };
+  let reject: (reason?: unknown) => void = (_reason) => {
+    throw new Error("Deferred reject before initialization");
+  };
   const promise = new Promise<T>((res, rej) => {
     resolve = res;
     reject = rej;
   });
-  return { promise, resolve: resolve!, reject: reject! };
+  return { promise, resolve, reject };
 };
 
-const createAbortError = () => Object.assign(new Error("Aborted"), { name: "AbortError" });
+const createAbortError = () =>
+  Object.assign(new Error("Aborted"), { name: "AbortError" });
 
 describe("MemoryCacheStore", () => {
   it("stores and retrieves entries", () => {
@@ -63,7 +68,12 @@ describe("MemoryCacheStore", () => {
   it("invalidates by tags and cleans tag index", () => {
     const store = new MemoryCacheStore();
     store.set("a", { value: 1, createdAt: 1, updatedAt: 1, tags: ["t1"] });
-    store.set("b", { value: 2, createdAt: 1, updatedAt: 1, tags: ["t1", "t2"] });
+    store.set("b", {
+      value: 2,
+      createdAt: 1,
+      updatedAt: 1,
+      tags: ["t1", "t2"],
+    });
 
     store.invalidateTags(["t1"]);
 
@@ -89,7 +99,10 @@ describe("cache", () => {
 
   it("rejects when the TaskFn throws synchronously", async () => {
     const store = new MemoryCacheStore();
-    const taskFn = cache("key", store)(() => {
+    const taskFn = cache(
+      "key",
+      store,
+    )(() => {
       throw new Error("boom");
     });
 
@@ -99,7 +112,10 @@ describe("cache", () => {
 
   it("does not cache when the TaskFn rejects", async () => {
     const store = new MemoryCacheStore();
-    const taskFn = cache("key", store)(async () => {
+    const taskFn = cache(
+      "key",
+      store,
+    )(async () => {
       throw new Error("nope");
     });
 
@@ -110,11 +126,16 @@ describe("cache", () => {
   it("does not cache when aborted", async () => {
     const store = new MemoryCacheStore();
     const controller = new AbortController();
-    const taskFn = cache("key", store)(async (signal) => {
+    const taskFn = cache(
+      "key",
+      store,
+    )(async (signal) => {
       return new Promise<string>((_, reject) => {
         if (!signal) return reject(new Error("missing signal"));
         if (signal.aborted) return reject(createAbortError());
-        signal.addEventListener("abort", () => reject(createAbortError()), { once: true });
+        signal.addEventListener("abort", () => reject(createAbortError()), {
+          once: true,
+        });
       });
     });
 
@@ -147,7 +168,10 @@ describe("cache", () => {
     const second = taskFn();
 
     deferred.resolve("value");
-    await expect(Promise.all([first, second])).resolves.toEqual(["value", "value"]);
+    await expect(Promise.all([first, second])).resolves.toEqual([
+      "value",
+      "value",
+    ]);
   });
 
   it("ignores later abort signals when deduped", async () => {
@@ -163,7 +187,10 @@ describe("cache", () => {
     secondController.abort();
     deferred.resolve("value");
 
-    await expect(Promise.all([first, second])).resolves.toEqual(["value", "value"]);
+    await expect(Promise.all([first, second])).resolves.toEqual([
+      "value",
+      "value",
+    ]);
   });
 
   it("can disable dedupe", async () => {
@@ -171,7 +198,7 @@ describe("cache", () => {
     const deferreds = [createDeferred<string>(), createDeferred<string>()];
     let index = 0;
     const taskFn = cache("key", store, { dedupe: false })(
-      () => deferreds[index++].promise
+      () => deferreds[index++].promise,
     );
 
     const first = taskFn();
@@ -180,16 +207,20 @@ describe("cache", () => {
     deferreds[0].resolve("first");
     deferreds[1].resolve("second");
 
-    await expect(Promise.all([first, second])).resolves.toEqual(["first", "second"]);
+    await expect(Promise.all([first, second])).resolves.toEqual([
+      "first",
+      "second",
+    ]);
   });
 });
 
 describe("staleWhileRevalidate", () => {
   it("returns fresh data without revalidating", async () => {
     const store = new MemoryCacheStore();
-    const taskFn = staleWhileRevalidate("key", store, { ttl: 50, staleTtl: 50 })(
-      async () => "data"
-    );
+    const taskFn = staleWhileRevalidate("key", store, {
+      ttl: 50,
+      staleTtl: 50,
+    })(async () => "data");
 
     vi.useFakeTimers();
     vi.setSystemTime(new Date("2024-01-01T00:00:00.000Z"));
@@ -204,12 +235,13 @@ describe("staleWhileRevalidate", () => {
     const store = new MemoryCacheStore();
     const controller = new AbortController();
     let received: AbortSignal | undefined;
-    const taskFn = staleWhileRevalidate("key", store, { ttl: 50, staleTtl: 50 })(
-      async (signal) => {
-        received = signal;
-        return "data";
-      }
-    );
+    const taskFn = staleWhileRevalidate("key", store, {
+      ttl: 50,
+      staleTtl: 50,
+    })(async (signal) => {
+      received = signal;
+      return "data";
+    });
 
     await taskFn(controller.signal);
     expect(received).toBe(controller.signal);
@@ -217,11 +249,12 @@ describe("staleWhileRevalidate", () => {
 
   it("rejects on miss when the TaskFn errors", async () => {
     const store = new MemoryCacheStore();
-    const taskFn = staleWhileRevalidate("key", store, { ttl: 50, staleTtl: 50 })(
-      async () => {
-        throw new Error("boom");
-      }
-    );
+    const taskFn = staleWhileRevalidate("key", store, {
+      ttl: 50,
+      staleTtl: 50,
+    })(async () => {
+      throw new Error("boom");
+    });
 
     await expect(taskFn()).rejects.toThrow("boom");
     expect(store.get("key")).toBeUndefined();
@@ -232,7 +265,7 @@ describe("staleWhileRevalidate", () => {
     const events: string[] = [];
     store.subscribe((event) => events.push(event.type));
     const seed = staleWhileRevalidate("key", store, { ttl: 10, staleTtl: 30 })(
-      async () => "initial"
+      async () => "initial",
     );
 
     vi.useFakeTimers();
@@ -240,9 +273,10 @@ describe("staleWhileRevalidate", () => {
     await seed();
 
     const deferred = createDeferred<string>();
-    const taskFn = staleWhileRevalidate("key", store, { ttl: 10, staleTtl: 30 })(
-      () => deferred.promise
-    );
+    const taskFn = staleWhileRevalidate("key", store, {
+      ttl: 10,
+      staleTtl: 30,
+    })(() => deferred.promise);
 
     vi.setSystemTime(new Date("2024-01-01T00:00:00.020Z"));
     await expect(taskFn()).resolves.toBe("initial");
@@ -270,12 +304,15 @@ describe("staleWhileRevalidate", () => {
     });
 
     const deferred = createDeferred<string>();
-    const cacheTaskFn = cache("key", store, { ttl: 10 })(() => deferred.promise);
+    const cacheTaskFn = cache("key", store, { ttl: 10 })(
+      () => deferred.promise,
+    );
     const inFlight = cacheTaskFn();
 
-    const taskFn = staleWhileRevalidate("key", store, { ttl: 10, staleTtl: 30 })(
-      () => deferred.promise
-    );
+    const taskFn = staleWhileRevalidate("key", store, {
+      ttl: 10,
+      staleTtl: 30,
+    })(() => deferred.promise);
     await expect(taskFn()).resolves.toBe("cached");
 
     deferred.reject(new Error("boom"));
@@ -289,9 +326,10 @@ describe("staleWhileRevalidate", () => {
   it("returns stale data and revalidates in background", async () => {
     const store = new MemoryCacheStore();
     const deferred = createDeferred<string>();
-    const taskFn = staleWhileRevalidate("key", store, { ttl: 10, staleTtl: 30 })(
-      () => deferred.promise
-    );
+    const taskFn = staleWhileRevalidate("key", store, {
+      ttl: 10,
+      staleTtl: 30,
+    })(() => deferred.promise);
 
     vi.useFakeTimers();
     vi.setSystemTime(new Date("2024-01-01T00:00:00.000Z"));
@@ -308,9 +346,10 @@ describe("staleWhileRevalidate", () => {
     });
 
     const next = createDeferred<string>();
-    const nextTaskFn = staleWhileRevalidate("key", store, { ttl: 10, staleTtl: 30 })(
-      () => next.promise
-    );
+    const nextTaskFn = staleWhileRevalidate("key", store, {
+      ttl: 10,
+      staleTtl: 30,
+    })(() => next.promise);
 
     vi.setSystemTime(new Date("2024-01-01T00:00:00.020Z"));
     const result = await nextTaskFn();
@@ -339,12 +378,13 @@ describe("staleWhileRevalidate", () => {
       updatedAt: Date.now() - 20,
     });
 
-    const taskFn = staleWhileRevalidate("key", store, { ttl: 10, staleTtl: 30 })(
-      async (signal) => {
-        received = signal;
-        return deferred.promise;
-      }
-    );
+    const taskFn = staleWhileRevalidate("key", store, {
+      ttl: 10,
+      staleTtl: 30,
+    })(async (signal) => {
+      received = signal;
+      return deferred.promise;
+    });
 
     await expect(taskFn(controller.signal)).resolves.toBe("cached");
     deferred.resolve("updated");
@@ -356,9 +396,10 @@ describe("staleWhileRevalidate", () => {
 
   it("falls through to fetch when beyond stale window", async () => {
     const store = new MemoryCacheStore();
-    const taskFn = staleWhileRevalidate("key", store, { ttl: 10, staleTtl: 10 })(
-      async () => "new"
-    );
+    const taskFn = staleWhileRevalidate("key", store, {
+      ttl: 10,
+      staleTtl: 10,
+    })(async () => "new");
 
     vi.useFakeTimers();
     vi.setSystemTime(new Date("2024-01-01T00:00:00.000Z"));
@@ -388,7 +429,10 @@ describe("invalidateOnResolve", () => {
     store.set("a", { value: 1, createdAt: 1, updatedAt: 1, tags: ["t1"] });
     store.set("b", { value: 2, createdAt: 1, updatedAt: 1, tags: ["t1"] });
 
-    const taskFn = invalidateOnResolve({ tags: ["t1"] }, store)(async () => "ok");
+    const taskFn = invalidateOnResolve(
+      { tags: ["t1"] },
+      store,
+    )(async () => "ok");
     await taskFn();
 
     expect(store.has("a")).toBe(false);
@@ -399,9 +443,10 @@ describe("invalidateOnResolve", () => {
     const store = new MemoryCacheStore();
     store.set("user:1", { value: 1, createdAt: 1, updatedAt: 1 });
 
-    const taskFn = invalidateOnResolve((id: number) => `user:${id}`, store)(
-      async () => 1
-    );
+    const taskFn = invalidateOnResolve(
+      (id: number) => `user:${id}`,
+      store,
+    )(async () => 1);
     await taskFn();
 
     expect(store.has("user:1")).toBe(false);
@@ -411,7 +456,10 @@ describe("invalidateOnResolve", () => {
     const store = new MemoryCacheStore();
     store.set("a", { value: 1, createdAt: 1, updatedAt: 1 });
 
-    const taskFn = invalidateOnResolve("a", store)(async () => {
+    const taskFn = invalidateOnResolve(
+      "a",
+      store,
+    )(async () => {
       throw new Error("boom");
     });
 
@@ -423,11 +471,16 @@ describe("invalidateOnResolve", () => {
     const store = new MemoryCacheStore();
     store.set("a", { value: 1, createdAt: 1, updatedAt: 1 });
 
-    const taskFn = invalidateOnResolve("a", store)(async (signal) => {
+    const taskFn = invalidateOnResolve(
+      "a",
+      store,
+    )(async (signal) => {
       return new Promise<void>((_, reject) => {
         if (!signal) return reject(new Error("missing signal"));
         if (signal.aborted) return reject(createAbortError());
-        signal.addEventListener("abort", () => reject(createAbortError()), { once: true });
+        signal.addEventListener("abort", () => reject(createAbortError()), {
+          once: true,
+        });
       });
     });
 

@@ -84,7 +84,7 @@ describe("useTaskRun", () => {
 
     const { rerender } = renderHook(
       ({ dep }) => useTaskRun(task, { auto: true, deps: [dep] }),
-      { initialProps: { dep: 1 } }
+      { initialProps: { dep: 1 } },
     );
 
     await waitFor(() => expect(runSpy).toHaveBeenCalledTimes(1));
@@ -97,8 +97,9 @@ describe("useTaskRun", () => {
     const runSpy = vi.spyOn(task, "run").mockResolvedValue(undefined);
 
     const { rerender } = renderHook(
-      ({ dep, arg }) => useTaskRun(task, { auto: true, deps: [dep], args: [arg] }),
-      { initialProps: { dep: 1, arg: "a" } }
+      ({ dep, arg }) =>
+        useTaskRun(task, { auto: true, deps: [dep], args: [arg] }),
+      { initialProps: { dep: 1, arg: "a" } },
     );
 
     await waitFor(() => expect(runSpy).toHaveBeenCalledTimes(1));
@@ -130,7 +131,7 @@ describe("useTaskState", () => {
       useTaskState(null, {
         fallbackState: fallback,
         select: (state) => state.isStale,
-      })
+      }),
     );
 
     expect(result.current).toBe(false);
@@ -159,7 +160,9 @@ describe("useTaskResult", () => {
       isStale: false,
     } as const;
 
-    const { result } = renderHook(() => useTaskResult(null, { fallbackState: fallback }));
+    const { result } = renderHook(() =>
+      useTaskResult(null, { fallbackState: fallback }),
+    );
     expect(result.current).toEqual(fallback);
   });
 });
@@ -189,7 +192,9 @@ describe("useTaskError", () => {
       isStale: true,
     } as const;
 
-    const { result } = renderHook(() => useTaskError(null, { fallbackState: fallback }));
+    const { result } = renderHook(() =>
+      useTaskError(null, { fallbackState: fallback }),
+    );
 
     expect(result.current).toBe(fallback.error);
   });
@@ -226,7 +231,9 @@ describe("useTask", () => {
 
   it("uses factory mode to create a Task once", () => {
     const factory = vi.fn(() => new Task(async () => "ok"));
-    const { result, rerender } = renderHook(() => useTask(factory, { mode: "factory" }));
+    const { result, rerender } = renderHook(() =>
+      useTask(factory, { mode: "factory" }),
+    );
 
     const [task] = result.current;
     rerender();

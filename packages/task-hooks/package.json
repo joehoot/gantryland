@@ -2,12 +2,7 @@
   "name": "@gantryland/task-hooks",
   "version": "0.2.3",
   "description": "React hooks for @gantryland/task",
-  "keywords": [
-    "react",
-    "hooks",
-    "task",
-    "async"
-  ],
+  "keywords": ["react", "hooks", "task", "async"],
   "type": "module",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
@@ -18,10 +13,7 @@
     },
     "./package.json": "./package.json"
   },
-  "files": [
-    "dist",
-    "README.md"
-  ],
+  "files": ["dist", "README.md"],
   "scripts": {
     "prepack": "tsc -b"
   },

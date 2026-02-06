@@ -22,17 +22,22 @@ import {
   zip,
 } from "../index";
 
-const createDeferred = <T,>() => {
-  let resolve: (value: T) => void;
-  let reject: (reason?: unknown) => void;
+const createDeferred = <T>() => {
+  let resolve: (value: T) => void = (_value) => {
+    throw new Error("Deferred resolve before initialization");
+  };
+  let reject: (reason?: unknown) => void = (_reason) => {
+    throw new Error("Deferred reject before initialization");
+  };
   const promise = new Promise<T>((res, rej) => {
     resolve = res;
     reject = rej;
   });
-  return { promise, resolve: resolve!, reject: reject! };
+  return { promise, resolve, reject };
 };
 
-const createAbortError = () => Object.assign(new Error("Aborted"), { name: "AbortError" });
+const createAbortError = () =>
+  Object.assign(new Error("Aborted"), { name: "AbortError" });
 
 describe("task-combinators", () => {
   it("map transforms resolved data", async () => {
@@ -131,17 +136,21 @@ describe("task-combinators", () => {
   });
 
   it("catchError returns fallback value or function result", async () => {
-    const taskFn = catchError((err) => `fallback:${(err as Error).message}`)(async () => {
-      throw new Error("boom");
-    });
+    const taskFn = catchError((err) => `fallback:${(err as Error).message}`)(
+      async () => {
+        throw new Error("boom");
+      },
+    );
 
     await expect(taskFn()).resolves.toBe("fallback:boom");
   });
 
   it("catchError supports async fallbacks", async () => {
-    const taskFn = catchError(async (err) => `async:${(err as Error).message}`)(async () => {
-      throw new Error("boom");
-    });
+    const taskFn = catchError(async (err) => `async:${(err as Error).message}`)(
+      async () => {
+        throw new Error("boom");
+      },
+    );
 
     await expect(taskFn()).resolves.toBe("async:boom");
   });
@@ -266,7 +275,9 @@ describe("task-combinators", () => {
     vi.useFakeTimers();
     const taskFn = timeoutAbort(10)(async (signal) => {
       return new Promise<string>((_, reject) => {
-        signal?.addEventListener("abort", () => reject(createAbortError()), { once: true });
+        signal?.addEventListener("abort", () => reject(createAbortError()), {
+          once: true,
+        });
       });
     });
 
@@ -289,7 +300,9 @@ describe("task-combinators", () => {
     const controller = new AbortController();
     const taskFn = timeoutAbort(10)(async (signal) => {
       return new Promise<string>((_, reject) => {
-        signal?.addEventListener("abort", () => reject(createAbortError()), { once: true });
+        signal?.addEventListener("abort", () => reject(createAbortError()), {
+          once: true,
+        });
       });
     });
 
@@ -312,7 +325,10 @@ describe("task-combinators", () => {
 
   it("timeoutWith runs fallback on timeout", async () => {
     vi.useFakeTimers();
-    const taskFn = timeoutWith(10, async () => "fallback")(async () => new Promise(() => {}));
+    const taskFn = timeoutWith(
+      10,
+      async () => "fallback",
+    )(async () => new Promise(() => {}));
     const promise = taskFn();
     await vi.advanceTimersByTimeAsync(10);
     await expect(promise).resolves.toBe("fallback");
@@ -321,9 +337,14 @@ describe("task-combinators", () => {
 
   it("timeoutWith skips AbortError", async () => {
     const controller = new AbortController();
-    const taskFn = timeoutWith(10, async () => "fallback")(async (signal) => {
+    const taskFn = timeoutWith(
+      10,
+      async () => "fallback",
+    )(async (signal) => {
       return new Promise<string>((_, reject) => {
-        signal?.addEventListener("abort", () => reject(createAbortError()), { once: true });
+        signal?.addEventListener("abort", () => reject(createAbortError()), {
+          once: true,
+        });
       });
     });
 
@@ -334,7 +355,10 @@ describe("task-combinators", () => {
   });
 
   it("timeoutWith rethrows non-timeout errors", async () => {
-    const taskFn = timeoutWith(10, async () => "fallback")(async () => {
+    const taskFn = timeoutWith(
+      10,
+      async () => "fallback",
+    )(async () => {
       throw new Error("boom");
     });
 
@@ -342,7 +366,10 @@ describe("task-combinators", () => {
   });
 
   it("timeoutWith normalizes non-Error throws", async () => {
-    const taskFn = timeoutWith(10, async () => "fallback")(async () => {
+    const taskFn = timeoutWith(
+      10,
+      async () => "fallback",
+    )(async () => {
       throw "boom";
     });
 
@@ -353,7 +380,7 @@ describe("task-combinators", () => {
     const taskFn = zip(
       async () => 1,
       async () => "two",
-      async () => true
+      async () => true,
     );
 
     await expect(taskFn()).resolves.toEqual([1, "two", true]);
@@ -367,7 +394,9 @@ describe("task-combinators", () => {
       return 1;
     });
 
-    await expect(taskFn(controller.signal)).rejects.toMatchObject({ name: "AbortError" });
+    await expect(taskFn(controller.signal)).rejects.toMatchObject({
+      name: "AbortError",
+    });
   });
 
   it("all runs tasks in parallel and preserves order", async () => {
@@ -385,13 +414,18 @@ describe("task-combinators", () => {
       },
     ]);
 
-    await expect(taskFn(controller.signal)).rejects.toMatchObject({ name: "AbortError" });
+    await expect(taskFn(controller.signal)).rejects.toMatchObject({
+      name: "AbortError",
+    });
   });
 
   it("race resolves with the first settled task", async () => {
     const first = createDeferred<string>();
     const second = createDeferred<string>();
-    const taskFn = race(() => first.promise, () => second.promise);
+    const taskFn = race(
+      () => first.promise,
+      () => second.promise,
+    );
 
     const promise = taskFn();
     second.resolve("second");
@@ -406,7 +440,9 @@ describe("task-combinators", () => {
       return "ok";
     });
 
-    await expect(taskFn(controller.signal)).rejects.toMatchObject({ name: "AbortError" });
+    await expect(taskFn(controller.signal)).rejects.toMatchObject({
+      name: "AbortError",
+    });
   });
 
   it("race accepts an array of task functions", async () => {
@@ -429,7 +465,7 @@ describe("task-combinators", () => {
       async () => {
         calls.push("second");
         return 2;
-      }
+      },
     );
 
     await expect(taskFn()).resolves.toEqual([1, 2]);
@@ -444,7 +480,9 @@ describe("task-combinators", () => {
       return 1;
     });
 
-    await expect(taskFn(controller.signal)).rejects.toMatchObject({ name: "AbortError" });
+    await expect(taskFn(controller.signal)).rejects.toMatchObject({
+      name: "AbortError",
+    });
   });
 
   it("defer creates a task function at call time", async () => {
@@ -458,13 +496,9 @@ describe("task-combinators", () => {
     await expect(taskFn()).resolves.toBe(2);
   });
 
-
   it("retryWhen retries based on predicate and respects maxAttempts", async () => {
     let attempts = 0;
-    const taskFn = retryWhen(
-      () => true,
-      { maxAttempts: 2 }
-    )(async () => {
+    const taskFn = retryWhen(() => true, { maxAttempts: 2 })(async () => {
       attempts += 1;
       if (attempts < 3) throw new Error("fail");
       return "ok";
@@ -477,10 +511,10 @@ describe("task-combinators", () => {
   it("retryWhen calls onRetry when retrying", async () => {
     const errors: unknown[] = [];
     let attempts = 0;
-    const taskFn = retryWhen(
-      () => true,
-      { maxAttempts: 2, onRetry: (err) => errors.push(err) }
-    )(async () => {
+    const taskFn = retryWhen(() => true, {
+      maxAttempts: 2,
+      onRetry: (err) => errors.push(err),
+    })(async () => {
       attempts += 1;
       if (attempts < 3) throw new Error("fail");
       return "ok";
@@ -504,15 +538,14 @@ describe("task-combinators", () => {
   it("retryWhen supports delay and abort", async () => {
     vi.useFakeTimers();
     const controller = new AbortController();
-    const taskFn = retryWhen(
-      () => true,
-      { delayMs: () => 50 }
-    )(async () => {
+    const taskFn = retryWhen(() => true, { delayMs: () => 50 })(async () => {
       throw new Error("fail");
     });
 
     const promise = taskFn(controller.signal);
-    const rejection = expect(promise).rejects.toMatchObject({ name: "AbortError" });
+    const rejection = expect(promise).rejects.toMatchObject({
+      name: "AbortError",
+    });
     await Promise.resolve();
     controller.abort();
     await vi.advanceTimersByTimeAsync(50);
@@ -530,10 +563,7 @@ describe("task-combinators", () => {
 
   it("retryWhen treats negative maxAttempts as zero", async () => {
     let attempts = 0;
-    const taskFn = retryWhen(
-      () => true,
-      { maxAttempts: -1 }
-    )(async () => {
+    const taskFn = retryWhen(() => true, { maxAttempts: -1 })(async () => {
       attempts += 1;
       throw new Error("fail");
     });
@@ -577,7 +607,9 @@ describe("task-combinators", () => {
     });
 
     const promise = taskFn(controller.signal);
-    const rejection = expect(promise).rejects.toMatchObject({ name: "AbortError" });
+    const rejection = expect(promise).rejects.toMatchObject({
+      name: "AbortError",
+    });
     await Promise.resolve();
     controller.abort();
     await vi.advanceTimersByTimeAsync(50);
@@ -589,7 +621,7 @@ describe("task-combinators", () => {
     const result = pipe(
       1,
       (value) => value + 1,
-      (value) => value * 3
+      (value) => value * 3,
     );
 
     expect(result).toBe(6);

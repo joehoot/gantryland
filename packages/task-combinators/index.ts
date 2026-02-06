@@ -103,7 +103,9 @@ export const map =
  * ```
  */
 export const flatMap =
-  <T, U, Args extends unknown[] = []>(fn: (data: T, signal?: AbortSignal) => Promise<U>) =>
+  <T, U, Args extends unknown[] = []>(
+    fn: (data: T, signal?: AbortSignal) => Promise<U>,
+  ) =>
   (taskFn: TaskFn<T, Args>): TaskFn<U, Args> =>
   (signal?: AbortSignal, ...args: Args) =>
     taskFn(signal, ...args).then((data) => fn(data, signal));
@@ -446,13 +448,13 @@ export const zip =
  * Passes the same AbortSignal to each TaskFn and propagates AbortError.
  */
 export function all<T, Args extends unknown[] = []>(
-  taskFns: TaskFn<T, Args>[]
+  taskFns: TaskFn<T, Args>[],
 ): TaskFn<T[], Args>;
 export function all<T extends readonly unknown[], Args extends unknown[] = []>(
-  taskFns: { [K in keyof T]: TaskFn<T[K], Args> }
+  taskFns: { [K in keyof T]: TaskFn<T[K], Args> },
 ): TaskFn<T, Args>;
 export function all<Args extends unknown[]>(
-  taskFns: TaskFn<unknown, Args>[]
+  taskFns: TaskFn<unknown, Args>[],
 ): TaskFn<unknown[], Args> {
   return (signal?: AbortSignal, ...args: Args) =>
     Promise.all(taskFns.map((fn) => fn(signal, ...args)));
@@ -463,7 +465,7 @@ export function all<Args extends unknown[]>(
  * Passes the same AbortSignal to each TaskFn and propagates AbortError.
  */
 export function race<T, Args extends unknown[] = []>(
-  taskFns: TaskFn<T, Args>[]
+  taskFns: TaskFn<T, Args>[],
 ): TaskFn<T, Args>;
 export function race<T extends unknown[], Args extends unknown[] = []>(
   ...taskFns: { [K in keyof T]: TaskFn<T[K], Args> }
@@ -495,16 +497,16 @@ export const sequence =
     return results as T;
   };
 
-
 /**
  * Defers creation of a TaskFn until run time.
  * Passes through AbortSignal and propagates AbortError.
  */
 export const defer =
-  <T, Args extends unknown[] = []>(factory: () => TaskFn<T, Args>): TaskFn<T, Args> =>
+  <T, Args extends unknown[] = []>(
+    factory: () => TaskFn<T, Args>,
+  ): TaskFn<T, Args> =>
   (signal?: AbortSignal, ...args: Args) =>
     factory()(signal, ...args);
-
 
 type RetryWhenOptions = {
   maxAttempts?: number;
@@ -524,7 +526,10 @@ export const retryWhen =
   ) =>
   (taskFn: TaskFn<T, Args>): TaskFn<T, Args> =>
   async (signal?: AbortSignal, ...args: Args) => {
-    const maxAttempts = Math.max(0, options.maxAttempts ?? Infinity);
+    const maxAttempts = Math.max(
+      0,
+      options.maxAttempts ?? Number.POSITIVE_INFINITY,
+    );
     let attempt = 0;
     while (true) {
       if (signal?.aborted) throw createAbortError();

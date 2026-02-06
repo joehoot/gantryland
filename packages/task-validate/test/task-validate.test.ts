@@ -1,7 +1,13 @@
 import { describe, expect, it, vi } from "vitest";
-import { fromPredicate, fromSafeParse, validate, ValidationError } from "../index";
+import {
+  fromPredicate,
+  fromSafeParse,
+  validate,
+  ValidationError,
+} from "../index";
 
-const createAbortError = () => Object.assign(new Error("Aborted"), { name: "AbortError" });
+const createAbortError = () =>
+  Object.assign(new Error("Aborted"), { name: "AbortError" });
 
 describe("validate", () => {
   it("parses the TaskFn result", async () => {
@@ -22,7 +28,11 @@ describe("validate", () => {
 
   it("propagates ValidationError", async () => {
     const error = new ValidationError("Validation failed", { reason: "bad" });
-    const validator = { parse: () => { throw error; } };
+    const validator = {
+      parse: () => {
+        throw error;
+      },
+    };
     const wrapped = validate(validator)(async () => "nope");
 
     await expect(wrapped()).rejects.toBe(error);
@@ -30,18 +40,22 @@ describe("validate", () => {
 
   it("propagates non-validation errors", async () => {
     const error = new Error("boom");
-    const wrapped = validate({ parse: (input) => input as string })(async () => {
-      throw error;
-    });
+    const wrapped = validate({ parse: (input) => input as string })(
+      async () => {
+        throw error;
+      },
+    );
 
     await expect(wrapped()).rejects.toBe(error);
   });
 
   it("propagates AbortError from the TaskFn", async () => {
     const error = createAbortError();
-    const wrapped = validate({ parse: (input) => input as string })(async () => {
-      throw error;
-    });
+    const wrapped = validate({ parse: (input) => input as string })(
+      async () => {
+        throw error;
+      },
+    );
 
     await expect(wrapped()).rejects.toBe(error);
   });
@@ -49,7 +63,10 @@ describe("validate", () => {
 
 describe("fromSafeParse", () => {
   it("returns parsed data on success", () => {
-    const validator = fromSafeParse<string>(() => ({ success: true, data: "ok" }));
+    const validator = fromSafeParse<string>(() => ({
+      success: true,
+      data: "ok",
+    }));
     expect(validator.parse("input")).toBe("ok");
   });
 
@@ -72,14 +89,16 @@ describe("fromSafeParse", () => {
 
 describe("fromPredicate", () => {
   it("returns input when predicate passes", () => {
-    const validator = fromPredicate<number>((input): input is number => typeof input === "number");
+    const validator = fromPredicate<number>(
+      (input): input is number => typeof input === "number",
+    );
     expect(validator.parse(2)).toBe(2);
   });
 
   it("throws ValidationError with issues when predicate fails", () => {
     const validator = fromPredicate<number>(
       (input): input is number => typeof input === "number",
-      { expected: "number" }
+      { expected: "number" },
     );
 
     const thrown = (() => {

@@ -85,7 +85,9 @@ export const consoleLogger: Logger = ({ level, message, meta }) => {
  * logger({ level: "info", message: "ready" });
  * ```
  */
-export const createLogger = (options: { prefix?: string; logger?: Logger } = {}): Logger => {
+export const createLogger = (
+  options: { prefix?: string; logger?: Logger } = {},
+): Logger => {
   const { prefix, logger } = options;
   const base = logger ?? consoleLogger;
   return (event) => {
@@ -172,7 +174,7 @@ export const logTask =
  */
 export const logTaskState = <T, Args extends unknown[] = []>(
   task: Task<T, Args>,
-  options: TaskSubscriptionLoggerOptions = {}
+  options: TaskSubscriptionLoggerOptions = {},
 ): (() => void) => {
   const logger = options.logger ?? consoleLogger;
   const label = options.label ?? "task";
@@ -240,7 +242,7 @@ export const logTaskState = <T, Args extends unknown[] = []>(
  */
 export const logCache = (
   store: CacheStore,
-  options: CacheLoggerOptions = {}
+  options: CacheLoggerOptions = {},
 ): (() => void) => {
   const logger = options.logger ?? consoleLogger;
   const label = options.label ?? "cache";

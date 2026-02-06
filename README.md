@@ -61,8 +61,14 @@ Gantryland is a suite of modern, composable tools for async workflows. Packages 
 
 ```bash
 npm install
+npm run lint
+npm run format:check
+npm run typecheck
 npm run build
+npm test
 ```
+
+Use `npm run format` and `npm run lint:fix` to apply local autoformat and safe lint fixes.
 
 ## Pre-publishing
 

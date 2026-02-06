@@ -2,11 +2,7 @@
   "name": "@gantryland/task-observable",
   "version": "0.2.3",
   "description": "Minimal observable primitives for @gantryland/task",
-  "keywords": [
-    "task",
-    "observable",
-    "stream"
-  ],
+  "keywords": ["task", "observable", "stream"],
   "type": "module",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
@@ -17,10 +13,7 @@
     },
     "./package.json": "./package.json"
   },
-  "files": [
-    "dist",
-    "README.md"
-  ],
+  "files": ["dist", "README.md"],
   "scripts": {
     "prepack": "tsc -b"
   },

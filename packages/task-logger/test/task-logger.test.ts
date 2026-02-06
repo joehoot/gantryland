@@ -1,19 +1,30 @@
 import { describe, expect, it, vi } from "vitest";
 import { Task } from "@gantryland/task";
 import { MemoryCacheStore, type CacheStore } from "@gantryland/task-cache";
-import { consoleLogger, createLogger, logCache, logTask, logTaskState } from "../index";
+import {
+  consoleLogger,
+  createLogger,
+  logCache,
+  logTask,
+  logTaskState,
+} from "../index";
 
-const createDeferred = <T,>() => {
-  let resolve: (value: T) => void;
-  let reject: (reason?: unknown) => void;
+const createDeferred = <T>() => {
+  let resolve: (value: T) => void = (_value) => {
+    throw new Error("Deferred resolve before initialization");
+  };
+  let reject: (reason?: unknown) => void = (_reason) => {
+    throw new Error("Deferred reject before initialization");
+  };
   const promise = new Promise<T>((res, rej) => {
     resolve = res;
     reject = rej;
   });
-  return { promise, resolve: resolve!, reject: reject! };
+  return { promise, resolve, reject };
 };
 
-const createAbortError = () => Object.assign(new Error("Aborted"), { name: "AbortError" });
+const createAbortError = () =>
+  Object.assign(new Error("Aborted"), { name: "AbortError" });
 
 describe("consoleLogger", () => {
   it("uses console method and forwards meta", () => {
@@ -49,11 +60,19 @@ describe("createLogger", () => {
 
 describe("logTask", () => {
   it("logs start and success with timing", async () => {
-    const events: Array<{ message: string; level: string; meta?: Record<string, unknown> }> = [];
+    const events: Array<{
+      message: string;
+      level: string;
+      meta?: Record<string, unknown>;
+    }> = [];
     const now = vi.fn().mockReturnValueOnce(10).mockReturnValueOnce(40);
     const taskFn = vi.fn(async () => "ok");
 
-    const wrapped = logTask({ label: "job", logger: (event) => events.push(event), now })(taskFn);
+    const wrapped = logTask({
+      label: "job",
+      logger: (event) => events.push(event),
+      now,
+    })(taskFn);
     await wrapped();
 
     expect(taskFn).toHaveBeenCalledTimes(1);
@@ -74,15 +93,21 @@ describe("logTask", () => {
   });
 
   it("logs errors and rethrows", async () => {
-    const events: Array<{ message: string; level: string; meta?: Record<string, unknown> }> = [];
+    const events: Array<{
+      message: string;
+      level: string;
+      meta?: Record<string, unknown>;
+    }> = [];
     const now = vi.fn().mockReturnValueOnce(5).mockReturnValueOnce(25);
     const error = new Error("boom");
 
-    const wrapped = logTask({ label: "job", logger: (event) => events.push(event), now })(
-      async () => {
-        throw error;
-      }
-    );
+    const wrapped = logTask({
+      label: "job",
+      logger: (event) => events.push(event),
+      now,
+    })(async () => {
+      throw error;
+    });
 
     await expect(wrapped()).rejects.toBe(error);
     expect(events).toEqual([
@@ -92,14 +117,20 @@ describe("logTask", () => {
   });
 
   it("logs aborts as debug", async () => {
-    const events: Array<{ message: string; level: string; meta?: Record<string, unknown> }> = [];
+    const events: Array<{
+      message: string;
+      level: string;
+      meta?: Record<string, unknown>;
+    }> = [];
     const now = vi.fn().mockReturnValueOnce(1).mockReturnValueOnce(9);
 
-    const wrapped = logTask({ label: "job", logger: (event) => events.push(event), now })(
-      async () => {
-        throw createAbortError();
-      }
-    );
+    const wrapped = logTask({
+      label: "job",
+      logger: (event) => events.push(event),
+      now,
+    })(async () => {
+      throw createAbortError();
+    });
 
     await expect(wrapped()).rejects.toMatchObject({ name: "AbortError" });
     expect(events).toEqual([
@@ -111,7 +142,11 @@ describe("logTask", () => {
 
 describe("logTaskState", () => {
   it("logs start and success transitions", async () => {
-    const events: Array<{ message: string; level: string; meta?: Record<string, unknown> }> = [];
+    const events: Array<{
+      message: string;
+      level: string;
+      meta?: Record<string, unknown>;
+    }> = [];
     const now = vi.fn().mockReturnValueOnce(100).mockReturnValueOnce(130);
     const deferred = createDeferred<string>();
     const task = new Task(() => deferred.promise);
@@ -135,7 +170,11 @@ describe("logTaskState", () => {
   });
 
   it("logs start when subscribing during an in-flight run", async () => {
-    const events: Array<{ message: string; level: string; meta?: Record<string, unknown> }> = [];
+    const events: Array<{
+      message: string;
+      level: string;
+      meta?: Record<string, unknown>;
+    }> = [];
     const now = vi.fn().mockReturnValueOnce(10).mockReturnValueOnce(25);
     const deferred = createDeferred<string>();
     const task = new Task(() => deferred.promise);
@@ -160,7 +199,11 @@ describe("logTaskState", () => {
   });
 
   it("logs error transitions", async () => {
-    const events: Array<{ message: string; level: string; meta?: Record<string, unknown> }> = [];
+    const events: Array<{
+      message: string;
+      level: string;
+      meta?: Record<string, unknown>;
+    }> = [];
     const now = vi.fn().mockReturnValueOnce(5).mockReturnValueOnce(8);
     const error = new Error("fail");
     const task = new Task(async () => {
@@ -177,19 +220,30 @@ describe("logTaskState", () => {
 
     expect(events).toEqual([
       { level: "info", message: "users start" },
-      { level: "error", message: "users error", meta: { durationMs: 3, error } },
+      {
+        level: "error",
+        message: "users error",
+        meta: { durationMs: 3, error },
+      },
     ]);
 
     unsubscribe();
   });
 
   it("logs abort transitions", async () => {
-    const events: Array<{ message: string; level: string; meta?: Record<string, unknown> }> = [];
+    const events: Array<{
+      message: string;
+      level: string;
+      meta?: Record<string, unknown>;
+    }> = [];
     const now = vi.fn().mockReturnValueOnce(0).mockReturnValueOnce(6);
-    const task = new Task((signal) =>
-      new Promise<string>((_, reject) => {
-        signal?.addEventListener("abort", () => reject(createAbortError()), { once: true });
-      })
+    const task = new Task(
+      (signal) =>
+        new Promise<string>((_, reject) => {
+          signal?.addEventListener("abort", () => reject(createAbortError()), {
+            once: true,
+          });
+        }),
     );
 
     const unsubscribe = logTaskState(task, {
@@ -213,7 +267,11 @@ describe("logTaskState", () => {
 
 describe("logCache", () => {
   it("logs cache events with label and key", () => {
-    const events: Array<{ message: string; level: string; meta?: Record<string, unknown> }> = [];
+    const events: Array<{
+      message: string;
+      level: string;
+      meta?: Record<string, unknown>;
+    }> = [];
     const store = new MemoryCacheStore();
 
     const unsubscribe = logCache(store, {

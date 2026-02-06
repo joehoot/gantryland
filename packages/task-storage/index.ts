@@ -216,7 +216,7 @@ export class StorageCacheStore implements CacheStore {
     const keys: string[] = [];
     for (let i = 0; i < this.storage.length; i += 1) {
       const key = this.storage.key(i);
-      if (key && key.startsWith(this.prefix)) keys.push(key);
+      if (key?.startsWith(this.prefix)) keys.push(key);
     }
     return keys;
   }

@@ -21,3 +21,12 @@ These guides define Gantryland package standards for source code, JSDoc, package
 1. Start with `source-code.md` for source behavior and API shape.
 2. Use `jsdoc.md` and `package-docs.md` while documenting the package.
 3. Use `tests.md` to verify behavior and edge-case coverage.
+
+## Contributor gate requirement
+
+For any package-level change, contributors must validate edited files against the matching authoring guide before merge:
+
+- Source implementation -> `source-code.md`
+- JSDoc updates -> `jsdoc.md`
+- Package docs/README updates -> `package-docs.md`
+- Tests updates -> `tests.md`

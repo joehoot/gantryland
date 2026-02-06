@@ -2,6 +2,44 @@
 
 Thanks for contributing to gantryland.
 
+## Local quality workflow
+
+Run these checks before opening a PR:
+
+```bash
+npm run lint
+npm run format:check
+npm run typecheck
+npm run build
+npm test
+```
+
+Use `npm run format` and `npm run lint:fix` to apply autoformat and safe fixes locally.
+
+## Autoformat and strict checks
+
+- This repo uses Biome as the source of truth for linting and formatting.
+- Workspace `.vscode/settings.json` enables format-on-save and Biome code actions on save.
+- CI enforces `lint`, `format:check`, `typecheck`, `build`, `test`, and release guard checks.
+
+## TypeScript strictness policy
+
+`strict` mode is enabled for all packages with additional flags: `noImplicitOverride`, `noUncheckedIndexedAccess`, and `noFallthroughCasesInSwitch`.
+
+Deferred strictness flags:
+
+- `exactOptionalPropertyTypes`: deferred until package option types are refactored to avoid broad API churn.
+- `noPropertyAccessFromIndexSignature`: deferred until map-like helper APIs are normalized across packages.
+
+## Package-level authoring gate
+
+When changing package-level files, validate your edits against the authoring guides before merging:
+
+- Source code changes: `docs/authoring/source-code.md`
+- JSDoc changes: `docs/authoring/jsdoc.md`
+- Package README/docs changes: `docs/authoring/package-docs.md`
+- Tests changes: `docs/authoring/tests.md`
+
 ## Changesets
 
 We use Changesets to manage versions and changelogs for the `@gantryland/*` packages.

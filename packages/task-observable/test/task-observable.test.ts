@@ -2,17 +2,22 @@ import { describe, expect, it, vi } from "vitest";
 import { Task } from "@gantryland/task";
 import { createObservable, fromTask, fromTaskState, toTask } from "../index";
 
-const createDeferred = <T,>() => {
-  let resolve: (value: T) => void;
-  let reject: (reason?: unknown) => void;
+const createDeferred = <T>() => {
+  let resolve: (value: T) => void = (_value) => {
+    throw new Error("Deferred resolve before initialization");
+  };
+  let reject: (reason?: unknown) => void = (_reason) => {
+    throw new Error("Deferred reject before initialization");
+  };
   const promise = new Promise<T>((res, rej) => {
     resolve = res;
     reject = rej;
   });
-  return { promise, resolve: resolve!, reject: reject! };
+  return { promise, resolve, reject };
 };
 
-const createAbortError = () => Object.assign(new Error("Aborted"), { name: "AbortError" });
+const createAbortError = () =>
+  Object.assign(new Error("Aborted"), { name: "AbortError" });
 
 describe("createObservable", () => {
   it("normalizes function observers and returns unsubscribe", () => {
@@ -81,7 +86,9 @@ describe("fromTask", () => {
     const task = new Task(async () => "value");
     const values: string[] = [];
 
-    const subscription = fromTask(task).subscribe((value) => values.push(value));
+    const subscription = fromTask(task).subscribe((value) =>
+      values.push(value),
+    );
 
     await task.run();
     await task.run();
@@ -103,7 +110,9 @@ describe("fromTask", () => {
 
     await task.run();
 
-    expect(errorSpy).toHaveBeenCalledWith(expect.objectContaining({ message: "boom" }));
+    expect(errorSpy).toHaveBeenCalledWith(
+      expect.objectContaining({ message: "boom" }),
+    );
     subscription.unsubscribe();
   });
 });
@@ -174,7 +183,7 @@ describe("toTask", () => {
       },
       () => {
         settled = true;
-      }
+      },
     );
 
     await Promise.resolve();
@@ -190,7 +199,9 @@ describe("toTask", () => {
 
     const taskFn = toTask(observable);
 
-    await expect(taskFn(controller.signal)).rejects.toMatchObject({ name: "AbortError" });
+    await expect(taskFn(controller.signal)).rejects.toMatchObject({
+      name: "AbortError",
+    });
   });
 
   it("rejects on abort and unsubscribes", async () => {

@@ -24,9 +24,7 @@ export type Subscription = {
  * @template T - Emitted value type
  */
 export type Observable<T> = {
-  subscribe: (
-    observer: Observer<T> | ((value: T) => void)
-  ) => Subscription;
+  subscribe: (observer: Observer<T> | ((value: T) => void)) => Subscription;
 };
 
 /**
@@ -50,7 +48,7 @@ export type Observable<T> = {
  * ```
  */
 export const createObservable = <T>(
-  subscribe: (observer: Observer<T>) => (() => void) | void
+  subscribe: (observer: Observer<T>) => (() => void) | void,
 ): Observable<T> => ({
   subscribe: (observer) => {
     const normalized: Observer<T> =
@@ -79,7 +77,7 @@ export const createObservable = <T>(
  * ```
  */
 export const fromTaskState = <T, Args extends unknown[] = []>(
-  task: Task<T, Args>
+  task: Task<T, Args>,
 ): Observable<TaskState<T>> =>
   createObservable((observer) => task.subscribe(observer.next));
 
@@ -104,7 +102,7 @@ export const fromTaskState = <T, Args extends unknown[] = []>(
  * ```
  */
 export const fromTask = <T, Args extends unknown[] = []>(
-  task: Task<T, Args>
+  task: Task<T, Args>,
 ): Observable<T> =>
   createObservable((observer) => {
     let last: T | undefined;
@@ -143,9 +141,10 @@ export const fromTask = <T, Args extends unknown[] = []>(
  * const result = await taskFn();
  * ```
  */
-export const toTask = <T, Args extends unknown[] = []>(
-  observable: Observable<T>
-): TaskFn<T, Args> =>
+export const toTask =
+  <T, Args extends unknown[] = []>(
+    observable: Observable<T>,
+  ): TaskFn<T, Args> =>
   (signal?: AbortSignal, ..._args: Args) =>
     new Promise<T>((resolve, reject) => {
       if (signal?.aborted) {

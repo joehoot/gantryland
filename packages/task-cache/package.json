@@ -2,12 +2,7 @@
   "name": "@gantryland/task-cache",
   "version": "0.2.3",
   "description": "Cache store and combinator for @gantryland/task",
-  "keywords": [
-    "task",
-    "cache",
-    "memoize",
-    "async"
-  ],
+  "keywords": ["task", "cache", "memoize", "async"],
   "type": "module",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
@@ -18,10 +13,7 @@
     },
     "./package.json": "./package.json"
   },
-  "files": [
-    "dist",
-    "README.md"
-  ],
+  "files": ["dist", "README.md"],
   "scripts": {
     "prepack": "tsc -b"
   },
