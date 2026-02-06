@@ -18,8 +18,8 @@ npm install @gantryland/task-logger
 - [Quick start](#quick-start)
 - [At a glance](#at-a-glance)
 - [Design goals](#design-goals)
-- [When to use task-logger](#when-to-use-task-logger)
-- [When not to use task-logger](#when-not-to-use-task-logger)
+- [When to use](#when-to-use)
+- [When not to use](#when-not-to-use)
 - [Core concepts](#core-concepts)
 - [Flow](#flow)
 - [Run semantics](#run-semantics)
@@ -82,13 +82,13 @@ unsubscribe();
 - Keep log payloads structured and consistent.
 - Avoid coupling to specific logging vendors.
 
-## When to use task-logger
+## When to use
 
 - You want structured logs for Task execution.
 - You need cache event logging.
 - You want minimal instrumentation overhead.
 
-## When not to use task-logger
+## When not to use
 
 - You need full tracing with distributed context.
 - You do not want logging in production at all.
