@@ -1,12 +1,12 @@
 # Test Authoring Guide
 
-Use this guide when writing or updating unit tests in Gantryland packages. The reference tone and rigor are `packages/task/test/task.test.ts`, `docs/authoring/source-code.md`, `docs/authoring/jsdoc.md`, and `docs/authoring/package-docs.md`. The goal is to ensure tests are deterministic, behavior-first, and aligned with documented semantics.
+Use this guide when writing or updating unit tests in Gantryland packages. The reference tone and rigor are `packages/task/test/task.test.ts`, `docs/authoring/source-code.md`, `docs/authoring/jsdoc.md`, and `docs/authoring/package-docs.md`. The goal is to ensure tests are deterministic, behavior-first, and aligned with source and package-doc semantics.
 
 ## Goals
 - Prove observable behavior, not implementation details.
 - Keep tests deterministic and readable.
 - Ensure AbortError, cancellation, and supersession semantics are correct.
-- Keep tests aligned with JSDoc and README behavior.
+- Keep tests aligned with JSDoc and package docs behavior.
 
 ## Core Principles
 - Behavior first: tests encode user-facing outcomes.
@@ -71,7 +71,7 @@ const createAbortError = () => Object.assign(new Error("Aborted"), { name: "Abor
 - Keep assertions close to the action they verify.
 
 ## Alignment Rules
-- Tests, JSDoc, and README must agree on behavior.
+- Tests, JSDoc, and package docs must agree on behavior.
 - If the API normalizes errors, tests should confirm the normalized output.
 - If AbortError is swallowed, tests must assert `error` remains `undefined`.
 - If run returns `undefined` on error/abort/superseded, test each path.

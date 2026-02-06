@@ -9,6 +9,13 @@ These guides define Gantryland package standards for source code, JSDoc, package
 - [`docs/authoring/package-docs.md`](package-docs.md) - Package documentation structure and content standards.
 - [`docs/authoring/tests.md`](tests.md) - Deterministic testing patterns and coverage expectations.
 
+## Scope boundaries
+
+- `source-code.md` defines implementation and runtime behavior rules only.
+- `jsdoc.md` defines API comment structure and behavior wording.
+- `package-docs.md` defines package documentation structure and examples.
+- `tests.md` defines behavioral test coverage and deterministic testing style.
+
 ## Recommended usage order
 
 1. Start with `source-code.md` for source behavior and API shape.

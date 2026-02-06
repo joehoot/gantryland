@@ -2,6 +2,8 @@
 
 Use this guide to design and implement Gantryland package source code. The reference tone and rigor are `packages/task/index.ts` and `packages/task-combinators/index.ts`.
 
+This guide is intentionally limited to source implementation. JSDoc, package docs, and tests are covered in their dedicated guides.
+
 ## Goals
 - Optimize for developer experience, ergonomics, and comprehension.
 - Preserve and clarify runtime behavior.
