@@ -85,12 +85,39 @@ new Task<T, Args extends unknown[] = []>(
 
 | Member | Purpose | Return |
 | --- | --- | --- |
-| `getState()` | Read current snapshot | `TaskState<T>` |
+| `getState()` | Read current immutable snapshot | `Readonly<TaskState<T>>` |
 | `subscribe(listener)` | Observe state changes (immediate first emit) | `() => void` |
 | `run(...args)` | Execute the current `TaskFn` | `Promise<T \| undefined>` |
 | `fulfill(data)` | Immediately set successful data state | `T` |
 | `cancel()` | Abort in-flight run and clear loading | `void` |
 | `reset()` | Restore initial stale state | `void` |
+
+## Choosing constructor mode
+
+`Task` supports both signal-aware and plain task functions.
+
+| `mode` | Function shape | Use when |
+| --- | --- | --- |
+| `"auto"` (default) | infers from function arity | convenient defaults for simple direct functions |
+| `"signal"` | `(signal, ...args) => Promise<T>` | your function uses `AbortSignal`, or is wrapped/composed |
+| `"plain"` | `(...args) => Promise<T>` | your function does not accept a signal |
+
+```typescript
+import { Task } from "@gantryland/task";
+
+const signalAwareTask = new Task(
+  async (signal, id: string) => fetch(`/api/users/${id}`, { signal }).then((r) => r.json()),
+  { mode: "signal" }
+);
+
+const plainTask = new Task(
+  async (id: number, label: string) => `${id}:${label}`,
+  { mode: "plain" }
+);
+```
+
+`mode: "auto"` uses function `length` and can be ambiguous for some wrappers/default params/rest signatures.
+When in doubt, force `"signal"` or `"plain"` explicitly.
 
 ## Semantics
 
@@ -99,11 +126,16 @@ new Task<T, Args extends unknown[] = []>(
 - `run()` resolves `undefined` on error, abort, or superseded execution.
 - If `T` can be `undefined`, use `getState().error` and loading flags to disambiguate outcome.
 - Task functions can be signal-aware (`(signal, ...args)`) or plain (`(...args)`).
-- `mode: "auto"` (default) infers shape from function arity and can be ambiguous; use `"signal"`/`"plain"` to force behavior when needed.
 - For wrapped/composed signal-aware functions (for example from combinator/cache packages), prefer `mode: "signal"` on parameterized tasks.
 - `fulfill(data)` aborts in-flight work and sets `{ data, error: undefined, isLoading: false, isStale: false }`.
 - Failures keep previous `data` and normalize non-`Error` throws.
 - Listener errors are isolated (they do not break task state updates).
+
+## Exported types
+
+- `TaskState<T>`: `{ data, error, isLoading, isStale }` snapshot shape.
+- `TaskFn<T, Args>`: signal-aware task function `(signal: AbortSignal | null, ...args: Args) => Promise<T>`.
+- `PlainTaskFn<T, Args>`: plain task function `(...args: Args) => Promise<T>`.
 
 ## Patterns
 
@@ -162,7 +194,9 @@ await task.run();
 ```typescript
 import { Task } from "@gantryland/task";
 
-const formatTask = new Task(async (id: number, label: string) => `${id}:${label}`);
+const formatTask = new Task(async (id: number, label: string) => `${id}:${label}`, {
+  mode: "plain",
+});
 
 const value = await formatTask.run(7, "ok");
 ```

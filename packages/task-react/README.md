@@ -38,8 +38,18 @@ export function UserPanel({ id }: { id: string }) {
 
 ## API
 
-- `useTaskState(task)` -> `TaskState<T>`
-- `useTask(task)` -> `TaskState<T> & { run, cancel, reset }`
+| Export | Signature | Notes |
+| --- | --- | --- |
+| `UseTaskResult<T, Args>` | `TaskState<T> & { run, cancel, reset }` | Return type from `useTask` |
+| `useTaskState(task)` | `(task: Task<T, Args>) => TaskState<T>` | Subscribes to state only |
+| `useTask(task)` | `(task: Task<T, Args>) => UseTaskResult<T, Args>` | State + imperative controls |
+
+`UseTaskResult` properties:
+
+- `data`, `error`, `isLoading`, `isStale`: current task state.
+- `run(...args)`: proxies to `task.run(...args)` and returns `Promise<T | undefined>`.
+- `cancel()`: proxies to `task.cancel()`.
+- `reset()`: proxies to `task.reset()`.
 
 ## Semantics
 

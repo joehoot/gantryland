@@ -53,38 +53,29 @@ await usersTask.run();
 
 ## API
 
-### Composition
-
-- `pipe(initial, ...fns)`
-
-### Transforms and side effects
-
-- `map(fn)`
-- `flatMap(fn)`
-- `tap(fn)`
-- `tapError(fn)`
-- `tapAbort(fn)`
-- `mapError(fn)`
-- `catchError(fallback)`
-
-### Retry and timeout
-
-- `retry(attempts, options?)`
-- `retryWhen(predicate, options?)`
-- `backoff(options)`
-- `timeout(ms)`
-- `timeoutAbort(ms)`
-- `timeoutWith(ms, fallback)`
-- `TimeoutError`
-
-### Orchestration
-
-- `zip(...taskFns)`
-- `race(...taskFns)`
-- `sequence(...taskFns)`
-- `debounce({ waitMs })`
-- `throttle({ windowMs })`
-- `queue({ concurrency? })`
+| Export | Signature | Notes |
+| --- | --- | --- |
+| `TimeoutError` | `new TimeoutError(message?)` | Error type for timeout combinators |
+| `pipe` | `pipe(initial, ...fns)` | Left-to-right function composition |
+| `map` | `map(fn)` | Transform resolved value |
+| `flatMap` | `flatMap(fn)` | Chain async transform with shared signal |
+| `tap` | `tap(fn)` | Run side effect on success, return original value |
+| `tapError` | `tapError(fn)` | Run side effect on non-abort error, then rethrow |
+| `tapAbort` | `tapAbort(fn)` | Run side effect on abort error, then rethrow |
+| `mapError` | `mapError(fn)` | Map non-abort errors to `Error`, then throw |
+| `catchError` | `catchError(fallback)` | Recover non-abort errors with fallback |
+| `retry` | `retry(attempts, options?)` | Fixed retry count; `onRetry` runs only when a retry will occur |
+| `retryWhen` | `retryWhen(shouldRetry, options?)` | Predicate retries; options: `maxAttempts?`, `delayMs?(attempt, err)`, `onRetry?(err, attempt)` |
+| `backoff` | `backoff(options)` | Retry with delay; options: `attempts`, `delayMs`, `shouldRetry?` |
+| `timeout` | `timeout(ms)` | Reject with `TimeoutError` without aborting source |
+| `timeoutAbort` | `timeoutAbort(ms)` | Reject with `TimeoutError` and abort source |
+| `timeoutWith` | `timeoutWith(ms, fallback)` | Run fallback `TaskFn` only on timeout |
+| `zip` | `zip(...taskFns)` | Run in parallel, resolve as tuple |
+| `race` | `race(...taskFns)` | Settle with first task to settle |
+| `sequence` | `sequence(...taskFns)` | Run in order, resolve as tuple |
+| `debounce` | `debounce({ waitMs })` | Only latest call in window executes |
+| `throttle` | `throttle({ windowMs })` | Reuse first in-window in-flight promise |
+| `queue` | `queue({ concurrency? })` | Limit concurrent executions (default `1`) |
 
 ## Patterns
 

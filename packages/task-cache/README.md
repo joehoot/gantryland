@@ -65,6 +65,33 @@ type CacheOptions = {
 
 `createdAt` and `updatedAt` are epoch milliseconds.
 
+`CacheEvent` shape:
+
+```typescript
+type CacheEvent = {
+  type: "hit" | "miss" | "stale" | "set" | "invalidate" | "clear" | "revalidate" | "revalidateError";
+  key?: CacheKey;
+  entry?: CacheEntry<unknown>;
+  error?: unknown;
+};
+```
+
+`CacheStore` shape:
+
+```typescript
+type CacheStore = {
+  get<T>(key: CacheKey): CacheEntry<T> | undefined;
+  set<T>(key: CacheKey, entry: CacheEntry<T>): void;
+  delete(key: CacheKey): void;
+  clear(): void;
+  has(key: CacheKey): boolean;
+  keys?(): Iterable<CacheKey>;
+  subscribe?(listener: (event: CacheEvent) => void): () => void;
+  emit?(event: CacheEvent): void;
+  invalidateTags?(tags: string[]): void;
+};
+```
+
 ## Semantics
 
 - `cache(...)`
@@ -83,28 +110,59 @@ type CacheOptions = {
   - Invalidates keys/tags only after successful resolution.
   - Failures do not invalidate.
 
+## Constructor mode with cache combinators
+
+Cache combinators return signal-aware `TaskFn`s. For parameterized tasks, prefer explicit signal mode:
+
+```typescript
+import { Task } from "@gantryland/task";
+import { MemoryCacheStore, cache } from "@gantryland/task-cache";
+import { pipe } from "@gantryland/task-combinators";
+
+const store = new MemoryCacheStore();
+
+const fn = pipe(
+  (signal: AbortSignal | null, id: string) => fetch(`/api/users/${id}`, { signal }).then((r) => r.json()),
+  cache("user", store)
+);
+
+const task = new Task(fn, { mode: "signal" });
+```
+
 ## API
 
-| Export | Purpose | Return |
+| Export | Signature | Notes |
 | --- | --- | --- |
-| `new MemoryCacheStore()` | In-memory cache store with tag invalidation and events | `MemoryCacheStore` |
-| `cache(key, store, options?)` | TTL cache combinator | `(taskFn) => TaskFn` |
-| `staleWhileRevalidate(key, store, options?)` | Serve stale, refresh in background | `(taskFn) => TaskFn` |
-| `invalidateOnResolve(target, store)` | Invalidate keys/tags after success | `(taskFn) => TaskFn` |
+| `MemoryCacheStore` | `new MemoryCacheStore()` | In-memory `CacheStore` with eventing and tag invalidation |
+| `cache` | `cache(key, store, options?)` | TTL cache combinator |
+| `staleWhileRevalidate` | `staleWhileRevalidate(key, store, options?)` | Return stale data while revalidating in background |
+| `invalidateOnResolve` | `invalidateOnResolve(target, store)` | Invalidate keys/tags only after success |
+| `CacheKey` | `string \| number \| symbol` | Supported key types |
+| `CacheEntry<T>` | `{ value, createdAt, updatedAt, tags? }` | Stored value + metadata |
+| `CacheEvent` | `{ type, key?, entry?, error? }` | Event payload for cache observability |
+| `CacheStore` | cache store interface | Required methods: `get`, `set`, `delete`, `clear`, `has` |
+| `CacheOptions` | `{ ttl?, staleTtl?, tags?, dedupe? }` | Shared options for `cache`/`staleWhileRevalidate` |
+
+`invalidateOnResolve(target, store)` accepts:
+
+- single key: `CacheKey`
+- key list: `CacheKey[]`
+- tags object: `{ tags: string[] }`
+- resolver: `(result) => CacheKey | CacheKey[] | { tags: string[] }`
 
 ### MemoryCacheStore methods
 
-```typescript
-store.get(key)
-store.set(key, entry)
-store.delete(key)
-store.clear()
-store.has(key)
-store.keys()
-store.subscribe((event) => {})
-store.emit(event)
-store.invalidateTags(tags)
-```
+| Method | Signature | Purpose |
+| --- | --- | --- |
+| `get` | `get<T>(key)` | Read entry by key |
+| `set` | `set<T>(key, entry)` | Write/replace entry and update tag index |
+| `delete` | `delete(key)` | Remove entry and emit `invalidate` |
+| `clear` | `clear()` | Remove all entries and emit `clear` |
+| `has` | `has(key)` | Check key existence |
+| `keys` | `keys()` | Iterate all keys |
+| `subscribe` | `subscribe((event) => void)` | Listen to cache events |
+| `emit` | `emit(event)` | Emit event to subscribers |
+| `invalidateTags` | `invalidateTags(tags)` | Invalidate all keys that match tags |
 
 ## Patterns
 
