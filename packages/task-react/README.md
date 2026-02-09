@@ -49,6 +49,12 @@ export function UserPanel({ id }: { id: string }) {
 - Uses `useSyncExternalStore` for React 18+ correctness.
 - Hooks do not add retry/cache/scheduling policy.
 - Pass a stable `Task` instance to avoid resubscribe churn.
+- `run` rejection behavior exactly matches `Task.run`.
+
+## Migration note
+
+- `run` now returns `Promise<T>`.
+- Handle errors with `try/catch` (or rely on task state) instead of checking for `undefined` returns.
 
 ## Test this package
 

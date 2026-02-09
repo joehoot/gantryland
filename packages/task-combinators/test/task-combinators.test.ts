@@ -18,7 +18,6 @@ import {
   tapError,
   throttle,
   timeout,
-  timeoutAbort,
   timeoutWith,
   zip,
 } from "../index";
@@ -55,7 +54,6 @@ describe("task-combinators", () => {
     const taskFn = flatMap((value: string) =>
       Promise.resolve(value.toUpperCase()),
     )(async () => "ok");
-
     await expect(taskFn()).resolves.toBe("OK");
   });
 
@@ -77,6 +75,14 @@ describe("task-combinators", () => {
     expect(errors).toEqual([err]);
   });
 
+  it("tapError normalizes non-Error throws", async () => {
+    const taskFn = tapError(() => {})(async () => {
+      throw "boom";
+    });
+
+    await expect(taskFn()).rejects.toMatchObject({ message: "boom" });
+  });
+
   it("tapAbort runs only on AbortError", async () => {
     const errors: unknown[] = [];
     const taskFn = tapAbort((error) => errors.push(error))(async () => {
@@ -87,12 +93,30 @@ describe("task-combinators", () => {
     expect(errors).toHaveLength(1);
   });
 
+  it("tapAbort does not run on non-AbortError", async () => {
+    const onAbort = vi.fn();
+    const taskFn = tapAbort(onAbort)(async () => {
+      throw new Error("boom");
+    });
+
+    await expect(taskFn()).rejects.toThrow("boom");
+    expect(onAbort).not.toHaveBeenCalled();
+  });
+
   it("mapError transforms non-abort errors", async () => {
     const taskFn = mapError(() => new Error("wrapped"))(async () => {
       throw new Error("boom");
     });
 
     await expect(taskFn()).rejects.toMatchObject({ message: "wrapped" });
+  });
+
+  it("mapError passes AbortError through", async () => {
+    const taskFn = mapError(() => new Error("wrapped"))(async () => {
+      throw createAbortError();
+    });
+
+    await expect(taskFn()).rejects.toMatchObject({ name: "AbortError" });
   });
 
   it("catchError returns fallback", async () => {
@@ -103,6 +127,22 @@ describe("task-combinators", () => {
     );
 
     await expect(taskFn()).resolves.toBe("fallback:boom");
+  });
+
+  it("catchError supports async fallback", async () => {
+    const taskFn = catchError(async () => "fallback")(async () => {
+      throw new Error("boom");
+    });
+
+    await expect(taskFn()).resolves.toBe("fallback");
+  });
+
+  it("catchError does not swallow AbortError", async () => {
+    const taskFn = catchError("fallback")(async () => {
+      throw createAbortError();
+    });
+
+    await expect(taskFn()).rejects.toMatchObject({ name: "AbortError" });
   });
 
   it("retry retries failures and succeeds", async () => {
@@ -117,6 +157,44 @@ describe("task-combinators", () => {
     expect(attempts).toBe(3);
   });
 
+  it("retry calls onRetry for actual retries only", async () => {
+    const onRetry = vi.fn();
+    const taskFn = retry(1, { onRetry })(async () => {
+      throw new Error("boom");
+    });
+
+    await expect(taskFn()).rejects.toThrow("boom");
+    expect(onRetry).toHaveBeenCalledTimes(1);
+  });
+
+  it("retry treats negative attempts as zero", async () => {
+    let attempts = 0;
+    const taskFn = retry(-5)(async () => {
+      attempts += 1;
+      throw new Error("boom");
+    });
+
+    await expect(taskFn()).rejects.toThrow("boom");
+    expect(attempts).toBe(1);
+  });
+
+  it("retry normalizes non-Error terminal throw", async () => {
+    const taskFn = retry(0)(async () => {
+      throw "boom";
+    });
+
+    await expect(taskFn()).rejects.toMatchObject({ message: "boom" });
+  });
+
+  it("timeout resolves before deadline", async () => {
+    vi.useFakeTimers();
+    const taskFn = timeout(20)(async () => "ok");
+    const promise = taskFn();
+    await vi.advanceTimersByTimeAsync(5);
+    await expect(promise).resolves.toBe("ok");
+    vi.useRealTimers();
+  });
+
   it("timeout rejects with TimeoutError", async () => {
     vi.useFakeTimers();
     const taskFn = timeout(20)(async () => new Promise(() => {}));
@@ -127,29 +205,54 @@ describe("task-combinators", () => {
     vi.useRealTimers();
   });
 
-  it("timeoutAbort matches timeout behavior", async () => {
+  it("timeout normalizes non-Error throws", async () => {
+    const taskFn = timeout(20)(async () => {
+      throw "boom";
+    });
+
+    await expect(taskFn()).rejects.toMatchObject({ message: "boom" });
+  });
+
+  it("timeout does not cancel underlying operation", async () => {
     vi.useFakeTimers();
-    const taskFn = timeoutAbort(20)(async () => new Promise(() => {}));
+    const deferred = createDeferred<string>();
+    const taskFn = timeout(10)(() => deferred.promise);
     const promise = taskFn();
+
     const rejection = expect(promise).rejects.toBeInstanceOf(TimeoutError);
-    await vi.advanceTimersByTimeAsync(20);
+    await vi.advanceTimersByTimeAsync(10);
     await rejection;
+
+    deferred.resolve("late");
+    await deferred.promise;
     vi.useRealTimers();
   });
 
-  it("timeoutWith runs fallback on timeout", async () => {
+  it("timeoutWith runs fallback only on timeout", async () => {
     vi.useFakeTimers();
     const taskFn = timeoutWith(
       10,
       async () => "fallback",
     )(async () => new Promise(() => {}));
+
     const promise = taskFn();
     await vi.advanceTimersByTimeAsync(10);
     await expect(promise).resolves.toBe("fallback");
     vi.useRealTimers();
   });
 
-  it("zip runs tasks in parallel and preserves order", async () => {
+  it("timeoutWith rethrows non-timeout errors", async () => {
+    const taskFn = timeoutWith(
+      10,
+      async () => "fallback",
+    )(async () => {
+      throw new Error("boom");
+    });
+
+    await expect(taskFn()).rejects.toThrow("boom");
+  });
+
+  it("zip runs in parallel and preserves order", async () => {
     const taskFn = zip(
       async () => 1,
       async () => "two",
@@ -159,7 +262,7 @@ describe("task-combinators", () => {
     await expect(taskFn()).resolves.toEqual([1, "two", true]);
   });
 
-  it("race resolves with the first settled task", async () => {
+  it("race settles with first settled task", async () => {
     const first = createDeferred<string>();
     const second = createDeferred<string>();
     const taskFn = race(
@@ -172,7 +275,7 @@ describe("task-combinators", () => {
     await expect(promise).resolves.toBe("second");
   });
 
-  it("sequence runs tasks sequentially", async () => {
+  it("sequence runs in order", async () => {
     const calls: string[] = [];
     const taskFn = sequence(
       async () => {
@@ -189,7 +292,7 @@ describe("task-combinators", () => {
     expect(calls).toEqual(["first", "second"]);
   });
 
-  it("retryWhen retries based on predicate", async () => {
+  it("retryWhen honors predicate and maxAttempts", async () => {
     let attempts = 0;
     const taskFn = retryWhen(() => true, { maxAttempts: 2 })(async () => {
       attempts += 1;
@@ -201,20 +304,36 @@ describe("task-combinators", () => {
     expect(attempts).toBe(3);
   });
 
-  it("backoff applies delay and shouldRetry", async () => {
+  it("retryWhen stops when predicate returns false", async () => {
+    const taskFn = retryWhen(() => false)(async () => {
+      throw new Error("boom");
+    });
+
+    await expect(taskFn()).rejects.toThrow("boom");
+  });
+
+  it("retryWhen normalizes non-Error failures", async () => {
+    const taskFn = retryWhen(() => false)(async () => {
+      throw "boom";
+    });
+
+    await expect(taskFn()).rejects.toMatchObject({ message: "boom" });
+  });
+
+  it("backoff applies delays", async () => {
     vi.useFakeTimers();
     const delays: number[] = [];
     let attempts = 0;
+
     const taskFn = backoff({
       attempts: 2,
-      delayMs: (attempt, err) => {
+      delayMs: (attempt) => {
         delays.push(attempt);
-        return err ? 10 : 0;
+        return 10;
       },
-      shouldRetry: (err) => err instanceof Error,
     })(async () => {
       attempts += 1;
-      if (attempts < 3) throw new Error("fail");
+      if (attempts < 3) throw new Error("boom");
       return "ok";
     });
 
@@ -225,7 +344,7 @@ describe("task-combinators", () => {
     vi.useRealTimers();
   });
 
-  it("debounce only runs the last call and rejects earlier calls", async () => {
+  it("debounce runs latest call and rejects superseded ones", async () => {
     vi.useFakeTimers();
     const taskFn = vi.fn(async () => "ok");
     const debounced = debounce<string>({ waitMs: 30 })(taskFn);
@@ -234,15 +353,27 @@ describe("task-combinators", () => {
     const second = debounced();
 
     await expect(first).rejects.toMatchObject({ name: "AbortError" });
-
     await vi.advanceTimersByTimeAsync(30);
     await expect(second).resolves.toBe("ok");
     expect(taskFn).toHaveBeenCalledTimes(1);
-
     vi.useRealTimers();
   });
 
-  it("throttle reuses in-flight promise within the window", async () => {
+  it("debounce rejects if latest run throws synchronously", async () => {
+    vi.useFakeTimers();
+    const taskFn = vi.fn(() => {
+      throw new Error("boom");
+    });
+    const debounced = debounce<string>({ waitMs: 10 })(taskFn);
+
+    const promise = debounced();
+    const rejection = expect(promise).rejects.toThrow("boom");
+    await vi.advanceTimersByTimeAsync(10);
+    await rejection;
+    vi.useRealTimers();
+  });
+
+  it("throttle reuses in-flight promise within window", async () => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date("2024-01-01T00:00:00.000Z"));
 
@@ -252,7 +383,6 @@ describe("task-combinators", () => {
 
     const first = throttled();
     const second = throttled();
-
     await flushMicrotasks();
 
     expect(first).toBe(second);
@@ -263,10 +393,8 @@ describe("task-combinators", () => {
 
     vi.setSystemTime(new Date("2024-01-01T00:00:00.200Z"));
     const third = throttled();
-
     await flushMicrotasks();
     expect(taskFn).toHaveBeenCalledTimes(2);
-
     await third;
     vi.useRealTimers();
   });
@@ -283,7 +411,6 @@ describe("task-combinators", () => {
     });
 
     const queued = queue<string>()(taskFn);
-
     const first = queued();
     const second = queued();
 
@@ -292,7 +419,6 @@ describe("task-combinators", () => {
 
     deferreds[0].resolve("first");
     await first;
-
     await flushMicrotasks();
     expect(started).toEqual([0, 1]);
 
@@ -300,7 +426,7 @@ describe("task-combinators", () => {
     await expect(second).resolves.toBe("second");
   });
 
-  it("queue respects concurrency limits", async () => {
+  it("queue respects concurrency", async () => {
     const deferreds = [
       createDeferred<string>(),
       createDeferred<string>(),
@@ -308,6 +434,7 @@ describe("task-combinators", () => {
     ];
     const started: number[] = [];
     let index = 0;
+
     const taskFn = vi.fn(async () => {
       const current = index;
       started.push(current);
@@ -316,7 +443,6 @@ describe("task-combinators", () => {
     });
 
     const queued = queue<string>({ concurrency: 2 })(taskFn);
-
     const first = queued();
     const second = queued();
     const third = queued();
@@ -326,7 +452,6 @@ describe("task-combinators", () => {
 
     deferreds[0].resolve("one");
     await first;
-
     await flushMicrotasks();
     expect(started).toEqual([0, 1, 2]);
 
@@ -344,7 +469,6 @@ describe("task-combinators", () => {
       (value) => value + 1,
       (value) => value * 3,
     );
-
     expect(result).toBe(6);
   });
 });

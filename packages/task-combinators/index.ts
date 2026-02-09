@@ -26,6 +26,7 @@ const sleep = (ms: number): Promise<void> =>
     setTimeout(resolve, ms);
   });
 
+/** Error thrown by `timeout(ms)` when execution exceeds the deadline. */
 export class TimeoutError extends Error {
   constructor(message = "Timeout") {
     super(message);
@@ -33,18 +34,27 @@ export class TimeoutError extends Error {
   }
 }
 
+/**
+ * Transform a resolved value while preserving function args and error behavior.
+ */
 export const map =
   <T, U, Args extends unknown[] = []>(fn: (data: T) => U) =>
   (taskFn: TaskFn<T, Args>): TaskFn<U, Args> =>
   (...args: Args) =>
     taskFn(...args).then(fn);
 
+/**
+ * Chain into another async step derived from the previous result.
+ */
 export const flatMap =
   <T, U, Args extends unknown[] = []>(fn: (data: T) => Promise<U>) =>
   (taskFn: TaskFn<T, Args>): TaskFn<U, Args> =>
   (...args: Args) =>
     taskFn(...args).then((data) => fn(data));
 
+/**
+ * Run a success-side effect and return the original value unchanged.
+ */
 export const tap =
   <T, Args extends unknown[] = []>(fn: (data: T) => void) =>
   (taskFn: TaskFn<T, Args>): TaskFn<T, Args> =>
@@ -54,6 +64,9 @@ export const tap =
       return data;
     });
 
+/**
+ * Run an error-side effect for non-abort errors and rethrow.
+ */
 export const tapError =
   <T, Args extends unknown[] = []>(fn: (error: unknown) => void) =>
   (taskFn: TaskFn<T, Args>): TaskFn<T, Args> =>
@@ -66,6 +79,9 @@ export const tapError =
       throw err;
     });
 
+/**
+ * Run a side effect only when cancellation is represented by `AbortError`.
+ */
 export const tapAbort =
   <T, Args extends unknown[] = []>(fn: (error: unknown) => void) =>
   (taskFn: TaskFn<T, Args>): TaskFn<T, Args> =>
@@ -78,6 +94,9 @@ export const tapAbort =
       throw toError(err);
     });
 
+/**
+ * Map non-abort errors to a new error instance.
+ */
 export const mapError =
   <T, Args extends unknown[] = []>(fn: (error: unknown) => Error) =>
   (taskFn: TaskFn<T, Args>): TaskFn<T, Args> =>
@@ -87,6 +106,9 @@ export const mapError =
       throw fn(err);
     });
 
+/**
+ * Recover from non-abort failures with a static, computed, or async fallback.
+ */
 export const catchError =
   <T, Args extends unknown[] = []>(
     fallback: T | Promise<T> | ((err: unknown) => T | Promise<T>),
@@ -103,6 +125,9 @@ export const catchError =
     }
   };
 
+/**
+ * Retry failed executions. `attempts` means retry count (not total attempts).
+ */
 export const retry =
   <T, Args extends unknown[] = []>(
     attempts: number,
@@ -112,6 +137,7 @@ export const retry =
   async (...args: Args) => {
     const maxAttempts = Math.max(0, attempts);
     let lastError: unknown;
+
     for (let i = 0; i <= maxAttempts; i++) {
       try {
         return await taskFn(...args);
@@ -123,9 +149,16 @@ export const retry =
         lastError = err;
       }
     }
+
     throw toError(lastError);
   };
 
+/**
+ * Reject with `TimeoutError` if execution exceeds `ms`.
+ *
+ * This combinator does not abort underlying transport; it only controls
+ * the returned promise boundary.
+ */
 export const timeout =
   <T, Args extends unknown[] = []>(ms: number) =>
   (taskFn: TaskFn<T, Args>): TaskFn<T, Args> =>
@@ -161,11 +194,9 @@ export const timeout =
         });
     });
 
-export const timeoutAbort =
-  <T, Args extends unknown[] = []>(ms: number) =>
-  (taskFn: TaskFn<T, Args>): TaskFn<T, Args> =>
-    timeout<T, Args>(ms)(taskFn);
-
+/**
+ * Run fallback only on timeout. Non-timeout errors are rethrown.
+ */
 export const timeoutWith =
   <T, Args extends unknown[] = []>(ms: number, fallback: TaskFn<T, Args>) =>
   (taskFn: TaskFn<T, Args>): TaskFn<T, Args> =>
@@ -176,6 +207,9 @@ export const timeoutWith =
       throw toError(err);
     });
 
+/**
+ * Run task functions in parallel and resolve results as a tuple.
+ */
 export const zip =
   <T extends unknown[], Args extends unknown[] = []>(
     ...taskFns: { [K in keyof T]: TaskFn<T[K], Args> }
@@ -183,6 +217,9 @@ export const zip =
   (...args: Args) =>
     Promise.all(taskFns.map((fn) => fn(...args))) as Promise<T>;
 
+/**
+ * Settle with the first task function to settle.
+ */
 export function race<T extends unknown[], Args extends unknown[] = []>(
   ...taskFns: { [K in keyof T]: TaskFn<T[K], Args> }
 ): TaskFn<T[number], Args>;
@@ -192,6 +229,9 @@ export function race<Args extends unknown[]>(
   return (...args: Args) => Promise.race(taskFns.map((fn) => fn(...args)));
 }
 
+/**
+ * Run task functions sequentially and resolve results as a tuple.
+ */
 export const sequence =
   <T extends unknown[], Args extends unknown[] = []>(
     ...taskFns: { [K in keyof T]: TaskFn<T[K], Args> }
@@ -210,6 +250,9 @@ type RetryWhenOptions = {
   onRetry?: (err: unknown, attempt: number) => void;
 };
 
+/**
+ * Retry while `shouldRetry` resolves to true.
+ */
 export const retryWhen =
   <T, Args extends unknown[] = []>(
     shouldRetry: (err: unknown, attempt: number) => boolean | Promise<boolean>,
@@ -222,6 +265,7 @@ export const retryWhen =
       options.maxAttempts ?? Number.POSITIVE_INFINITY,
     );
     let attempt = 0;
+
     while (true) {
       try {
         return await taskFn(...args);
@@ -244,6 +288,9 @@ type BackoffOptions = {
   shouldRetry?: (err: unknown) => boolean;
 };
 
+/**
+ * Convenience wrapper over `retryWhen` with fixed/computed delay behavior.
+ */
 export const backoff =
   <T, Args extends unknown[] = []>(options: BackoffOptions) =>
   (taskFn: TaskFn<T, Args>): TaskFn<T, Args> =>
@@ -258,6 +305,11 @@ export const backoff =
       },
     )(taskFn);
 
+/**
+ * Debounce calls so only the latest call in the wait window executes.
+ *
+ * Superseded callers reject with `AbortError`.
+ */
 export const debounce =
   <T, Args extends unknown[] = []>(options: { waitMs: number }) =>
   (taskFn: TaskFn<T, Args>): TaskFn<T, Args> => {
@@ -270,8 +322,8 @@ export const debounce =
       callId += 1;
       const currentCallId = callId;
       lastArgs = args;
-      if (timer) clearTimeout(timer);
 
+      if (timer) clearTimeout(timer);
       pendingReject?.(createAbortError());
       pendingReject = null;
 
@@ -281,6 +333,7 @@ export const debounce =
         timer = setTimeout(() => {
           if (currentCallId !== callId) return;
           timer = null;
+
           void Promise.resolve()
             .then(() => taskFn(...lastArgs))
             .then(resolve)
@@ -295,6 +348,9 @@ export const debounce =
     };
   };
 
+/**
+ * Reuse the first in-window in-flight execution.
+ */
 export const throttle =
   <T, Args extends unknown[] = []>(options: { windowMs: number }) =>
   (taskFn: TaskFn<T, Args>): TaskFn<T, Args> => {
@@ -316,6 +372,9 @@ export const throttle =
     };
   };
 
+/**
+ * Queue executions with configurable concurrency (default `1`).
+ */
 export const queue =
   <T, Args extends unknown[] = []>(options: { concurrency?: number } = {}) =>
   (taskFn: TaskFn<T, Args>): TaskFn<T, Args> => {
@@ -361,6 +420,9 @@ type PipeResult<Input, Fns extends AnyFn[]> = Fns extends []
       : R
     : never;
 
+/**
+ * Compose functions left-to-right.
+ */
 export function pipe<T, Fns extends AnyFn[]>(
   initial: T,
   ...fns: Fns

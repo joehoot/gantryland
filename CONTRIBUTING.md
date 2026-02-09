@@ -12,9 +12,13 @@ npm run release:check
 
 Use `npm run format` and `npm run lint:fix` to apply autoformat and safe fixes locally.
 
-`release:check` runs: lint, format check, typecheck, build, API delta check, and coverage tests.
+`release:check` runs: lint, format check, package typecheck, test-file typecheck,
+build, API delta check, and coverage tests.
 
 CI also runs `npm run release:guard:changeset`.
+
+Exception: for the initial `v0.4.0` bootstrap release, no changeset is required.
+After `v0.4.0` is tagged/published, return to normal changeset-required flow.
 
 ## Changesets
 

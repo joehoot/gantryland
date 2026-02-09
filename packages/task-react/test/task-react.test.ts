@@ -80,4 +80,29 @@ describe("task-react", () => {
 
     renderer?.unmount();
   });
+
+  it("useTask run rejects on task failure", async () => {
+    const task = new Task<string, [string]>(async () => {
+      throw new Error("boom");
+    });
+    let latest: ReturnType<typeof useTask<string, [string]>> | undefined;
+
+    const Harness = () => {
+      latest = useTask(task);
+      return null;
+    };
+
+    let renderer: ReturnType<typeof create> | undefined;
+
+    await act(async () => {
+      renderer = create(createElement(Harness));
+    });
+
+    await act(async () => {
+      await expect(latest?.run("x")).rejects.toThrow("boom");
+    });
+
+    expect(latest?.error?.message).toBe("boom");
+    renderer?.unmount();
+  });
 });

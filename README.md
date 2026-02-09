@@ -29,6 +29,8 @@ npm run release:version
 npm run release:publish
 ```
 
+For the initial `v0.4.0` bootstrap release, no changeset is required.
+
 ## Docs
 
 - [Contributing](CONTRIBUTING.md)

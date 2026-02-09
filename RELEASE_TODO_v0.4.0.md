@@ -1,44 +1,18 @@
-# v0.4.0 Release Hardening TODO
+# v0.4.0 Release Notes
 
-## Core correctness
+Status: completed and superseded by the signal-free API direction.
 
-- [x] Isolate `subscribe()` immediate listener errors the same way as update notifications.
-- [x] Prevent external mutation of internal Task state snapshots returned by `getState()` and emitted to listeners.
-- [x] Add regression tests for listener throw-on-subscribe and state mutation safety.
+This file is kept as historical context for the hardening work that happened
+before the signal-removal refactor. It is not an active TODO.
 
-## Auto mode + TaskFn ergonomics
+## Historical outcomes
 
-- [x] Document `mode: "auto"` ambiguity for some arity patterns.
-- [x] Document recommended `mode: "signal"` when composing with signal-aware wrappers/combinators.
-- [x] Add tests that pin explicit `mode` behavior in ambiguous cases.
+- Core state safety and listener isolation work landed.
+- React hook stability and docs parity improvements landed.
+- Build/test/api baseline validation gates were established.
 
-## Combinators/cache runtime semantics
+## Important release context
 
-- [x] Ensure `timeoutAbort` always cleans timer/abort listeners even if wrapped task does not settle.
-- [x] Align `retry` `onRetry` callback timing with actual retry attempts (not terminal failure).
-- [x] Update cache combinator JSDoc examples to call `TaskFn` with explicit signal slot (`null` when unused).
-
-## React interop polish
-
-- [x] Stabilize `useTaskState` subscription/snapshot callbacks to avoid unnecessary resubscribe churn.
-- [x] Add JSDoc to `useTaskState`, `useTask`, and `UseTaskResult` for API parity and IntelliSense.
-- [x] Add README caveat about stable Task identity in React component scope.
-
-## Docs consistency
-
-- [x] Expand Task transition docs to include `cancel`, `fulfill`, and `reset` paths.
-- [x] Clarify `run()` return-value ambiguity when `T` may include `undefined`.
-- [x] Clarify throttle semantics around shared in-window args/signal.
-
-## Release metadata
-
-- [x] Bump package versions to `0.4.0`.
-- [x] Update inter-package dependency ranges to `^0.4.0`.
-
-## Validation
-
-- [x] Run: `npm run typecheck`
-- [x] Run: `npm test`
-- [x] Run: `npm run build`
-- [x] Run: `npm run api:update`
-- [x] Run: `npm run api:check`
+- The current release target remains `v0.4.0`.
+- This repository currently has a single internal consumer.
+- Backward compatibility is intentionally not a constraint for this release.
