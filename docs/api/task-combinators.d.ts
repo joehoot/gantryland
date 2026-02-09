@@ -41,7 +41,7 @@ export declare const map: <T, U, Args extends unknown[] = []>(fn: (data: T) => U
  * )
  * ```
  */
-export declare const flatMap: <T, U, Args extends unknown[] = []>(fn: (data: T, signal?: AbortSignal) => Promise<U>) => (taskFn: TaskFn<T, Args>) => TaskFn<U, Args>;
+export declare const flatMap: <T, U, Args extends unknown[] = []>(fn: (data: T, signal: AbortSignal | null) => Promise<U>) => (taskFn: TaskFn<T, Args>) => TaskFn<U, Args>;
 /**
  * Executes a side effect on success without modifying the data.
  * Propagates AbortError without modification.
@@ -241,6 +241,8 @@ export declare const debounce: <T, Args extends unknown[] = []>(options: {
 }) => (taskFn: TaskFn<T, Args>) => TaskFn<T, Args>;
 /**
  * Throttle a TaskFn so calls share one run per window.
+ * Calls that arrive while the window is active reuse the same in-flight
+ * promise (including the first call's signal and args).
  */
 export declare const throttle: <T, Args extends unknown[] = []>(options: {
     windowMs: number;

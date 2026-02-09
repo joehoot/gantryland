@@ -60,6 +60,33 @@ describe("Task", () => {
     unsub();
   });
 
+  it("isolates listener errors during initial subscribe emit", () => {
+    const task = new Task(async () => "ok");
+    const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+
+    expect(() => {
+      task.subscribe(() => {
+        throw new Error("listener boom");
+      });
+    }).not.toThrow();
+
+    expect(errorSpy).toHaveBeenCalled();
+    errorSpy.mockRestore();
+  });
+
+  it("returns immutable state snapshots", () => {
+    const task = new Task(async () => "ok");
+    const snapshot = task.getState() as {
+      isLoading: boolean;
+    };
+
+    expect(() => {
+      snapshot.isLoading = true;
+    }).toThrow();
+
+    expect(task.getState().isLoading).toBe(false);
+  });
+
   it("forwards run args to the task function", async () => {
     const task = new Task<string, [number, string]>(
       async (_signal, id, label) => Promise.resolve(`${id}:${label}`),
@@ -67,6 +94,36 @@ describe("Task", () => {
 
     await task.run(7, "ok");
     expect(task.getState().data).toBe("7:ok");
+  });
+
+  it("supports plain task functions with args", async () => {
+    const task = new Task<string, [number, string]>(async (id, label) =>
+      Promise.resolve(`${id}:${label}`),
+    );
+
+    await task.run(7, "ok");
+    expect(task.getState().data).toBe("7:ok");
+  });
+
+  it("respects mode plain for ambiguous arity", async () => {
+    const task = new Task<string, [string]>(
+      async (value) => Promise.resolve(value),
+      { mode: "plain" },
+    );
+
+    await task.run("ok");
+    expect(task.getState().data).toBe("ok");
+  });
+
+  it("respects mode signal for ambiguous arity", async () => {
+    const task = new Task<string>(
+      async (signal: AbortSignal | null = null) =>
+        Promise.resolve(signal ? "has-signal" : "missing"),
+      { mode: "signal" },
+    );
+
+    await task.run();
+    expect(task.getState().data).toBe("has-signal");
   });
 
   it("preserves data when later runs fail", async () => {
@@ -279,5 +336,54 @@ describe("Task", () => {
 
     expect(task.getState().data).toBe("second");
     expect(task.getState().error).toBe(undefined);
+  });
+
+  it("fulfill sets data immediately", () => {
+    const task = new Task<string>(async () => "ignored");
+
+    const result = task.fulfill("ready");
+
+    expect(result).toBe("ready");
+    expect(task.getState()).toEqual({
+      data: "ready",
+      error: undefined,
+      isLoading: false,
+      isStale: false,
+    });
+  });
+
+  it("fulfill clears previous error", async () => {
+    const task = new Task<string>(async () => {
+      throw new Error("boom");
+    });
+
+    await task.run();
+    expect(task.getState().error?.message).toBe("boom");
+
+    task.fulfill("recovered");
+    expect(task.getState().error).toBe(undefined);
+    expect(task.getState().data).toBe("recovered");
+  });
+
+  it("fulfill aborts in-flight run and keeps fulfilled data", async () => {
+    const task = new Task(
+      (signal) =>
+        new Promise<string>((_, reject) => {
+          signal?.addEventListener("abort", () => reject(createAbortError()), {
+            once: true,
+          });
+        }),
+    );
+
+    const runPromise = task.run();
+    task.fulfill("manual");
+
+    await expect(runPromise).resolves.toBe(undefined);
+    expect(task.getState()).toEqual({
+      data: "manual",
+      error: undefined,
+      isLoading: false,
+      isStale: false,
+    });
   });
 });

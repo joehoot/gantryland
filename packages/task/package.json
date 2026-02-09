@@ -1,6 +1,6 @@
 {
   "name": "@gantryland/task",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "description": "Minimal async task with reactive state",
   "keywords": ["task", "async", "state", "abort"],
   "type": "module",

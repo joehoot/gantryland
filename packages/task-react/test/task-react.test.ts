@@ -7,11 +7,15 @@ import { useTask, useTaskState } from "../index";
 describe("task-react", () => {
   it("useTaskState mirrors task state updates", async () => {
     const task = new Task<string, [string]>(async (_signal, value) => value);
-    const snapshots: Array<ReturnType<typeof task.getState>> = [];
+    let firstSnapshot: ReturnType<typeof task.getState> | undefined;
+    let latestSnapshot: ReturnType<typeof task.getState> | undefined;
 
     const Harness = () => {
       const state = useTaskState(task);
-      snapshots.push(state);
+      if (!firstSnapshot) {
+        firstSnapshot = state;
+      }
+      latestSnapshot = state;
       return null;
     };
 
@@ -25,13 +29,13 @@ describe("task-react", () => {
       await task.run("ok");
     });
 
-    expect(snapshots[0]).toEqual({
+    expect(firstSnapshot).toEqual({
       data: undefined,
       error: undefined,
       isLoading: false,
       isStale: true,
     });
-    expect(snapshots.at(-1)).toEqual({
+    expect(latestSnapshot).toEqual({
       data: "ok",
       error: undefined,
       isLoading: false,

@@ -89,9 +89,9 @@ describe("cache", () => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date("2024-01-01T00:00:00.000Z"));
 
-    await expect(taskFn()).resolves.toBe("fresh");
+    await expect(taskFn(null)).resolves.toBe("fresh");
     vi.setSystemTime(new Date("2024-01-01T00:00:00.050Z"));
-    await expect(taskFn()).resolves.toBe("fresh");
+    await expect(taskFn(null)).resolves.toBe("fresh");
 
     vi.useRealTimers();
   });
@@ -105,7 +105,7 @@ describe("cache", () => {
       throw new Error("boom");
     });
 
-    await expect(taskFn()).rejects.toThrow("boom");
+    await expect(taskFn(null)).rejects.toThrow("boom");
     expect(store.get("key")).toBeUndefined();
   });
 
@@ -118,7 +118,7 @@ describe("cache", () => {
       throw new Error("nope");
     });
 
-    await expect(taskFn()).rejects.toThrow("nope");
+    await expect(taskFn(null)).rejects.toThrow("nope");
     expect(store.get("key")).toBeUndefined();
   });
 
@@ -151,10 +151,10 @@ describe("cache", () => {
 
     vi.useFakeTimers();
     vi.setSystemTime(new Date("2024-01-01T00:00:00.000Z"));
-    await taskFn();
+    await taskFn(null);
 
     vi.setSystemTime(new Date("2024-01-01T00:00:00.050Z"));
-    await expect(taskFn()).resolves.toBe("new");
+    await expect(taskFn(null)).resolves.toBe("new");
     vi.useRealTimers();
   });
 
@@ -163,8 +163,8 @@ describe("cache", () => {
     const deferred = createDeferred<string>();
     const taskFn = cache("key", store)(() => deferred.promise);
 
-    const first = taskFn();
-    const second = taskFn();
+    const first = taskFn(null);
+    const second = taskFn(null);
 
     deferred.resolve("value");
     await expect(Promise.all([first, second])).resolves.toEqual([
@@ -200,8 +200,8 @@ describe("cache", () => {
       () => deferreds[index++].promise,
     );
 
-    const first = taskFn();
-    const second = taskFn();
+    const first = taskFn(null);
+    const second = taskFn(null);
 
     deferreds[0].resolve("first");
     deferreds[1].resolve("second");
@@ -223,17 +223,17 @@ describe("staleWhileRevalidate", () => {
 
     vi.useFakeTimers();
     vi.setSystemTime(new Date("2024-01-01T00:00:00.000Z"));
-    await taskFn();
+    await taskFn(null);
 
     vi.setSystemTime(new Date("2024-01-01T00:00:00.040Z"));
-    await expect(taskFn()).resolves.toBe("data");
+    await expect(taskFn(null)).resolves.toBe("data");
     vi.useRealTimers();
   });
 
   it("passes the caller signal on a miss", async () => {
     const store = new MemoryCacheStore();
     const controller = new AbortController();
-    let received: AbortSignal | undefined;
+    let received: AbortSignal | null = null;
     const taskFn = staleWhileRevalidate("key", store, {
       ttl: 50,
       staleTtl: 50,
@@ -255,7 +255,7 @@ describe("staleWhileRevalidate", () => {
       throw new Error("boom");
     });
 
-    await expect(taskFn()).rejects.toThrow("boom");
+    await expect(taskFn(null)).rejects.toThrow("boom");
     expect(store.get("key")).toBeUndefined();
   });
 
@@ -269,7 +269,7 @@ describe("staleWhileRevalidate", () => {
 
     vi.useFakeTimers();
     vi.setSystemTime(new Date("2024-01-01T00:00:00.000Z"));
-    await seed();
+    await seed(null);
 
     const deferred = createDeferred<string>();
     const taskFn = staleWhileRevalidate("key", store, {
@@ -278,7 +278,7 @@ describe("staleWhileRevalidate", () => {
     })(() => deferred.promise);
 
     vi.setSystemTime(new Date("2024-01-01T00:00:00.020Z"));
-    await expect(taskFn()).resolves.toBe("initial");
+    await expect(taskFn(null)).resolves.toBe("initial");
 
     deferred.reject(new Error("boom"));
     await deferred.promise.catch(() => {});
@@ -306,13 +306,13 @@ describe("staleWhileRevalidate", () => {
     const cacheTaskFn = cache("key", store, { ttl: 10 })(
       () => deferred.promise,
     );
-    const inFlight = cacheTaskFn();
+    const inFlight = cacheTaskFn(null);
 
     const taskFn = staleWhileRevalidate("key", store, {
       ttl: 10,
       staleTtl: 30,
     })(() => deferred.promise);
-    await expect(taskFn()).resolves.toBe("cached");
+    await expect(taskFn(null)).resolves.toBe("cached");
 
     deferred.reject(new Error("boom"));
     await inFlight.catch(() => {});
@@ -333,7 +333,7 @@ describe("staleWhileRevalidate", () => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date("2024-01-01T00:00:00.000Z"));
     deferred.resolve("initial");
-    await taskFn();
+    await taskFn(null);
 
     await Promise.resolve();
 
@@ -351,7 +351,7 @@ describe("staleWhileRevalidate", () => {
     })(() => next.promise);
 
     vi.setSystemTime(new Date("2024-01-01T00:00:00.020Z"));
-    const result = await nextTaskFn();
+    const result = await nextTaskFn(null);
     expect(result).toBe("initial");
 
     next.resolve("updated");
@@ -366,7 +366,7 @@ describe("staleWhileRevalidate", () => {
     const store = new MemoryCacheStore();
     const controller = new AbortController();
     const deferred = createDeferred<string>();
-    let received: AbortSignal | undefined;
+    let received: AbortSignal | null = null;
 
     vi.useFakeTimers();
     vi.setSystemTime(new Date("2024-01-01T00:00:00.000Z"));
@@ -389,7 +389,7 @@ describe("staleWhileRevalidate", () => {
     deferred.resolve("updated");
     await deferred.promise;
 
-    expect(received).toBeUndefined();
+    expect(received).toBeNull();
     vi.useRealTimers();
   });
 
@@ -402,10 +402,10 @@ describe("staleWhileRevalidate", () => {
 
     vi.useFakeTimers();
     vi.setSystemTime(new Date("2024-01-01T00:00:00.000Z"));
-    await taskFn();
+    await taskFn(null);
 
     vi.setSystemTime(new Date("2024-01-01T00:00:00.050Z"));
-    await expect(taskFn()).resolves.toBe("new");
+    await expect(taskFn(null)).resolves.toBe("new");
     vi.useRealTimers();
   });
 });
@@ -417,7 +417,7 @@ describe("invalidateOnResolve", () => {
     store.set("b", { value: 2, createdAt: 1, updatedAt: 1 });
 
     const taskFn = invalidateOnResolve(["a", "b"], store)(async () => "ok");
-    await taskFn();
+    await taskFn(null);
 
     expect(store.has("a")).toBe(false);
     expect(store.has("b")).toBe(false);
@@ -432,7 +432,7 @@ describe("invalidateOnResolve", () => {
       { tags: ["t1"] },
       store,
     )(async () => "ok");
-    await taskFn();
+    await taskFn(null);
 
     expect(store.has("a")).toBe(false);
     expect(store.has("b")).toBe(false);
@@ -446,7 +446,7 @@ describe("invalidateOnResolve", () => {
       (id: number) => `user:${id}`,
       store,
     )(async () => 1);
-    await taskFn();
+    await taskFn(null);
 
     expect(store.has("user:1")).toBe(false);
   });
@@ -462,7 +462,7 @@ describe("invalidateOnResolve", () => {
       throw new Error("boom");
     });
 
-    await expect(taskFn()).rejects.toThrow("boom");
+    await expect(taskFn(null)).rejects.toThrow("boom");
     expect(store.has("a")).toBe(true);
   });
 

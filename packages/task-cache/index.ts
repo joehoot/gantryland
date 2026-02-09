@@ -299,7 +299,7 @@ const resolveWithDedupe = async <T, Args extends unknown[] = []>(
   key: CacheKey,
   store: CacheStore,
   taskFn: TaskFn<T, Args>,
-  signal: AbortSignal | undefined,
+  signal: AbortSignal | null,
   args: Args,
   options: CacheOptions = {},
   previous?: CacheEntry<T>,
@@ -359,7 +359,7 @@ const resolveWithDedupe = async <T, Args extends unknown[] = []>(
  *   (signal) => fetch("/api/users", { signal }).then((r) => r.json()),
  *   cache("users", store, { ttl: 10_000 })
  * );
- * const users = await taskFn();
+ * const users = await taskFn(null);
  * ```
  */
 export const cache =
@@ -369,7 +369,7 @@ export const cache =
     options: CacheOptions = {},
   ) =>
   (taskFn: TaskFn<T, Args>): TaskFn<T, Args> =>
-  async (signal?: AbortSignal, ...args: Args) => {
+  async (signal: AbortSignal | null, ...args: Args) => {
     const entry = store.get<T>(key);
     if (entry && isFresh(entry, options.ttl)) {
       store.emit?.({ type: "hit", key, entry });
@@ -404,7 +404,7 @@ export const cache =
  *   (signal) => fetch("/api/feed", { signal }).then((r) => r.json()),
  *   staleWhileRevalidate("feed", store, { ttl: 5_000, staleTtl: 30_000 })
  * );
- * const feed = await taskFn();
+ * const feed = await taskFn(null);
  * ```
  */
 export const staleWhileRevalidate =
@@ -414,7 +414,7 @@ export const staleWhileRevalidate =
     options: CacheOptions = {},
   ) =>
   (taskFn: TaskFn<T, Args>): TaskFn<T, Args> =>
-  async (signal?: AbortSignal, ...args: Args) => {
+  async (signal: AbortSignal | null, ...args: Args) => {
     const entry = store.get<T>(key);
     if (entry && isFresh(entry, options.ttl)) {
       store.emit?.({ type: "hit", key, entry });
@@ -428,7 +428,7 @@ export const staleWhileRevalidate =
         key,
         store,
         taskFn,
-        undefined,
+        null,
         args,
         options,
         entry,
@@ -465,7 +465,7 @@ export const staleWhileRevalidate =
  *   (signal) => fetch("/api/posts", { method: "POST", signal }).then((r) => r.json()),
  *   invalidateOnResolve({ tags: ["posts"] }, store)
  * );
- * await taskFn();
+ * await taskFn(null);
  * ```
  */
 export const invalidateOnResolve =
@@ -478,7 +478,7 @@ export const invalidateOnResolve =
     store: CacheStore,
   ) =>
   (taskFn: TaskFn<T, Args>): TaskFn<T, Args> =>
-  async (signal?: AbortSignal, ...args: Args) => {
+  async (signal: AbortSignal | null, ...args: Args) => {
     const result = await taskFn(signal, ...args);
     const resolved = typeof target === "function" ? target(result) : target;
     if (

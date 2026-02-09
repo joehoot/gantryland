@@ -46,6 +46,8 @@ export function UserPanel({ id }: { id: string }) {
 - Subscriptions use `useSyncExternalStore` for React 18+ correctness.
 - Hooks do not add retries, caching, or scheduling policy.
 - `run`, `cancel`, and `reset` proxy directly to the `Task` instance.
+- `run` returns `Promise<T | undefined>` and resolves `undefined` on error, abort, or superseded runs.
+- Pass a stable `Task` instance to hooks (memoize when creating in component scope).
 
 ## Related packages
 

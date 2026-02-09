@@ -27,7 +27,7 @@ const createAbortError = (): Error => {
   return error;
 };
 
-const sleep = (ms: number, signal?: AbortSignal): Promise<void> =>
+const sleep = (ms: number, signal: AbortSignal | null): Promise<void> =>
   new Promise((resolve, reject) => {
     if (signal?.aborted) {
       reject(createAbortError());
@@ -87,7 +87,7 @@ export class TimeoutError extends Error {
 export const map =
   <T, U, Args extends unknown[] = []>(fn: (data: T) => U) =>
   (taskFn: TaskFn<T, Args>): TaskFn<U, Args> =>
-  (signal?: AbortSignal, ...args: Args) =>
+  (signal: AbortSignal | null, ...args: Args) =>
     taskFn(signal, ...args).then(fn);
 
 /**
@@ -109,10 +109,10 @@ export const map =
  */
 export const flatMap =
   <T, U, Args extends unknown[] = []>(
-    fn: (data: T, signal?: AbortSignal) => Promise<U>,
+    fn: (data: T, signal: AbortSignal | null) => Promise<U>,
   ) =>
   (taskFn: TaskFn<T, Args>): TaskFn<U, Args> =>
-  (signal?: AbortSignal, ...args: Args) =>
+  (signal: AbortSignal | null, ...args: Args) =>
     taskFn(signal, ...args).then((data) => fn(data, signal));
 
 /**
@@ -134,7 +134,7 @@ export const flatMap =
 export const tap =
   <T, Args extends unknown[] = []>(fn: (data: T) => void) =>
   (taskFn: TaskFn<T, Args>): TaskFn<T, Args> =>
-  (signal?: AbortSignal, ...args: Args) =>
+  (signal: AbortSignal | null, ...args: Args) =>
     taskFn(signal, ...args).then((data) => {
       fn(data);
       return data;
@@ -161,7 +161,7 @@ export const tap =
 export const tapError =
   <T, Args extends unknown[] = []>(fn: (error: unknown) => void) =>
   (taskFn: TaskFn<T, Args>): TaskFn<T, Args> =>
-  (signal?: AbortSignal, ...args: Args) =>
+  (signal: AbortSignal | null, ...args: Args) =>
     taskFn(signal, ...args).catch((err) => {
       if (!isAbortError(err)) {
         fn(err);
@@ -181,7 +181,7 @@ export const tapError =
 export const tapAbort =
   <T, Args extends unknown[] = []>(fn: (error: unknown) => void) =>
   (taskFn: TaskFn<T, Args>): TaskFn<T, Args> =>
-  (signal?: AbortSignal, ...args: Args) =>
+  (signal: AbortSignal | null, ...args: Args) =>
     taskFn(signal, ...args).catch((err) => {
       if (isAbortError(err)) {
         fn(err);
@@ -210,7 +210,7 @@ export const tapAbort =
 export const mapError =
   <T, Args extends unknown[] = []>(fn: (error: unknown) => Error) =>
   (taskFn: TaskFn<T, Args>): TaskFn<T, Args> =>
-  (signal?: AbortSignal, ...args: Args) =>
+  (signal: AbortSignal | null, ...args: Args) =>
     taskFn(signal, ...args).catch((err) => {
       if (isAbortError(err)) throw err;
       throw fn(err);
@@ -247,7 +247,7 @@ export const catchError =
     fallback: T | Promise<T> | ((err: unknown) => T | Promise<T>),
   ) =>
   (taskFn: TaskFn<T, Args>): TaskFn<T, Args> =>
-  async (signal?: AbortSignal, ...args: Args) => {
+  async (signal: AbortSignal | null, ...args: Args) => {
     try {
       return await taskFn(signal, ...args);
     } catch (err) {
@@ -284,7 +284,7 @@ export const retry =
     options: { onRetry?: (err: unknown, attempt: number) => void } = {},
   ) =>
   (taskFn: TaskFn<T, Args>): TaskFn<T, Args> =>
-  async (signal?: AbortSignal, ...args: Args) => {
+  async (signal: AbortSignal | null, ...args: Args) => {
     const maxAttempts = Math.max(0, attempts);
     let lastError: unknown;
     for (let i = 0; i <= maxAttempts; i++) {
@@ -293,7 +293,9 @@ export const retry =
         return await taskFn(signal, ...args);
       } catch (err) {
         if (isAbortError(err)) throw err;
-        options.onRetry?.(err, i + 1);
+        if (i < maxAttempts) {
+          options.onRetry?.(err, i + 1);
+        }
         lastError = err;
       }
     }
@@ -320,7 +322,7 @@ export const retry =
 export const timeout =
   <T, Args extends unknown[] = []>(ms: number) =>
   (taskFn: TaskFn<T, Args>): TaskFn<T, Args> =>
-  (signal?: AbortSignal, ...args: Args) =>
+  (signal: AbortSignal | null, ...args: Args) =>
     new Promise((resolve, reject) => {
       if (signal?.aborted) {
         reject(createAbortError());
@@ -368,7 +370,7 @@ export const timeout =
 export const timeoutAbort =
   <T, Args extends unknown[] = []>(ms: number) =>
   (taskFn: TaskFn<T, Args>): TaskFn<T, Args> =>
-  (signal?: AbortSignal, ...args: Args) =>
+  (signal: AbortSignal | null, ...args: Args) =>
     new Promise((resolve, reject) => {
       if (signal?.aborted) {
         reject(createAbortError());
@@ -379,9 +381,15 @@ export const timeoutAbort =
       let settled = false;
       let timedOut = false;
 
+      const cleanup = () => {
+        clearTimeout(timer);
+        signal?.removeEventListener("abort", onAbort);
+      };
+
       const finish = (fn: () => void) => {
         if (settled) return;
         settled = true;
+        cleanup();
         fn();
       };
 
@@ -410,10 +418,6 @@ export const timeoutAbort =
             return;
           }
           finish(() => reject(toError(err)));
-        })
-        .finally(() => {
-          clearTimeout(timer);
-          signal?.removeEventListener("abort", onAbort);
         });
     });
 
@@ -430,7 +434,7 @@ export const timeoutAbort =
 export const timeoutWith =
   <T, Args extends unknown[] = []>(ms: number, fallback: TaskFn<T, Args>) =>
   (taskFn: TaskFn<T, Args>): TaskFn<T, Args> =>
-  (signal?: AbortSignal, ...args: Args) =>
+  (signal: AbortSignal | null, ...args: Args) =>
     timeout<T, Args>(ms)(taskFn)(signal, ...args).catch((err) => {
       if (isAbortError(err)) throw err;
       if (err instanceof TimeoutError) return fallback(signal, ...args);
@@ -445,7 +449,7 @@ export const zip =
   <T extends unknown[], Args extends unknown[] = []>(
     ...taskFns: { [K in keyof T]: TaskFn<T[K], Args> }
   ): TaskFn<T, Args> =>
-  (signal?: AbortSignal, ...args: Args) =>
+  (signal: AbortSignal | null, ...args: Args) =>
     Promise.all(taskFns.map((fn) => fn(signal, ...args))) as Promise<T>;
 
 /**
@@ -458,7 +462,7 @@ export function race<T extends unknown[], Args extends unknown[] = []>(
 export function race<Args extends unknown[]>(
   ...taskFns: TaskFn<unknown, Args>[]
 ): TaskFn<unknown, Args> {
-  return (signal?: AbortSignal, ...args: Args) =>
+  return (signal: AbortSignal | null, ...args: Args) =>
     Promise.race(taskFns.map((fn) => fn(signal, ...args)));
 }
 
@@ -470,7 +474,7 @@ export const sequence =
   <T extends unknown[], Args extends unknown[] = []>(
     ...taskFns: { [K in keyof T]: TaskFn<T[K], Args> }
   ): TaskFn<T, Args> =>
-  async (signal?: AbortSignal, ...args: Args) => {
+  async (signal: AbortSignal | null, ...args: Args) => {
     const results: unknown[] = [];
     for (const fn of taskFns) {
       if (signal?.aborted) throw createAbortError();
@@ -496,7 +500,7 @@ export const retryWhen =
     options: RetryWhenOptions = {},
   ) =>
   (taskFn: TaskFn<T, Args>): TaskFn<T, Args> =>
-  async (signal?: AbortSignal, ...args: Args) => {
+  async (signal: AbortSignal | null, ...args: Args) => {
     const maxAttempts = Math.max(
       0,
       options.maxAttempts ?? Number.POSITIVE_INFINITY,
@@ -555,7 +559,7 @@ export const debounce =
     let pendingReject: ((err: Error) => void) | null = null;
     let cleanupAbortListener: (() => void) | null = null;
     let callId = 0;
-    let lastSignal: AbortSignal | undefined;
+    let lastSignal: AbortSignal | null = null;
     let lastArgs: Args = [] as unknown as Args;
 
     const clearPending = () => {
@@ -564,7 +568,7 @@ export const debounce =
       pendingReject = null;
     };
 
-    return (signal?: AbortSignal, ...args: Args) => {
+    return (signal: AbortSignal | null, ...args: Args) => {
       callId += 1;
       const currentCallId = callId;
       lastSignal = signal;
@@ -618,6 +622,8 @@ export const debounce =
 
 /**
  * Throttle a TaskFn so calls share one run per window.
+ * Calls that arrive while the window is active reuse the same in-flight
+ * promise (including the first call's signal and args).
  */
 export const throttle =
   <T, Args extends unknown[] = []>(options: { windowMs: number }) =>
@@ -625,7 +631,7 @@ export const throttle =
     let lastRun = 0;
     let inFlight: Promise<T> | null = null;
 
-    return (signal?: AbortSignal, ...args: Args) => {
+    return (signal: AbortSignal | null, ...args: Args) => {
       const now = Date.now();
       if (inFlight && now - lastRun < options.windowMs) return inFlight;
 
@@ -657,7 +663,7 @@ export const queue =
       next.start();
     };
 
-    return (signal?: AbortSignal, ...args: Args) =>
+    return (signal: AbortSignal | null, ...args: Args) =>
       new Promise<T>((resolve, reject) => {
         let started = false;
         const entry = {

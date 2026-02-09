@@ -78,6 +78,7 @@ type CacheOptions = {
 - Dedupe is enabled by default (`dedupe !== false`).
   - Concurrent calls for the same key share one in-flight promise.
   - In deduped mode, only the first caller signal is used for that shared request.
+- When using wrapped cache/combinator TaskFns with parameterized `Task.run(...args)`, prefer `new Task(fn, { mode: "signal" })`.
 - `invalidateOnResolve(...)`
   - Invalidates keys/tags only after successful resolution.
   - Failures do not invalidate.

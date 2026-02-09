@@ -1,6 +1,6 @@
 {
   "name": "@gantryland/task-combinators",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "description": "Composable operators for @gantryland/task",
   "keywords": ["task", "combinators", "async", "retry"],
   "type": "module",
@@ -34,6 +34,6 @@
   },
   "homepage": "https://github.com/joehoot/gantryland/tree/main/packages/task-combinators#readme",
   "dependencies": {
-    "@gantryland/task": "^0.3.0"
+    "@gantryland/task": "^0.4.0"
   }
 }

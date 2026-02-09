@@ -4,7 +4,7 @@ Minimal async task with reactive state.
 
 A `Task` instance is the identity: share the instance to share async state across modules, services, and UI.
 
-- Small API (`run`, `subscribe`, `cancel`, `reset`)
+- Small API (`run`, `fulfill`, `subscribe`, `cancel`, `reset`)
 - AbortSignal-aware execution
 - Latest-request-wins behavior built in
 - No runtime dependencies; works in browser and Node.js
@@ -68,13 +68,19 @@ type TaskState<T> = {
 Transition shape:
 
 ```text
-stale -> run() -> loading -> success | error
+stale -> run() -> loading -> success | error | cancel
+
+any -> fulfill(data) -> success
+any -> reset() -> stale
 ```
 
 ## API
 
 ```typescript
-new Task<T, Args extends unknown[] = []>(fn: TaskFn<T, Args>)
+new Task<T, Args extends unknown[] = []>(
+  fn: TaskFn<T, Args> | PlainTaskFn<T, Args>,
+  options?: { mode?: "auto" | "signal" | "plain" }
+)
 ```
 
 | Member | Purpose | Return |
@@ -82,6 +88,7 @@ new Task<T, Args extends unknown[] = []>(fn: TaskFn<T, Args>)
 | `getState()` | Read current snapshot | `TaskState<T>` |
 | `subscribe(listener)` | Observe state changes (immediate first emit) | `() => void` |
 | `run(...args)` | Execute the current `TaskFn` | `Promise<T \| undefined>` |
+| `fulfill(data)` | Immediately set successful data state | `T` |
 | `cancel()` | Abort in-flight run and clear loading | `void` |
 | `reset()` | Restore initial stale state | `void` |
 
@@ -90,6 +97,11 @@ new Task<T, Args extends unknown[] = []>(fn: TaskFn<T, Args>)
 - Latest request wins; older completions are ignored.
 - `run()` clears `error`, sets `isLoading: true`, and flips `isStale: false`.
 - `run()` resolves `undefined` on error, abort, or superseded execution.
+- If `T` can be `undefined`, use `getState().error` and loading flags to disambiguate outcome.
+- Task functions can be signal-aware (`(signal, ...args)`) or plain (`(...args)`).
+- `mode: "auto"` (default) infers shape from function arity and can be ambiguous; use `"signal"`/`"plain"` to force behavior when needed.
+- For wrapped/composed signal-aware functions (for example from combinator/cache packages), prefer `mode: "signal"` on parameterized tasks.
+- `fulfill(data)` aborts in-flight work and sets `{ data, error: undefined, isLoading: false, isStale: false }`.
 - Failures keep previous `data` and normalize non-`Error` throws.
 - Listener errors are isolated (they do not break task state updates).
 
@@ -143,6 +155,16 @@ const task = new Task(async () => {
 });
 
 await task.run();
+```
+
+### 4) Plain task function (no signal arg)
+
+```typescript
+import { Task } from "@gantryland/task";
+
+const formatTask = new Task(async (id: number, label: string) => `${id}:${label}`);
+
+const value = await formatTask.run(7, "ok");
 ```
 
 ## Related packages

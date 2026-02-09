@@ -6,14 +6,21 @@ export type TaskState<T> = {
   isStale: boolean;
 };
 
-type Listener<T> = (state: TaskState<T>) => void;
+type Listener<T> = (state: Readonly<TaskState<T>>) => void;
 type Unsubscribe = () => void;
 
 /** Async function signature executed by `Task.run()`. */
 export type TaskFn<T, Args extends unknown[] = []> = (
-  signal?: AbortSignal,
+  signal: AbortSignal | null,
   ...args: Args
 ) => Promise<T>;
+
+/** Async function signature executed by `Task.run()` without signal support. */
+export type PlainTaskFn<T, Args extends unknown[] = []> = (
+  ...args: Args
+) => Promise<T>;
+
+type TaskMode = "auto" | "signal" | "plain";
 
 const isAbortError = (err: unknown): boolean =>
   (err instanceof Error && err.name === "AbortError") ||
@@ -25,12 +32,16 @@ const isAbortError = (err: unknown): boolean =>
 const toError = (err: unknown): Error =>
   err instanceof Error ? err : new Error(String(err));
 
-const createDefaultTaskState = <T>(): TaskState<T> => ({
-  data: undefined,
-  error: undefined,
-  isLoading: false,
-  isStale: true,
-});
+const toReadonlyState = <T>(state: TaskState<T>): Readonly<TaskState<T>> =>
+  Object.freeze(state);
+
+const createDefaultTaskState = <T>(): Readonly<TaskState<T>> =>
+  toReadonlyState({
+    data: undefined,
+    error: undefined,
+    isLoading: false,
+    isStale: true,
+  });
 
 /**
  * Minimal async primitive with reactive state and latest-run-wins semantics.
@@ -38,24 +49,45 @@ const createDefaultTaskState = <T>(): TaskState<T> => ({
  * The Task instance is the state identity: share the instance to share state.
  */
 export class Task<T, Args extends unknown[] = []> {
-  private _state: TaskState<T> = createDefaultTaskState<T>();
+  private _state: Readonly<TaskState<T>> = createDefaultTaskState<T>();
   private readonly listeners = new Set<Listener<T>>();
   private abortController: AbortController | null = null;
   private requestId = 0;
-  private readonly fn: TaskFn<T, Args>;
+  private readonly fn: TaskFn<T, Args> | PlainTaskFn<T, Args>;
+  private readonly mode: TaskMode;
 
-  /** Creates a task with a required `TaskFn`. */
-  constructor(fn: TaskFn<T, Args>) {
+  /** Creates a task with a required task function (signal-aware or plain). */
+  constructor(fn: TaskFn<T, Args>, options?: { mode?: "auto" | "signal" });
+  constructor(fn: PlainTaskFn<T, Args>, options?: { mode?: "auto" | "plain" });
+  constructor(
+    fn: TaskFn<T, Args> | PlainTaskFn<T, Args>,
+    options?: { mode?: TaskMode },
+  ) {
     this.fn = fn;
+    this.mode = options?.mode ?? "auto";
+  }
+
+  private executeFn(signal: AbortSignal | null, args: Args): Promise<T> {
+    if (this.mode === "signal") {
+      return (this.fn as TaskFn<T, Args>)(signal, ...args);
+    }
+    if (this.mode === "plain") {
+      return (this.fn as PlainTaskFn<T, Args>)(...args);
+    }
+
+    if (this.fn.length === 0 || this.fn.length === args.length) {
+      return (this.fn as PlainTaskFn<T, Args>)(...args);
+    }
+    return (this.fn as TaskFn<T, Args>)(signal, ...args);
   }
 
   private setState(state: TaskState<T>): void {
-    this._state = state;
+    this._state = toReadonlyState(state);
     this.notify();
   }
 
   private updateState(partial: Partial<TaskState<T>>): void {
-    this._state = { ...this._state, ...partial };
+    this._state = toReadonlyState({ ...this._state, ...partial });
     this.notify();
   }
 
@@ -83,7 +115,7 @@ export class Task<T, Args extends unknown[] = []> {
     this.updateState({ isLoading: true, isStale: false, error: undefined });
 
     try {
-      const data = await this.fn(this.abortController.signal, ...args);
+      const data = await this.executeFn(this.abortController.signal, args);
       if (currentRequestId !== this.requestId) return undefined;
       this.abortController = null;
       this.setState({
@@ -107,8 +139,8 @@ export class Task<T, Args extends unknown[] = []> {
     }
   }
 
-  /** Returns the current state snapshot. */
-  getState(): TaskState<T> {
+  /** Returns an immutable snapshot of current task state. */
+  getState(): Readonly<TaskState<T>> {
     return this._state;
   }
 
@@ -119,7 +151,11 @@ export class Task<T, Args extends unknown[] = []> {
    */
   subscribe(listener: Listener<T>): Unsubscribe {
     this.listeners.add(listener);
-    listener(this._state);
+    try {
+      listener(this._state);
+    } catch (error) {
+      console.error("Task listener error", error);
+    }
     return () => {
       this.listeners.delete(listener);
     };
@@ -134,6 +170,20 @@ export class Task<T, Args extends unknown[] = []> {
     if (this._state.isLoading) {
       this.updateState({ isLoading: false });
     }
+  }
+
+  /** Fulfills immediately with provided data and clears any in-flight run. */
+  fulfill(data: T): T {
+    this.requestId += 1;
+    this.abortController?.abort();
+    this.abortController = null;
+    this.setState({
+      data,
+      error: undefined,
+      isLoading: false,
+      isStale: false,
+    });
+    return data;
   }
 
   /** Aborts any in-flight run and restores the initial stale state. */

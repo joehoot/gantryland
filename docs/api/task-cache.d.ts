@@ -196,7 +196,7 @@ export type CacheOptions = {
  *   (signal) => fetch("/api/users", { signal }).then((r) => r.json()),
  *   cache("users", store, { ttl: 10_000 })
  * );
- * const users = await taskFn();
+ * const users = await taskFn(null);
  * ```
  */
 export declare const cache: <T, Args extends unknown[] = []>(key: CacheKey, store: CacheStore, options?: CacheOptions) => (taskFn: TaskFn<T, Args>) => TaskFn<T, Args>;
@@ -224,7 +224,7 @@ export declare const cache: <T, Args extends unknown[] = []>(key: CacheKey, stor
  *   (signal) => fetch("/api/feed", { signal }).then((r) => r.json()),
  *   staleWhileRevalidate("feed", store, { ttl: 5_000, staleTtl: 30_000 })
  * );
- * const feed = await taskFn();
+ * const feed = await taskFn(null);
  * ```
  */
 export declare const staleWhileRevalidate: <T, Args extends unknown[] = []>(key: CacheKey, store: CacheStore, options?: CacheOptions) => (taskFn: TaskFn<T, Args>) => TaskFn<T, Args>;
@@ -248,7 +248,7 @@ export declare const staleWhileRevalidate: <T, Args extends unknown[] = []>(key:
  *   (signal) => fetch("/api/posts", { method: "POST", signal }).then((r) => r.json()),
  *   invalidateOnResolve({ tags: ["posts"] }, store)
  * );
- * await taskFn();
+ * await taskFn(null);
  * ```
  */
 export declare const invalidateOnResolve: <T, Args extends unknown[] = []>(target: CacheKey | CacheKey[] | {

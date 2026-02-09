@@ -48,6 +48,8 @@ await usersTask.run();
 - `timeout(ms)` fails with `TimeoutError` and does **not** abort underlying work.
 - `timeoutAbort(ms)` fails with `TimeoutError` and aborts underlying work.
 - `timeoutWith(ms, fallback)` runs fallback only on timeout (not on abort).
+- `throttle({ windowMs })` shares the first in-window run (including its args and signal).
+- With parameterized `Task.run(...args)`, prefer `new Task(taskFn, { mode: "signal" })` for composed signal-aware pipelines.
 
 ## API
 
@@ -92,7 +94,7 @@ await usersTask.run();
 import { catchError, pipe, retry, tapError, timeout } from "@gantryland/task-combinators";
 
 const taskFn = pipe(
-  (signal?: AbortSignal) => fetch("/api/projects", { signal }).then((r) => r.json()),
+  (signal: AbortSignal | null) => fetch("/api/projects", { signal }).then((r) => r.json()),
   retry(2),
   timeout(4_000),
   tapError((error) => report(error)),
@@ -106,7 +108,7 @@ const taskFn = pipe(
 import { flatMap, map, pipe } from "@gantryland/task-combinators";
 
 const taskFn = pipe(
-  (signal?: AbortSignal) => fetch("/api/user", { signal }).then((r) => r.json()),
+  (signal: AbortSignal | null) => fetch("/api/user", { signal }).then((r) => r.json()),
   flatMap((user, signal) =>
     fetch(`/api/users/${user.id}/teams`, { signal }).then((r) => r.json())
   ),
@@ -119,9 +121,9 @@ const taskFn = pipe(
 ```typescript
 import { sequence, zip } from "@gantryland/task-combinators";
 
-const fetchUser = (signal?: AbortSignal) =>
+const fetchUser = (signal: AbortSignal | null) =>
   fetch("/api/user", { signal }).then((r) => r.json());
-const fetchTeams = (signal?: AbortSignal) =>
+const fetchTeams = (signal: AbortSignal | null) =>
   fetch("/api/teams", { signal }).then((r) => r.json());
 
 const tupleTaskFn = zip(fetchUser, fetchTeams);
@@ -133,11 +135,11 @@ const sequentialTaskFn = sequence(fetchUser, fetchTeams);
 ```typescript
 import { timeoutWith } from "@gantryland/task-combinators";
 
-const fetchCached = (signal?: AbortSignal) =>
+const fetchCached = (signal: AbortSignal | null) =>
   fetch("/api/users?cached=1", { signal }).then((r) => r.json());
 
 const taskFn = timeoutWith(3_000, fetchCached)(
-  (signal?: AbortSignal) => fetch("/api/users", { signal }).then((r) => r.json())
+  (signal: AbortSignal | null) => fetch("/api/users", { signal }).then((r) => r.json())
 );
 ```
 
