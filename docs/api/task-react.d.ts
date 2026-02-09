@@ -2,7 +2,7 @@
 import type { Task, TaskState } from "@gantryland/task";
 /** Hook return shape that augments Task state with imperative controls. */
 export type UseTaskResult<T, Args extends unknown[] = []> = TaskState<T> & {
-    run: (...args: Args) => Promise<T | undefined>;
+    run: (...args: Args) => Promise<T>;
     cancel: () => void;
     reset: () => void;
 };

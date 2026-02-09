@@ -2,7 +2,7 @@
 
 Minimal React hooks for `@gantryland/task`.
 
-Use this package for direct `Task` to React interop with no policy layer.
+Use this package for direct `Task` + React interop with no extra policy layer.
 
 ## Installation
 
@@ -16,8 +16,8 @@ npm install @gantryland/task-react @gantryland/task react
 import { Task } from "@gantryland/task";
 import { useTask } from "@gantryland/task-react";
 
-const userTask = new Task(async (signal, id: string) =>
-  fetch(`/api/users/${id}`, { signal }).then((r) => r.json()),
+const userTask = new Task(async (id: string) =>
+  fetch(`/api/users/${id}`).then((r) => r.json()),
 );
 
 export function UserPanel({ id }: { id: string }) {
@@ -38,32 +38,17 @@ export function UserPanel({ id }: { id: string }) {
 
 ## API
 
-| Export | Signature | Notes |
-| --- | --- | --- |
-| `UseTaskResult<T, Args>` | `TaskState<T> & { run, cancel, reset }` | Return type from `useTask` |
-| `useTaskState(task)` | `(task: Task<T, Args>) => TaskState<T>` | Subscribes to state only |
-| `useTask(task)` | `(task: Task<T, Args>) => UseTaskResult<T, Args>` | State + imperative controls |
-
-`UseTaskResult` properties:
-
-- `data`, `error`, `isLoading`, `isStale`: current task state.
-- `run(...args)`: proxies to `task.run(...args)` and returns `Promise<T | undefined>`.
-- `cancel()`: proxies to `task.cancel()`.
-- `reset()`: proxies to `task.reset()`.
+- `useTaskState(task)` returns `TaskState<T>`.
+- `useTask(task)` returns `UseTaskResult<T, Args>`.
+- `UseTaskResult.run(...args)` returns `Promise<T>` and rejects on failure/cancel.
+- `UseTaskResult.cancel()` proxies `task.cancel()`.
+- `UseTaskResult.reset()` proxies `task.reset()`.
 
 ## Semantics
 
-- Subscriptions use `useSyncExternalStore` for React 18+ correctness.
-- Hooks do not add retries, caching, or scheduling policy.
-- `run`, `cancel`, and `reset` proxy directly to the `Task` instance.
-- `run` returns `Promise<T | undefined>` and resolves `undefined` on error, abort, or superseded runs.
-- Pass a stable `Task` instance to hooks (memoize when creating in component scope).
-
-## Related packages
-
-- [@gantryland/task](../task/) - Task execution and state primitive
-- [@gantryland/task-combinators](../task-combinators/) - TaskFn composition and control-flow operators
-- [@gantryland/task-cache](../task-cache/) - Cache combinators and in-memory store
+- Uses `useSyncExternalStore` for React 18+ correctness.
+- Hooks do not add retry/cache/scheduling policy.
+- Pass a stable `Task` instance to avoid resubscribe churn.
 
 ## Test this package
 

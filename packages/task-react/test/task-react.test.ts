@@ -6,7 +6,7 @@ import { useTask, useTaskState } from "../index";
 
 describe("task-react", () => {
   it("useTaskState mirrors task state updates", async () => {
-    const task = new Task<string, [string]>(async (_signal, value) => value);
+    const task = new Task<string, [string]>(async (value) => value);
     let firstSnapshot: ReturnType<typeof task.getState> | undefined;
     let latestSnapshot: ReturnType<typeof task.getState> | undefined;
 
@@ -46,7 +46,7 @@ describe("task-react", () => {
   });
 
   it("useTask exposes run cancel and reset", async () => {
-    const task = new Task<string, [string]>(async (_signal, value) => value);
+    const task = new Task<string, [string]>(async (value) => value);
     let latest: ReturnType<typeof useTask<string, [string]>> | undefined;
 
     const Harness = () => {

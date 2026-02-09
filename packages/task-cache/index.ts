@@ -299,7 +299,6 @@ const resolveWithDedupe = async <T, Args extends unknown[] = []>(
   key: CacheKey,
   store: CacheStore,
   taskFn: TaskFn<T, Args>,
-  signal: AbortSignal | null,
   args: Args,
   options: CacheOptions = {},
   previous?: CacheEntry<T>,
@@ -320,7 +319,7 @@ const resolveWithDedupe = async <T, Args extends unknown[] = []>(
   }
 
   const promise = Promise.resolve()
-    .then(() => taskFn(signal, ...args))
+    .then(() => taskFn(...args))
     .then((value) => {
       setEntry(store, key, value, options.tags, previous);
       return value;
@@ -341,8 +340,8 @@ const resolveWithDedupe = async <T, Args extends unknown[] = []>(
  * Cache TaskFn results by key and store.
  *
  * Returns cached data when fresh; otherwise runs the TaskFn and stores the result.
- * If the TaskFn rejects (including AbortError), the cache is not updated.
- * Dedupe is enabled by default; when deduped, only the first caller's AbortSignal is used.
+ * If the TaskFn rejects, the cache is not updated.
+ * Dedupe is enabled by default; deduped callers share the same in-flight promise.
  * The returned TaskFn rejects when the underlying TaskFn rejects.
  *
  * @template T - Resolved data type
@@ -356,10 +355,10 @@ const resolveWithDedupe = async <T, Args extends unknown[] = []>(
  * ```typescript
  * const store = new MemoryCacheStore();
  * const taskFn = pipe(
- *   (signal) => fetch("/api/users", { signal }).then((r) => r.json()),
+ *   () => fetch("/api/users").then((r) => r.json()),
  *   cache("users", store, { ttl: 10_000 })
  * );
- * const users = await taskFn(null);
+ * const users = await taskFn();
  * ```
  */
 export const cache =
@@ -369,7 +368,7 @@ export const cache =
     options: CacheOptions = {},
   ) =>
   (taskFn: TaskFn<T, Args>): TaskFn<T, Args> =>
-  async (signal: AbortSignal | null, ...args: Args) => {
+  async (...args: Args) => {
     const entry = store.get<T>(key);
     if (entry && isFresh(entry, options.ttl)) {
       store.emit?.({ type: "hit", key, entry });
@@ -377,16 +376,16 @@ export const cache =
     }
 
     store.emit?.({ type: entry ? "stale" : "miss", key, entry });
-    return resolveWithDedupe(key, store, taskFn, signal, args, options, entry);
+    return resolveWithDedupe(key, store, taskFn, args, options, entry);
   };
 
 /**
  * Return cached data and refresh in the background when stale.
  *
  * Returns cached data when fresh, or when within the stale window.
- * If the TaskFn rejects (including AbortError), the cache is not updated.
- * Dedupe is enabled by default; when deduped, only the first caller's AbortSignal is used.
- * Background revalidation does not use the caller's AbortSignal.
+ * If the TaskFn rejects, the cache is not updated.
+ * Dedupe is enabled by default; deduped callers share the same in-flight promise.
+ * Background revalidation runs independently of the active caller.
  * Background errors emit `revalidateError`, are ignored, and do not update the cache.
  * The returned TaskFn rejects when the underlying TaskFn rejects.
  *
@@ -401,10 +400,10 @@ export const cache =
  * ```typescript
  * const store = new MemoryCacheStore();
  * const taskFn = pipe(
- *   (signal) => fetch("/api/feed", { signal }).then((r) => r.json()),
+ *   () => fetch("/api/feed").then((r) => r.json()),
  *   staleWhileRevalidate("feed", store, { ttl: 5_000, staleTtl: 30_000 })
  * );
- * const feed = await taskFn(null);
+ * const feed = await taskFn();
  * ```
  */
 export const staleWhileRevalidate =
@@ -414,7 +413,7 @@ export const staleWhileRevalidate =
     options: CacheOptions = {},
   ) =>
   (taskFn: TaskFn<T, Args>): TaskFn<T, Args> =>
-  async (signal: AbortSignal | null, ...args: Args) => {
+  async (...args: Args) => {
     const entry = store.get<T>(key);
     if (entry && isFresh(entry, options.ttl)) {
       store.emit?.({ type: "hit", key, entry });
@@ -428,7 +427,6 @@ export const staleWhileRevalidate =
         key,
         store,
         taskFn,
-        null,
         args,
         options,
         entry,
@@ -442,14 +440,14 @@ export const staleWhileRevalidate =
     }
 
     store.emit?.({ type: "miss", key, entry });
-    return resolveWithDedupe(key, store, taskFn, signal, args, options, entry);
+    return resolveWithDedupe(key, store, taskFn, args, options, entry);
   };
 
 /**
  * Invalidate cache entries after a TaskFn resolves.
  *
  * Supports keys, key arrays, tags, or a resolver function.
- * If the TaskFn rejects (including AbortError), no invalidation happens.
+ * If the TaskFn rejects, no invalidation happens.
  * The returned TaskFn rejects when the underlying TaskFn rejects.
  *
  * @template T - Resolved data type
@@ -462,10 +460,10 @@ export const staleWhileRevalidate =
  * ```typescript
  * const store = new MemoryCacheStore();
  * const taskFn = pipe(
- *   (signal) => fetch("/api/posts", { method: "POST", signal }).then((r) => r.json()),
+ *   () => fetch("/api/posts", { method: "POST" }).then((r) => r.json()),
  *   invalidateOnResolve({ tags: ["posts"] }, store)
  * );
- * await taskFn(null);
+ * await taskFn();
  * ```
  */
 export const invalidateOnResolve =
@@ -478,8 +476,8 @@ export const invalidateOnResolve =
     store: CacheStore,
   ) =>
   (taskFn: TaskFn<T, Args>): TaskFn<T, Args> =>
-  async (signal: AbortSignal | null, ...args: Args) => {
-    const result = await taskFn(signal, ...args);
+  async (...args: Args) => {
+    const result = await taskFn(...args);
     const resolved = typeof target === "function" ? target(result) : target;
     if (
       typeof resolved === "object" &&

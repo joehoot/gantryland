@@ -11,16 +11,8 @@ type Unsubscribe = () => void;
 
 /** Async function signature executed by `Task.run()`. */
 export type TaskFn<T, Args extends unknown[] = []> = (
-  signal: AbortSignal | null,
   ...args: Args
 ) => Promise<T>;
-
-/** Async function signature executed by `Task.run()` without signal support. */
-export type PlainTaskFn<T, Args extends unknown[] = []> = (
-  ...args: Args
-) => Promise<T>;
-
-type TaskMode = "auto" | "signal" | "plain";
 
 const isAbortError = (err: unknown): boolean =>
   (err instanceof Error && err.name === "AbortError") ||
@@ -34,6 +26,15 @@ const toError = (err: unknown): Error =>
 
 const toReadonlyState = <T>(state: TaskState<T>): Readonly<TaskState<T>> =>
   Object.freeze(state);
+
+const createAbortError = (): Error => {
+  if (typeof DOMException !== "undefined") {
+    return new DOMException("Aborted", "AbortError");
+  }
+  const error = new Error("Aborted");
+  error.name = "AbortError";
+  return error;
+};
 
 const createDefaultTaskState = <T>(): Readonly<TaskState<T>> =>
   toReadonlyState({
@@ -51,34 +52,22 @@ const createDefaultTaskState = <T>(): Readonly<TaskState<T>> =>
 export class Task<T, Args extends unknown[] = []> {
   private _state: Readonly<TaskState<T>> = createDefaultTaskState<T>();
   private readonly listeners = new Set<Listener<T>>();
-  private abortController: AbortController | null = null;
   private requestId = 0;
-  private readonly fn: TaskFn<T, Args> | PlainTaskFn<T, Args>;
-  private readonly mode: TaskMode;
+  private inFlight: {
+    requestId: number;
+    reject: (reason: Error) => void;
+  } | null = null;
+  private readonly fn: TaskFn<T, Args>;
 
-  /** Creates a task with a required task function (signal-aware or plain). */
-  constructor(fn: TaskFn<T, Args>, options?: { mode?: "auto" | "signal" });
-  constructor(fn: PlainTaskFn<T, Args>, options?: { mode?: "auto" | "plain" });
-  constructor(
-    fn: TaskFn<T, Args> | PlainTaskFn<T, Args>,
-    options?: { mode?: TaskMode },
-  ) {
+  /** Creates a task with a required async function. */
+  constructor(fn: TaskFn<T, Args>) {
     this.fn = fn;
-    this.mode = options?.mode ?? "auto";
   }
 
-  private executeFn(signal: AbortSignal | null, args: Args): Promise<T> {
-    if (this.mode === "signal") {
-      return (this.fn as TaskFn<T, Args>)(signal, ...args);
-    }
-    if (this.mode === "plain") {
-      return (this.fn as PlainTaskFn<T, Args>)(...args);
-    }
-
-    if (this.fn.length === 0 || this.fn.length === args.length) {
-      return (this.fn as PlainTaskFn<T, Args>)(...args);
-    }
-    return (this.fn as TaskFn<T, Args>)(signal, ...args);
+  private cancelInFlight(reason: Error): void {
+    if (!this.inFlight) return;
+    this.inFlight.reject(reason);
+    this.inFlight = null;
   }
 
   private setState(state: TaskState<T>): void {
@@ -104,20 +93,46 @@ export class Task<T, Args extends unknown[] = []> {
   /**
    * Executes the current `TaskFn`.
    *
-   * Starts loading, clears `error`, aborts any in-flight run, and enforces
-   * latest-run-wins. Returns `undefined` on error, abort, or superseded runs.
+   * Starts loading, clears `error`, cancels any in-flight run, and enforces
+   * latest-run-wins. Rejects on failures and cancellations.
    */
-  async run(...args: Args): Promise<T | undefined> {
+  async run(...args: Args): Promise<T> {
     const currentRequestId = ++this.requestId;
-    this.abortController?.abort();
-    this.abortController = new AbortController();
+    this.cancelInFlight(createAbortError());
 
     this.updateState({ isLoading: true, isStale: false, error: undefined });
 
+    let settled = false;
+    const cancelPromise = new Promise<T>((_resolve, reject) => {
+      this.inFlight = {
+        requestId: currentRequestId,
+        reject: (reason) => {
+          if (settled) return;
+          settled = true;
+          reject(reason);
+        },
+      };
+    });
+
+    let executionPromise: Promise<T>;
     try {
-      const data = await this.executeFn(this.abortController.signal, args);
-      if (currentRequestId !== this.requestId) return undefined;
-      this.abortController = null;
+      executionPromise = Promise.resolve(this.fn(...args));
+    } catch (error) {
+      executionPromise = Promise.reject(error);
+    }
+    void executionPromise.catch(() => {
+      // Prevent unhandled rejections when canceled by a newer run.
+    });
+
+    try {
+      const data = await Promise.race([executionPromise, cancelPromise]);
+      settled = true;
+      if (currentRequestId !== this.requestId) {
+        throw createAbortError();
+      }
+      if (this.inFlight?.requestId === currentRequestId) {
+        this.inFlight = null;
+      }
       this.setState({
         data,
         error: undefined,
@@ -126,16 +141,22 @@ export class Task<T, Args extends unknown[] = []> {
       });
       return data;
     } catch (err) {
-      if (currentRequestId !== this.requestId) return undefined;
-      this.abortController = null;
+      settled = true;
+      if (this.inFlight?.requestId === currentRequestId) {
+        this.inFlight = null;
+      }
+      if (currentRequestId !== this.requestId) {
+        throw createAbortError();
+      }
       if (isAbortError(err)) {
         if (this._state.isLoading) {
           this.updateState({ isLoading: false });
         }
-        return undefined;
+        throw toError(err);
       }
-      this.updateState({ error: toError(err), isLoading: false });
-      return undefined;
+      const error = toError(err);
+      this.updateState({ error, isLoading: false });
+      throw error;
     }
   }
 
@@ -163,10 +184,9 @@ export class Task<T, Args extends unknown[] = []> {
 
   /** Cancels any in-flight run and clears `isLoading`. */
   cancel(): void {
-    if (!this.abortController) return;
+    if (!this.inFlight) return;
     this.requestId += 1;
-    this.abortController.abort();
-    this.abortController = null;
+    this.cancelInFlight(createAbortError());
     if (this._state.isLoading) {
       this.updateState({ isLoading: false });
     }
@@ -175,8 +195,7 @@ export class Task<T, Args extends unknown[] = []> {
   /** Fulfills immediately with provided data and clears any in-flight run. */
   fulfill(data: T): T {
     this.requestId += 1;
-    this.abortController?.abort();
-    this.abortController = null;
+    this.cancelInFlight(createAbortError());
     this.setState({
       data,
       error: undefined,
@@ -189,8 +208,7 @@ export class Task<T, Args extends unknown[] = []> {
   /** Aborts any in-flight run and restores the initial stale state. */
   reset(): void {
     this.requestId += 1;
-    this.abortController?.abort();
-    this.abortController = null;
+    this.cancelInFlight(createAbortError());
     this.setState(createDefaultTaskState<T>());
   }
 }

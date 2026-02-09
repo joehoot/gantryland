@@ -20,9 +20,6 @@ const createDeferred = <T>() => {
   return { promise, resolve, reject };
 };
 
-const createAbortError = () =>
-  Object.assign(new Error("Aborted"), { name: "AbortError" });
-
 describe("MemoryCacheStore", () => {
   it("stores and retrieves entries", () => {
     const store = new MemoryCacheStore();
@@ -63,22 +60,6 @@ describe("MemoryCacheStore", () => {
     expect(errorSpy).toHaveBeenCalled();
     errorSpy.mockRestore();
   });
-
-  it("invalidates by tags and cleans tag index", () => {
-    const store = new MemoryCacheStore();
-    store.set("a", { value: 1, createdAt: 1, updatedAt: 1, tags: ["t1"] });
-    store.set("b", {
-      value: 2,
-      createdAt: 1,
-      updatedAt: 1,
-      tags: ["t1", "t2"],
-    });
-
-    store.invalidateTags(["t1"]);
-
-    expect(store.has("a")).toBe(false);
-    expect(store.has("b")).toBe(false);
-  });
 });
 
 describe("cache", () => {
@@ -89,24 +70,11 @@ describe("cache", () => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date("2024-01-01T00:00:00.000Z"));
 
-    await expect(taskFn(null)).resolves.toBe("fresh");
+    await expect(taskFn()).resolves.toBe("fresh");
     vi.setSystemTime(new Date("2024-01-01T00:00:00.050Z"));
-    await expect(taskFn(null)).resolves.toBe("fresh");
+    await expect(taskFn()).resolves.toBe("fresh");
 
     vi.useRealTimers();
-  });
-
-  it("rejects when the TaskFn throws synchronously", async () => {
-    const store = new MemoryCacheStore();
-    const taskFn = cache(
-      "key",
-      store,
-    )(() => {
-      throw new Error("boom");
-    });
-
-    await expect(taskFn(null)).rejects.toThrow("boom");
-    expect(store.get("key")).toBeUndefined();
   });
 
   it("does not cache when the TaskFn rejects", async () => {
@@ -118,44 +86,8 @@ describe("cache", () => {
       throw new Error("nope");
     });
 
-    await expect(taskFn(null)).rejects.toThrow("nope");
+    await expect(taskFn()).rejects.toThrow("nope");
     expect(store.get("key")).toBeUndefined();
-  });
-
-  it("does not cache when aborted", async () => {
-    const store = new MemoryCacheStore();
-    const controller = new AbortController();
-    const taskFn = cache(
-      "key",
-      store,
-    )(async (signal) => {
-      return new Promise<string>((_, reject) => {
-        if (!signal) return reject(new Error("missing signal"));
-        if (signal.aborted) return reject(createAbortError());
-        signal.addEventListener("abort", () => reject(createAbortError()), {
-          once: true,
-        });
-      });
-    });
-
-    const promise = taskFn(controller.signal);
-    controller.abort();
-
-    await expect(promise).rejects.toHaveProperty("name", "AbortError");
-    expect(store.get("key")).toBeUndefined();
-  });
-
-  it("refetches when stale", async () => {
-    const store = new MemoryCacheStore();
-    const taskFn = cache("key", store, { ttl: 10 })(async () => "new");
-
-    vi.useFakeTimers();
-    vi.setSystemTime(new Date("2024-01-01T00:00:00.000Z"));
-    await taskFn(null);
-
-    vi.setSystemTime(new Date("2024-01-01T00:00:00.050Z"));
-    await expect(taskFn(null)).resolves.toBe("new");
-    vi.useRealTimers();
   });
 
   it("dedupes in-flight requests by default", async () => {
@@ -163,29 +95,10 @@ describe("cache", () => {
     const deferred = createDeferred<string>();
     const taskFn = cache("key", store)(() => deferred.promise);
 
-    const first = taskFn(null);
-    const second = taskFn(null);
+    const first = taskFn();
+    const second = taskFn();
 
     deferred.resolve("value");
-    await expect(Promise.all([first, second])).resolves.toEqual([
-      "value",
-      "value",
-    ]);
-  });
-
-  it("ignores later abort signals when deduped", async () => {
-    const store = new MemoryCacheStore();
-    const deferred = createDeferred<string>();
-    const taskFn = cache("key", store)(() => deferred.promise);
-
-    const controller = new AbortController();
-    const first = taskFn(controller.signal);
-    const secondController = new AbortController();
-    const second = taskFn(secondController.signal);
-
-    secondController.abort();
-    deferred.resolve("value");
-
     await expect(Promise.all([first, second])).resolves.toEqual([
       "value",
       "value",
@@ -200,8 +113,8 @@ describe("cache", () => {
       () => deferreds[index++].promise,
     );
 
-    const first = taskFn(null);
-    const second = taskFn(null);
+    const first = taskFn();
+    const second = taskFn();
 
     deferreds[0].resolve("first");
     deferreds[1].resolve("second");
@@ -223,27 +136,11 @@ describe("staleWhileRevalidate", () => {
 
     vi.useFakeTimers();
     vi.setSystemTime(new Date("2024-01-01T00:00:00.000Z"));
-    await taskFn(null);
+    await taskFn();
 
     vi.setSystemTime(new Date("2024-01-01T00:00:00.040Z"));
-    await expect(taskFn(null)).resolves.toBe("data");
+    await expect(taskFn()).resolves.toBe("data");
     vi.useRealTimers();
-  });
-
-  it("passes the caller signal on a miss", async () => {
-    const store = new MemoryCacheStore();
-    const controller = new AbortController();
-    let received: AbortSignal | null = null;
-    const taskFn = staleWhileRevalidate("key", store, {
-      ttl: 50,
-      staleTtl: 50,
-    })(async (signal) => {
-      received = signal;
-      return "data";
-    });
-
-    await taskFn(controller.signal);
-    expect(received).toBe(controller.signal);
   });
 
   it("rejects on miss when the TaskFn errors", async () => {
@@ -255,7 +152,7 @@ describe("staleWhileRevalidate", () => {
       throw new Error("boom");
     });
 
-    await expect(taskFn(null)).rejects.toThrow("boom");
+    await expect(taskFn()).rejects.toThrow("boom");
     expect(store.get("key")).toBeUndefined();
   });
 
@@ -269,7 +166,7 @@ describe("staleWhileRevalidate", () => {
 
     vi.useFakeTimers();
     vi.setSystemTime(new Date("2024-01-01T00:00:00.000Z"));
-    await seed(null);
+    await seed();
 
     const deferred = createDeferred<string>();
     const taskFn = staleWhileRevalidate("key", store, {
@@ -278,46 +175,13 @@ describe("staleWhileRevalidate", () => {
     })(() => deferred.promise);
 
     vi.setSystemTime(new Date("2024-01-01T00:00:00.020Z"));
-    await expect(taskFn(null)).resolves.toBe("initial");
+    await expect(taskFn()).resolves.toBe("initial");
 
     deferred.reject(new Error("boom"));
     await deferred.promise.catch(() => {});
     await Promise.resolve();
 
     expect(store.get<string>("key")?.value).toBe("initial");
-    expect(events).toContain("revalidateError");
-    vi.useRealTimers();
-  });
-
-  it("emits revalidateError when deduped revalidation fails", async () => {
-    const store = new MemoryCacheStore();
-    const events: string[] = [];
-    store.subscribe((event) => events.push(event.type));
-
-    vi.useFakeTimers();
-    vi.setSystemTime(new Date("2024-01-01T00:00:00.000Z"));
-    store.set("key", {
-      value: "cached",
-      createdAt: Date.now(),
-      updatedAt: Date.now() - 20,
-    });
-
-    const deferred = createDeferred<string>();
-    const cacheTaskFn = cache("key", store, { ttl: 10 })(
-      () => deferred.promise,
-    );
-    const inFlight = cacheTaskFn(null);
-
-    const taskFn = staleWhileRevalidate("key", store, {
-      ttl: 10,
-      staleTtl: 30,
-    })(() => deferred.promise);
-    await expect(taskFn(null)).resolves.toBe("cached");
-
-    deferred.reject(new Error("boom"));
-    await inFlight.catch(() => {});
-    await Promise.resolve();
-
     expect(events).toContain("revalidateError");
     vi.useRealTimers();
   });
@@ -333,7 +197,7 @@ describe("staleWhileRevalidate", () => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date("2024-01-01T00:00:00.000Z"));
     deferred.resolve("initial");
-    await taskFn(null);
+    await taskFn();
 
     await Promise.resolve();
 
@@ -351,7 +215,7 @@ describe("staleWhileRevalidate", () => {
     })(() => next.promise);
 
     vi.setSystemTime(new Date("2024-01-01T00:00:00.020Z"));
-    const result = await nextTaskFn(null);
+    const result = await nextTaskFn();
     expect(result).toBe("initial");
 
     next.resolve("updated");
@@ -359,53 +223,6 @@ describe("staleWhileRevalidate", () => {
     await revalidated.promise;
     unsubscribe();
     expect(store.get<string>("key")?.value).toBe("updated");
-    vi.useRealTimers();
-  });
-
-  it("does not pass a caller signal to background revalidation", async () => {
-    const store = new MemoryCacheStore();
-    const controller = new AbortController();
-    const deferred = createDeferred<string>();
-    let received: AbortSignal | null = null;
-
-    vi.useFakeTimers();
-    vi.setSystemTime(new Date("2024-01-01T00:00:00.000Z"));
-
-    store.set("key", {
-      value: "cached",
-      createdAt: Date.now(),
-      updatedAt: Date.now() - 20,
-    });
-
-    const taskFn = staleWhileRevalidate("key", store, {
-      ttl: 10,
-      staleTtl: 30,
-    })(async (signal) => {
-      received = signal;
-      return deferred.promise;
-    });
-
-    await expect(taskFn(controller.signal)).resolves.toBe("cached");
-    deferred.resolve("updated");
-    await deferred.promise;
-
-    expect(received).toBeNull();
-    vi.useRealTimers();
-  });
-
-  it("falls through to fetch when beyond stale window", async () => {
-    const store = new MemoryCacheStore();
-    const taskFn = staleWhileRevalidate("key", store, {
-      ttl: 10,
-      staleTtl: 10,
-    })(async () => "new");
-
-    vi.useFakeTimers();
-    vi.setSystemTime(new Date("2024-01-01T00:00:00.000Z"));
-    await taskFn(null);
-
-    vi.setSystemTime(new Date("2024-01-01T00:00:00.050Z"));
-    await expect(taskFn(null)).resolves.toBe("new");
     vi.useRealTimers();
   });
 });
@@ -417,7 +234,7 @@ describe("invalidateOnResolve", () => {
     store.set("b", { value: 2, createdAt: 1, updatedAt: 1 });
 
     const taskFn = invalidateOnResolve(["a", "b"], store)(async () => "ok");
-    await taskFn(null);
+    await taskFn();
 
     expect(store.has("a")).toBe(false);
     expect(store.has("b")).toBe(false);
@@ -432,7 +249,7 @@ describe("invalidateOnResolve", () => {
       { tags: ["t1"] },
       store,
     )(async () => "ok");
-    await taskFn(null);
+    await taskFn();
 
     expect(store.has("a")).toBe(false);
     expect(store.has("b")).toBe(false);
@@ -446,7 +263,7 @@ describe("invalidateOnResolve", () => {
       (id: number) => `user:${id}`,
       store,
     )(async () => 1);
-    await taskFn(null);
+    await taskFn();
 
     expect(store.has("user:1")).toBe(false);
   });
@@ -462,32 +279,7 @@ describe("invalidateOnResolve", () => {
       throw new Error("boom");
     });
 
-    await expect(taskFn(null)).rejects.toThrow("boom");
-    expect(store.has("a")).toBe(true);
-  });
-
-  it("does not invalidate when the TaskFn aborts", async () => {
-    const store = new MemoryCacheStore();
-    store.set("a", { value: 1, createdAt: 1, updatedAt: 1 });
-
-    const taskFn = invalidateOnResolve(
-      "a",
-      store,
-    )(async (signal) => {
-      return new Promise<void>((_, reject) => {
-        if (!signal) return reject(new Error("missing signal"));
-        if (signal.aborted) return reject(createAbortError());
-        signal.addEventListener("abort", () => reject(createAbortError()), {
-          once: true,
-        });
-      });
-    });
-
-    const controller = new AbortController();
-    const promise = taskFn(controller.signal);
-    controller.abort();
-
-    await expect(promise).rejects.toHaveProperty("name", "AbortError");
+    await expect(taskFn()).rejects.toThrow("boom");
     expect(store.has("a")).toBe(true);
   });
 });

@@ -178,8 +178,8 @@ export type CacheOptions = {
  * Cache TaskFn results by key and store.
  *
  * Returns cached data when fresh; otherwise runs the TaskFn and stores the result.
- * If the TaskFn rejects (including AbortError), the cache is not updated.
- * Dedupe is enabled by default; when deduped, only the first caller's AbortSignal is used.
+ * If the TaskFn rejects, the cache is not updated.
+ * Dedupe is enabled by default; deduped callers share the same in-flight promise.
  * The returned TaskFn rejects when the underlying TaskFn rejects.
  *
  * @template T - Resolved data type
@@ -193,10 +193,10 @@ export type CacheOptions = {
  * ```typescript
  * const store = new MemoryCacheStore();
  * const taskFn = pipe(
- *   (signal) => fetch("/api/users", { signal }).then((r) => r.json()),
+ *   () => fetch("/api/users").then((r) => r.json()),
  *   cache("users", store, { ttl: 10_000 })
  * );
- * const users = await taskFn(null);
+ * const users = await taskFn();
  * ```
  */
 export declare const cache: <T, Args extends unknown[] = []>(key: CacheKey, store: CacheStore, options?: CacheOptions) => (taskFn: TaskFn<T, Args>) => TaskFn<T, Args>;
@@ -204,9 +204,9 @@ export declare const cache: <T, Args extends unknown[] = []>(key: CacheKey, stor
  * Return cached data and refresh in the background when stale.
  *
  * Returns cached data when fresh, or when within the stale window.
- * If the TaskFn rejects (including AbortError), the cache is not updated.
- * Dedupe is enabled by default; when deduped, only the first caller's AbortSignal is used.
- * Background revalidation does not use the caller's AbortSignal.
+ * If the TaskFn rejects, the cache is not updated.
+ * Dedupe is enabled by default; deduped callers share the same in-flight promise.
+ * Background revalidation runs independently of the active caller.
  * Background errors emit `revalidateError`, are ignored, and do not update the cache.
  * The returned TaskFn rejects when the underlying TaskFn rejects.
  *
@@ -221,10 +221,10 @@ export declare const cache: <T, Args extends unknown[] = []>(key: CacheKey, stor
  * ```typescript
  * const store = new MemoryCacheStore();
  * const taskFn = pipe(
- *   (signal) => fetch("/api/feed", { signal }).then((r) => r.json()),
+ *   () => fetch("/api/feed").then((r) => r.json()),
  *   staleWhileRevalidate("feed", store, { ttl: 5_000, staleTtl: 30_000 })
  * );
- * const feed = await taskFn(null);
+ * const feed = await taskFn();
  * ```
  */
 export declare const staleWhileRevalidate: <T, Args extends unknown[] = []>(key: CacheKey, store: CacheStore, options?: CacheOptions) => (taskFn: TaskFn<T, Args>) => TaskFn<T, Args>;
@@ -232,7 +232,7 @@ export declare const staleWhileRevalidate: <T, Args extends unknown[] = []>(key:
  * Invalidate cache entries after a TaskFn resolves.
  *
  * Supports keys, key arrays, tags, or a resolver function.
- * If the TaskFn rejects (including AbortError), no invalidation happens.
+ * If the TaskFn rejects, no invalidation happens.
  * The returned TaskFn rejects when the underlying TaskFn rejects.
  *
  * @template T - Resolved data type
@@ -245,10 +245,10 @@ export declare const staleWhileRevalidate: <T, Args extends unknown[] = []>(key:
  * ```typescript
  * const store = new MemoryCacheStore();
  * const taskFn = pipe(
- *   (signal) => fetch("/api/posts", { method: "POST", signal }).then((r) => r.json()),
+ *   () => fetch("/api/posts", { method: "POST" }).then((r) => r.json()),
  *   invalidateOnResolve({ tags: ["posts"] }, store)
  * );
- * await taskFn(null);
+ * await taskFn();
  * ```
  */
 export declare const invalidateOnResolve: <T, Args extends unknown[] = []>(target: CacheKey | CacheKey[] | {

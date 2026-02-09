@@ -9,9 +9,7 @@ export type TaskState<T> = {
 type Listener<T> = (state: Readonly<TaskState<T>>) => void;
 type Unsubscribe = () => void;
 /** Async function signature executed by `Task.run()`. */
-export type TaskFn<T, Args extends unknown[] = []> = (signal: AbortSignal | null, ...args: Args) => Promise<T>;
-/** Async function signature executed by `Task.run()` without signal support. */
-export type PlainTaskFn<T, Args extends unknown[] = []> = (...args: Args) => Promise<T>;
+export type TaskFn<T, Args extends unknown[] = []> = (...args: Args) => Promise<T>;
 /**
  * Minimal async primitive with reactive state and latest-run-wins semantics.
  *
@@ -20,28 +18,22 @@ export type PlainTaskFn<T, Args extends unknown[] = []> = (...args: Args) => Pro
 export declare class Task<T, Args extends unknown[] = []> {
     private _state;
     private readonly listeners;
-    private abortController;
     private requestId;
+    private inFlight;
     private readonly fn;
-    private readonly mode;
-    /** Creates a task with a required task function (signal-aware or plain). */
-    constructor(fn: TaskFn<T, Args>, options?: {
-        mode?: "auto" | "signal";
-    });
-    constructor(fn: PlainTaskFn<T, Args>, options?: {
-        mode?: "auto" | "plain";
-    });
-    private executeFn;
+    /** Creates a task with a required async function. */
+    constructor(fn: TaskFn<T, Args>);
+    private cancelInFlight;
     private setState;
     private updateState;
     private notify;
     /**
      * Executes the current `TaskFn`.
      *
-     * Starts loading, clears `error`, aborts any in-flight run, and enforces
-     * latest-run-wins. Returns `undefined` on error, abort, or superseded runs.
+     * Starts loading, clears `error`, cancels any in-flight run, and enforces
+     * latest-run-wins. Rejects on failures and cancellations.
      */
-    run(...args: Args): Promise<T | undefined>;
+    run(...args: Args): Promise<T>;
     /** Returns an immutable snapshot of current task state. */
     getState(): Readonly<TaskState<T>>;
     /**

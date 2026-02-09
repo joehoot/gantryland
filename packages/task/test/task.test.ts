@@ -88,42 +88,12 @@ describe("Task", () => {
   });
 
   it("forwards run args to the task function", async () => {
-    const task = new Task<string, [number, string]>(
-      async (_signal, id, label) => Promise.resolve(`${id}:${label}`),
-    );
-
-    await task.run(7, "ok");
-    expect(task.getState().data).toBe("7:ok");
-  });
-
-  it("supports plain task functions with args", async () => {
     const task = new Task<string, [number, string]>(async (id, label) =>
       Promise.resolve(`${id}:${label}`),
     );
 
-    await task.run(7, "ok");
+    await expect(task.run(7, "ok")).resolves.toBe("7:ok");
     expect(task.getState().data).toBe("7:ok");
-  });
-
-  it("respects mode plain for ambiguous arity", async () => {
-    const task = new Task<string, [string]>(
-      async (value) => Promise.resolve(value),
-      { mode: "plain" },
-    );
-
-    await task.run("ok");
-    expect(task.getState().data).toBe("ok");
-  });
-
-  it("respects mode signal for ambiguous arity", async () => {
-    const task = new Task<string>(
-      async (signal: AbortSignal | null = null) =>
-        Promise.resolve(signal ? "has-signal" : "missing"),
-      { mode: "signal" },
-    );
-
-    await task.run();
-    expect(task.getState().data).toBe("has-signal");
   });
 
   it("preserves data when later runs fail", async () => {
@@ -136,7 +106,7 @@ describe("Task", () => {
 
     await task.run();
     fail = true;
-    await task.run();
+    await expect(task.run()).rejects.toBe(error);
 
     expect(task.getState().data).toBe("initial");
     expect(task.getState().error).toBe(error);
@@ -148,17 +118,17 @@ describe("Task", () => {
       throw "boom";
     });
 
-    await task.run();
+    await expect(task.run()).rejects.toMatchObject({ message: "boom" });
     expect(task.getState().error).toBeInstanceOf(Error);
     expect(task.getState().error?.message).toBe("boom");
   });
 
-  it("normalizes null failures without crashing abort checks", async () => {
+  it("normalizes null failures", async () => {
     const task = new Task(async () => {
       throw null;
     });
 
-    await expect(task.run()).resolves.toBe(undefined);
+    await expect(task.run()).rejects.toMatchObject({ message: "null" });
     expect(task.getState().error?.message).toBe("null");
   });
 
@@ -171,7 +141,7 @@ describe("Task", () => {
       return deferred.promise;
     });
 
-    await task.run();
+    await expect(task.run()).rejects.toThrow("boom");
     const runPromise = task.run();
     expect(task.getState().error).toBe(undefined);
     expect(task.getState().isLoading).toBe(true);
@@ -180,39 +150,25 @@ describe("Task", () => {
     await runPromise;
   });
 
-  it("returns undefined and clears loading on cancel", async () => {
-    const task = new Task(
-      (signal) =>
-        new Promise<string>((_, reject) => {
-          signal?.addEventListener("abort", () => reject(createAbortError()), {
-            once: true,
-          });
-        }),
-    );
+  it("cancel rejects in-flight run and clears loading", async () => {
+    const task = new Task(() => new Promise<string>(() => {}));
 
     const runPromise = task.run();
     task.cancel();
 
-    await expect(runPromise).resolves.toBe(undefined);
+    await expect(runPromise).rejects.toMatchObject({ name: "AbortError" });
     expect(task.getState().isLoading).toBe(false);
     expect(task.getState().error).toBe(undefined);
   });
 
-  it("ignores AbortError thrown by the task function", async () => {
+  it("treats AbortError as cancellation and does not set error", async () => {
     const task = new Task(async () => {
       throw createAbortError();
     });
 
-    await expect(task.run()).resolves.toBe(undefined);
+    await expect(task.run()).rejects.toMatchObject({ name: "AbortError" });
     expect(task.getState().error).toBe(undefined);
-  });
-
-  it("returns undefined on failure", async () => {
-    const task = new Task(async () => {
-      throw new Error("boom");
-    });
-
-    await expect(task.run()).resolves.toBe(undefined);
+    expect(task.getState().isLoading).toBe(false);
   });
 
   it("uses the latest run when multiple runs overlap", async () => {
@@ -224,12 +180,13 @@ describe("Task", () => {
     });
 
     const firstRun = task.run();
+    void firstRun.catch(() => {});
     const secondRun = task.run();
 
     deferreds[0].resolve("first");
     deferreds[1].resolve("second");
 
-    await expect(firstRun).resolves.toBe(undefined);
+    await expect(firstRun).rejects.toMatchObject({ name: "AbortError" });
     await expect(secondRun).resolves.toBe("second");
     expect(task.getState().data).toBe("second");
   });
@@ -258,30 +215,61 @@ describe("Task", () => {
     });
   });
 
-  it("preserves prior data when canceled during a later run", async () => {
-    let call = 0;
-    const task = new Task(
-      (signal) =>
-        new Promise<string>((resolve, reject) => {
-          call += 1;
-          if (call === 1) {
-            resolve("cached");
-            return;
-          }
+  it("fulfill sets data immediately", () => {
+    const task = new Task<string>(async () => "ignored");
 
-          signal?.addEventListener("abort", () => reject(createAbortError()), {
-            once: true,
-          });
-        }),
-    );
+    const result = task.fulfill("ready");
 
-    await task.run();
+    expect(result).toBe("ready");
+    expect(task.getState()).toEqual({
+      data: "ready",
+      error: undefined,
+      isLoading: false,
+      isStale: false,
+    });
+  });
+
+  it("fulfill clears previous error", async () => {
+    const task = new Task<string>(async () => {
+      throw new Error("boom");
+    });
+
+    await expect(task.run()).rejects.toThrow("boom");
+    expect(task.getState().error?.message).toBe("boom");
+
+    task.fulfill("recovered");
+    expect(task.getState().error).toBe(undefined);
+    expect(task.getState().data).toBe("recovered");
+  });
+
+  it("fulfill cancels in-flight run and keeps fulfilled data", async () => {
+    const task = new Task(() => new Promise<string>(() => {}));
+
     const runPromise = task.run();
-    task.cancel();
-    await runPromise;
+    task.fulfill("manual");
 
-    expect(task.getState().data).toBe("cached");
-    expect(task.getState().isLoading).toBe(false);
+    await expect(runPromise).rejects.toMatchObject({ name: "AbortError" });
+    expect(task.getState()).toEqual({
+      data: "manual",
+      error: undefined,
+      isLoading: false,
+      isStale: false,
+    });
+  });
+
+  it("reset cancels in-flight run and restores stale state", async () => {
+    const task = new Task(() => new Promise<string>(() => {}));
+
+    const runPromise = task.run();
+    task.reset();
+
+    await expect(runPromise).rejects.toMatchObject({ name: "AbortError" });
+    expect(task.getState()).toEqual({
+      data: undefined,
+      error: undefined,
+      isLoading: false,
+      isStale: true,
+    });
   });
 
   it("isolates listener errors", async () => {
@@ -326,64 +314,16 @@ describe("Task", () => {
     });
 
     const firstRun = task.run();
+    void firstRun.catch(() => {});
     const secondRun = task.run();
 
     deferreds[1].resolve("second");
     deferreds[0].reject(new Error("older"));
 
-    await secondRun;
-    await firstRun;
+    await expect(secondRun).resolves.toBe("second");
+    await expect(firstRun).rejects.toMatchObject({ name: "AbortError" });
 
     expect(task.getState().data).toBe("second");
     expect(task.getState().error).toBe(undefined);
-  });
-
-  it("fulfill sets data immediately", () => {
-    const task = new Task<string>(async () => "ignored");
-
-    const result = task.fulfill("ready");
-
-    expect(result).toBe("ready");
-    expect(task.getState()).toEqual({
-      data: "ready",
-      error: undefined,
-      isLoading: false,
-      isStale: false,
-    });
-  });
-
-  it("fulfill clears previous error", async () => {
-    const task = new Task<string>(async () => {
-      throw new Error("boom");
-    });
-
-    await task.run();
-    expect(task.getState().error?.message).toBe("boom");
-
-    task.fulfill("recovered");
-    expect(task.getState().error).toBe(undefined);
-    expect(task.getState().data).toBe("recovered");
-  });
-
-  it("fulfill aborts in-flight run and keeps fulfilled data", async () => {
-    const task = new Task(
-      (signal) =>
-        new Promise<string>((_, reject) => {
-          signal?.addEventListener("abort", () => reject(createAbortError()), {
-            once: true,
-          });
-        }),
-    );
-
-    const runPromise = task.run();
-    task.fulfill("manual");
-
-    await expect(runPromise).resolves.toBe(undefined);
-    expect(task.getState()).toEqual({
-      data: "manual",
-      error: undefined,
-      isLoading: false,
-      isStale: false,
-    });
   });
 });
