@@ -1,4 +1,4 @@
-import type { TaskFn } from "@gantryland/task";
+import type { TaskFn, TaskOperator } from "@gantryland/task";
 
 /** Cache key type used by cache stores and wrappers. */
 export type CacheKey = string | number | symbol;
@@ -123,7 +123,7 @@ export const cache =
     key: CacheKey,
     store: CacheStore,
     options: CacheOptions = {},
-  ) =>
+  ): TaskOperator<T, T, Args> =>
   (taskFn: TaskFn<T, Args>): TaskFn<T, Args> =>
   async (...args: Args) => {
     const entry = store.get<T>(key);
@@ -139,7 +139,7 @@ export const staleWhileRevalidate =
     key: CacheKey,
     store: CacheStore,
     options: StaleWhileRevalidateOptions,
-  ) =>
+  ): TaskOperator<T, T, Args> =>
   (taskFn: TaskFn<T, Args>): TaskFn<T, Args> =>
   async (...args: Args) => {
     const ttl = toValidTtl((options as { ttl?: unknown } | undefined)?.ttl);

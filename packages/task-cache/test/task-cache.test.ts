@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
+import { Task } from "../../task/index";
 import { MemoryCacheStore, cache, staleWhileRevalidate } from "../index";
 
 const createDeferred = <T>() => {
@@ -24,6 +25,59 @@ describe("MemoryCacheStore", () => {
 
     store.delete("key");
     expect(store.get("key")).toBeUndefined();
+  });
+});
+
+describe("Task.pipe integration", () => {
+  it("applies cache operator in Task.pipe", async () => {
+    const store = new MemoryCacheStore();
+    let calls = 0;
+
+    const task = new Task<string, []>(async () => {
+      calls += 1;
+      return `value-${calls}`;
+    }).pipe(cache("key", store, { ttl: 100 }));
+
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2024-01-01T00:00:00.000Z"));
+    await expect(task.run()).resolves.toBe("value-1");
+
+    vi.setSystemTime(new Date("2024-01-01T00:00:00.050Z"));
+    await expect(task.run()).resolves.toBe("value-1");
+    expect(calls).toBe(1);
+    vi.useRealTimers();
+  });
+
+  it("applies staleWhileRevalidate operator in Task.pipe", async () => {
+    const store = new MemoryCacheStore();
+    const initial = createDeferred<string>();
+    const next = createDeferred<string>();
+    let calls = 0;
+
+    const task = new Task<string, []>(() => {
+      calls += 1;
+      return calls === 1 ? initial.promise : next.promise;
+    }).pipe(
+      staleWhileRevalidate("key", store, {
+        ttl: 10,
+        staleTtl: 30,
+      }),
+    );
+
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2024-01-01T00:00:00.000Z"));
+    initial.resolve("initial");
+    await expect(task.run()).resolves.toBe("initial");
+
+    vi.setSystemTime(new Date("2024-01-01T00:00:00.020Z"));
+    await expect(task.run()).resolves.toBe("initial");
+    expect(calls).toBe(2);
+
+    next.resolve("updated");
+    await next.promise;
+    await Promise.resolve();
+    await expect(task.run()).resolves.toBe("updated");
+    vi.useRealTimers();
   });
 });
 

@@ -15,11 +15,9 @@ import { Task } from "@gantryland/task";
 import { MemoryCacheStore, cache } from "@gantryland/task-cache";
 
 const store = new MemoryCacheStore();
-const usersTaskFn = cache("users", store, { ttl: 60_000 })(
-  () => fetch("/api/users").then((r) => r.json()),
+const usersTask = new Task(() => fetch("/api/users").then((r) => r.json())).pipe(
+  cache("users", store, { ttl: 60_000 }),
 );
-
-const usersTask = new Task(usersTaskFn);
 
 await usersTask.run();
 await usersTask.run();
@@ -57,7 +55,7 @@ cache<T, Args extends unknown[] = []>(
   key: CacheKey,
   store: CacheStore,
   options?: CacheOptions,
-): (taskFn: (...args: Args) => Promise<T>) => (...args: Args) => Promise<T>
+): TaskOperator<T, T, Args>
 ```
 
 Returns a wrapper that serves fresh cache hits and resolves source on miss or stale entry.
@@ -69,7 +67,7 @@ staleWhileRevalidate<T, Args extends unknown[] = []>(
   key: CacheKey,
   store: CacheStore,
   options: StaleWhileRevalidateOptions,
-): (taskFn: (...args: Args) => Promise<T>) => (...args: Args) => Promise<T>
+): TaskOperator<T, T, Args>
 ```
 
 Returns a wrapper that can return stale values within `staleTtl` while refreshing in background.
@@ -108,25 +106,27 @@ type StaleWhileRevalidateOptions = CacheOptions & {
 ```typescript
 const store = new MemoryCacheStore();
 
-const listUsers = cache("users:list", store, { ttl: 30_000 })(() =>
-  fetch("/api/users").then((r) => r.json()),
+const listUsers = new Task(() => fetch("/api/users").then((r) => r.json())).pipe(
+  cache("users:list", store, { ttl: 30_000 }),
 );
 ```
 
 ### Example: Stale-While-Revalidate for Dashboards
 
 ```typescript
-const getStats = staleWhileRevalidate("stats", store, {
-  ttl: 10_000,
-  staleTtl: 50_000,
-})(() => fetch("/api/stats").then((r) => r.json()));
+const getStats = new Task(() => fetch("/api/stats").then((r) => r.json())).pipe(
+  staleWhileRevalidate("stats", store, {
+    ttl: 10_000,
+    staleTtl: 50_000,
+  }),
+);
 ```
 
 ### Example: Disable Dedupe for Independent Refreshes
 
 ```typescript
-const getFeed = cache("feed", store, { ttl: 5_000, dedupe: false })(() =>
-  fetch("/api/feed").then((r) => r.json()),
+const getFeed = new Task(() => fetch("/api/feed").then((r) => r.json())).pipe(
+  cache("feed", store, { ttl: 5_000, dedupe: false }),
 );
 ```
 
