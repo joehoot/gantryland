@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it } from "vitest";
 import { Task } from "../index";
 
 const createDeferred = <T>() => {
@@ -58,33 +58,6 @@ describe("Task", () => {
     });
 
     unsub();
-  });
-
-  it("isolates listener errors during initial subscribe emit", () => {
-    const task = new Task(async () => "ok");
-    const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
-
-    expect(() => {
-      task.subscribe(() => {
-        throw new Error("listener boom");
-      });
-    }).not.toThrow();
-
-    expect(errorSpy).toHaveBeenCalled();
-    errorSpy.mockRestore();
-  });
-
-  it("returns immutable state snapshots", () => {
-    const task = new Task(async () => "ok");
-    const snapshot = task.getState() as {
-      isLoading: boolean;
-    };
-
-    expect(() => {
-      snapshot.isLoading = true;
-    }).toThrow();
-
-    expect(task.getState().isLoading).toBe(false);
   });
 
   it("forwards run args to the task function", async () => {
@@ -280,29 +253,6 @@ describe("Task", () => {
       isLoading: false,
       isStale: true,
     });
-  });
-
-  it("isolates listener errors", async () => {
-    const task = new Task(async () => "data");
-    let callCount = 0;
-    let allowThrow = false;
-    const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
-
-    task.subscribe(() => {
-      callCount += 1;
-      if (allowThrow) throw new Error("listener boom");
-    });
-
-    task.subscribe(() => {
-      callCount += 1;
-    });
-
-    allowThrow = true;
-    await task.run();
-
-    expect(callCount).toBeGreaterThan(2);
-    expect(errorSpy).toHaveBeenCalled();
-    errorSpy.mockRestore();
   });
 
   it("marks isStale false when run starts", async () => {

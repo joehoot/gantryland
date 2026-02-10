@@ -1,4 +1,4 @@
-/** Reactive state snapshot for a Task instance. */
+/** Reactive task state snapshot. */
 export type TaskState<T> = {
   data: T | undefined;
   error: Error | undefined;
@@ -6,10 +6,10 @@ export type TaskState<T> = {
   isStale: boolean;
 };
 
-type Listener<T> = (state: Readonly<TaskState<T>>) => void;
+type Listener<T> = (state: TaskState<T>) => void;
 type Unsubscribe = () => void;
 
-/** Async function signature executed by `Task.run()`. */
+/** Async function signature used by `Task.run()`. */
 export type TaskFn<T, Args extends unknown[] = []> = (
   ...args: Args
 ) => Promise<T>;
@@ -24,94 +24,63 @@ const isAbortError = (err: unknown): boolean =>
 const toError = (err: unknown): Error =>
   err instanceof Error ? err : new Error(String(err));
 
-const toReadonlyState = <T>(state: TaskState<T>): Readonly<TaskState<T>> =>
-  Object.freeze(state);
-
 const createAbortError = (): Error => {
-  if (typeof DOMException !== "undefined") {
-    return new DOMException("Aborted", "AbortError");
-  }
   const error = new Error("Aborted");
   error.name = "AbortError";
   return error;
 };
 
-const createDefaultTaskState = <T>(): Readonly<TaskState<T>> =>
-  toReadonlyState({
-    data: undefined,
-    error: undefined,
-    isLoading: false,
-    isStale: true,
-  });
+const createDefaultTaskState = <T>(): TaskState<T> => ({
+  data: undefined,
+  error: undefined,
+  isLoading: false,
+  isStale: true,
+});
 
-/**
- * Minimal async primitive with reactive state and latest-run-wins semantics.
- *
- * The Task instance is the state identity: share the instance to share state.
- */
+/** Minimal async primitive with latest-run-wins state. */
 export class Task<T, Args extends unknown[] = []> {
-  private _state: Readonly<TaskState<T>> = createDefaultTaskState<T>();
+  private _state: TaskState<T> = createDefaultTaskState<T>();
   private readonly listeners = new Set<Listener<T>>();
   private requestId = 0;
-  private inFlight: {
-    requestId: number;
-    reject: (reason: Error) => void;
-  } | null = null;
+  private inFlightReject: ((reason: Error) => void) | null = null;
   private readonly fn: TaskFn<T, Args>;
 
-  /** Creates a task with a required async function. */
+  /** Create a task from an async function. */
   constructor(fn: TaskFn<T, Args>) {
     this.fn = fn;
   }
 
   private cancelInFlight(reason: Error): void {
-    if (!this.inFlight) return;
-    this.inFlight.reject(reason);
-    this.inFlight = null;
+    if (!this.inFlightReject) return;
+    this.inFlightReject(reason);
+    this.inFlightReject = null;
   }
 
   private setState(state: TaskState<T>): void {
-    this._state = toReadonlyState(state);
+    this._state = state;
     this.notify();
   }
 
   private updateState(partial: Partial<TaskState<T>>): void {
-    this._state = toReadonlyState({ ...this._state, ...partial });
+    this._state = { ...this._state, ...partial };
     this.notify();
   }
 
   private notify() {
     for (const listener of this.listeners) {
-      try {
-        listener(this._state);
-      } catch (error) {
-        console.error("Task listener error", error);
-      }
+      listener(this._state);
     }
   }
 
-  /**
-   * Executes the current `TaskFn`.
-   *
-   * Starts loading, clears `error`, cancels any in-flight run, and enforces
-   * latest-run-wins. Rejects on failures and cancellations.
-   */
+  /** Run the task function and update state. */
   async run(...args: Args): Promise<T> {
     const currentRequestId = ++this.requestId;
     this.cancelInFlight(createAbortError());
 
     this.updateState({ isLoading: true, isStale: false, error: undefined });
 
-    let settled = false;
     const cancelPromise = new Promise<T>((_resolve, reject) => {
-      this.inFlight = {
-        requestId: currentRequestId,
-        reject: (reason) => {
-          if (settled) return;
-          settled = true;
-          reject(reason);
-        },
-      };
+      this.inFlightReject = reject;
     });
 
     let executionPromise: Promise<T>;
@@ -121,18 +90,15 @@ export class Task<T, Args extends unknown[] = []> {
       executionPromise = Promise.reject(error);
     }
     void executionPromise.catch(() => {
-      // Prevent unhandled rejections when canceled by a newer run.
+      // Ignore late rejections from superseded runs.
     });
 
     try {
       const data = await Promise.race([executionPromise, cancelPromise]);
-      settled = true;
       if (currentRequestId !== this.requestId) {
         throw createAbortError();
       }
-      if (this.inFlight?.requestId === currentRequestId) {
-        this.inFlight = null;
-      }
+      this.inFlightReject = null;
       this.setState({
         data,
         error: undefined,
@@ -141,10 +107,7 @@ export class Task<T, Args extends unknown[] = []> {
       });
       return data;
     } catch (err) {
-      settled = true;
-      if (this.inFlight?.requestId === currentRequestId) {
-        this.inFlight = null;
-      }
+      this.inFlightReject = null;
       if (currentRequestId !== this.requestId) {
         throw createAbortError();
       }
@@ -160,31 +123,23 @@ export class Task<T, Args extends unknown[] = []> {
     }
   }
 
-  /** Returns an immutable snapshot of current task state. */
-  getState(): Readonly<TaskState<T>> {
+  /** Return the current state snapshot. */
+  getState(): TaskState<T> {
     return this._state;
   }
 
-  /**
-   * Subscribes to state changes.
-   *
-   * The listener receives the current state immediately and then every update.
-   */
+  /** Subscribe to state changes and receive the current state immediately. */
   subscribe(listener: Listener<T>): Unsubscribe {
     this.listeners.add(listener);
-    try {
-      listener(this._state);
-    } catch (error) {
-      console.error("Task listener error", error);
-    }
+    listener(this._state);
     return () => {
       this.listeners.delete(listener);
     };
   }
 
-  /** Cancels any in-flight run and clears `isLoading`. */
+  /** Cancel the in-flight run, if any. */
   cancel(): void {
-    if (!this.inFlight) return;
+    if (!this.inFlightReject) return;
     this.requestId += 1;
     this.cancelInFlight(createAbortError());
     if (this._state.isLoading) {
@@ -192,7 +147,7 @@ export class Task<T, Args extends unknown[] = []> {
     }
   }
 
-  /** Fulfills immediately with provided data and clears any in-flight run. */
+  /** Set successful data immediately and cancel any in-flight run. */
   fulfill(data: T): T {
     this.requestId += 1;
     this.cancelInFlight(createAbortError());
@@ -205,7 +160,7 @@ export class Task<T, Args extends unknown[] = []> {
     return data;
   }
 
-  /** Aborts any in-flight run and restores the initial stale state. */
+  /** Reset to the initial stale/idle state and cancel any in-flight run. */
   reset(): void {
     this.requestId += 1;
     this.cancelInFlight(createAbortError());

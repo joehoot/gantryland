@@ -6,7 +6,6 @@ Minimal async task with reactive state.
 
 - Plain async task functions: `(...args) => Promise<T>`
 - Small API: `run`, `fulfill`, `subscribe`, `cancel`, `reset`
-- Immutable state snapshots and listener error isolation
 - No runtime dependencies
 
 ## Installation
@@ -37,7 +36,7 @@ new Task<T, Args extends unknown[] = []>(fn: (...args: Args) => Promise<T>)
 
 | Member | Return | Notes |
 | --- | --- | --- |
-| `getState()` | `Readonly<TaskState<T>>` | Immutable current snapshot |
+| `getState()` | `TaskState<T>` | Current snapshot |
 | `subscribe(listener)` | `() => void` | Immediate emit, then every update |
 | `run(...args)` | `Promise<T>` | Rejects on failure or cancellation |
 | `fulfill(data)` | `T` | Sets success state immediately |
