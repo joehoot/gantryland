@@ -5,8 +5,41 @@ import { describe, expect, it } from "vitest";
 import { useTask, useTaskState } from "../index";
 
 describe("task-react", () => {
+  it("useTask works with a task derived via Task.pipe", async () => {
+    const baseTask = new Task<string, [string]>(
+      async (value: string): Promise<string> => value,
+    );
+    const task = (baseTask as any).pipe(
+      (taskFn: (value: string) => Promise<string>) => async (value: string) => {
+        const result = await taskFn(value);
+        return result.toUpperCase();
+      },
+    ) as Task<string, [string]>;
+    let latest: ReturnType<typeof useTask<string, [string]>> | undefined;
+
+    const Harness = () => {
+      latest = useTask(task);
+      return null;
+    };
+
+    let renderer: ReturnType<typeof create> | undefined;
+
+    await act(async () => {
+      renderer = create(createElement(Harness));
+    });
+
+    await act(async () => {
+      await latest?.run("hello");
+    });
+
+    expect(latest?.data).toBe("HELLO");
+    renderer?.unmount();
+  });
+
   it("useTaskState mirrors task state updates", async () => {
-    const task = new Task<string, [string]>(async (value) => value);
+    const task = new Task<string, [string]>(
+      async (value: string): Promise<string> => value,
+    );
     let firstSnapshot: ReturnType<typeof task.getState> | undefined;
     let latestSnapshot: ReturnType<typeof task.getState> | undefined;
 
@@ -46,7 +79,9 @@ describe("task-react", () => {
   });
 
   it("useTask exposes run fulfill cancel and reset", async () => {
-    const task = new Task<string, [string]>(async (value) => value);
+    const task = new Task<string, [string]>(
+      async (value: string): Promise<string> => value,
+    );
     let latest: ReturnType<typeof useTask<string, [string]>> | undefined;
 
     const Harness = () => {

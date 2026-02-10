@@ -14,9 +14,14 @@ npm install @gantryland/task-react @gantryland/task react
 import { Task } from "@gantryland/task";
 import { useTask } from "@gantryland/task-react";
 
-const userTask = new Task(async (id: string) =>
+const baseUserTask = new Task(async (id: string) =>
   fetch(`/api/users/${id}`).then((r) => r.json()),
 );
+
+const userTask = baseUserTask.pipe((taskFn) => async (id: string) => {
+  const user = await taskFn(id);
+  return user;
+});
 
 export function UserPanel({ id }: { id: string }) {
   const { data, error, isLoading, run } = useTask(userTask);
