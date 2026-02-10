@@ -1,18 +1,22 @@
 import type { TaskFn } from "@gantryland/task";
 
+/** Cache key type used by cache stores and wrappers. */
 export type CacheKey = string | number | symbol;
 
+/** Stored cache value with last update timestamp. */
 export type CacheEntry<T> = {
   value: T;
   updatedAt: number;
 };
 
+/** Minimal cache store contract used by this package. */
 export type CacheStore = {
   get<T>(key: CacheKey): CacheEntry<T> | undefined;
   set<T>(key: CacheKey, entry: CacheEntry<T>): void;
   delete(key: CacheKey): void;
 };
 
+/** In-memory `CacheStore` backed by `Map`. */
 export class MemoryCacheStore implements CacheStore {
   private store = new Map<CacheKey, CacheEntry<unknown>>();
 
@@ -34,6 +38,7 @@ export type CacheOptions = {
   dedupe?: boolean;
 };
 
+/** Options for stale-while-revalidate behavior. */
 export type StaleWhileRevalidateOptions = CacheOptions & {
   ttl: number;
   staleTtl?: number;
@@ -53,6 +58,13 @@ const getPendingMap = (store: CacheStore): PendingMap => {
 const isFresh = (entry: CacheEntry<unknown>, ttl?: number): boolean => {
   if (ttl === undefined) return true;
   return Date.now() - entry.updatedAt <= ttl;
+};
+
+const toValidTtl = (ttl: unknown): number => {
+  if (typeof ttl !== "number" || !Number.isFinite(ttl) || ttl < 0) {
+    throw new Error("staleWhileRevalidate requires a non-negative finite ttl");
+  }
+  return ttl;
 };
 
 const isWithinStale = (
@@ -105,6 +117,7 @@ const resolveWithDedupe = async <T, Args extends unknown[] = []>(
   return promise;
 };
 
+/** Cache wrapper with optional TTL and in-flight deduplication. */
 export const cache =
   <T, Args extends unknown[] = []>(
     key: CacheKey,
@@ -118,6 +131,9 @@ export const cache =
     return resolveWithDedupe(key, store, taskFn, args, options);
   };
 
+/**
+ * Return stale values within a stale window and refresh in background.
+ */
 export const staleWhileRevalidate =
   <T, Args extends unknown[] = []>(
     key: CacheKey,
@@ -126,10 +142,11 @@ export const staleWhileRevalidate =
   ) =>
   (taskFn: TaskFn<T, Args>): TaskFn<T, Args> =>
   async (...args: Args) => {
+    const ttl = toValidTtl((options as { ttl?: unknown } | undefined)?.ttl);
     const entry = store.get<T>(key);
-    if (entry && isFresh(entry, options.ttl)) return entry.value;
+    if (entry && isFresh(entry, ttl)) return entry.value;
 
-    if (entry && isWithinStale(entry, options.ttl, options.staleTtl)) {
+    if (entry && isWithinStale(entry, ttl, options.staleTtl)) {
       void resolveWithDedupe(key, store, taskFn, args, options).catch(() => {
         // Background revalidation errors are ignored.
       });

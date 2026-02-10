@@ -145,6 +145,19 @@ describe("cache", () => {
 });
 
 describe("staleWhileRevalidate", () => {
+  it("requires ttl at runtime", async () => {
+    const store = new MemoryCacheStore();
+    const taskFn = staleWhileRevalidate<string, []>(
+      "key",
+      store,
+      undefined as unknown as { ttl: number },
+    )(async () => "data");
+
+    await expect(taskFn()).rejects.toThrow(
+      "staleWhileRevalidate requires a non-negative finite ttl",
+    );
+  });
+
   it("returns fresh data without revalidating", async () => {
     const store = new MemoryCacheStore();
     let calls = 0;
@@ -224,6 +237,42 @@ describe("staleWhileRevalidate", () => {
     await deferred.promise;
     await Promise.resolve();
     expect(store.get<string>("key")?.value).toBe("updated");
+    vi.useRealTimers();
+  });
+
+  it("can disable dedupe for stale-window background revalidations", async () => {
+    const store = new MemoryCacheStore();
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2024-01-01T00:00:00.000Z"));
+    store.set("key", {
+      value: "cached",
+      updatedAt: Date.now() - 20,
+    });
+
+    const deferreds = [createDeferred<string>(), createDeferred<string>()];
+    let index = 0;
+    let calls = 0;
+    const taskFn = staleWhileRevalidate<string, []>("key", store, {
+      ttl: 10,
+      staleTtl: 30,
+      dedupe: false,
+    })(() => {
+      calls += 1;
+      return deferreds[index++].promise;
+    });
+
+    await expect(taskFn()).resolves.toBe("cached");
+    await expect(taskFn()).resolves.toBe("cached");
+    await Promise.resolve();
+    await Promise.resolve();
+    expect(calls).toBe(2);
+
+    deferreds[0].resolve("updated-1");
+    deferreds[1].resolve("updated-2");
+    await deferreds[0].promise;
+    await deferreds[1].promise;
+    await Promise.resolve();
+    expect(store.get<string>("key")?.value).toBe("updated-2");
     vi.useRealTimers();
   });
 

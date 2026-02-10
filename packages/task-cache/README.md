@@ -56,7 +56,7 @@ await usersTask.run();
   - stale/miss runs source and writes on success
   - source rejection does not write cache
 - `staleWhileRevalidate(...)`
-  - requires `ttl`
+  - requires a non-negative finite `ttl`
   - fresh hit returns immediately
   - stale-window hit returns stale value, then revalidates in background
   - background failure is ignored for caller path
