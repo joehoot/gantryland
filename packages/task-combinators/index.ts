@@ -24,6 +24,37 @@ const sleep = (ms: number): Promise<void> =>
     setTimeout(resolve, ms);
   });
 
+const toNonNegativeFiniteInteger = (value: unknown, name: string): number => {
+  if (
+    typeof value !== "number" ||
+    !Number.isFinite(value) ||
+    value < 0 ||
+    !Number.isInteger(value)
+  ) {
+    throw new Error(`${name} must be a non-negative finite integer`);
+  }
+  return value;
+};
+
+const toPositiveFiniteInteger = (value: unknown, name: string): number => {
+  if (
+    typeof value !== "number" ||
+    !Number.isFinite(value) ||
+    value <= 0 ||
+    !Number.isInteger(value)
+  ) {
+    throw new Error(`${name} must be a positive finite integer`);
+  }
+  return value;
+};
+
+const toNonNegativeFiniteDelay = (value: unknown, name: string): number => {
+  if (typeof value !== "number" || !Number.isFinite(value) || value < 0) {
+    throw new Error(`${name} must be a non-negative finite number`);
+  }
+  return value;
+};
+
 /** Error thrown by `timeout(ms)` when execution exceeds the deadline. */
 export class TimeoutError extends Error {
   constructor(message = "Timeout") {
@@ -45,7 +76,7 @@ export const map =
  * Chain into another async step derived from the previous result.
  */
 export const flatMap =
-  <T, U, Args extends unknown[] = []>(fn: (data: T) => Promise<U>) =>
+  <T, U, Args extends unknown[] = []>(fn: (data: T) => U | Promise<U>) =>
   (taskFn: TaskFn<T, Args>): TaskFn<U, Args> =>
   (...args: Args) =>
     taskFn(...args).then(fn);
@@ -125,6 +156,7 @@ export const catchError =
 
 /**
  * Retry failed executions. `attempts` means retry count (not total attempts).
+ * `attempts` must be a non-negative finite integer.
  */
 export const retry =
   <T, Args extends unknown[] = []>(
@@ -133,7 +165,7 @@ export const retry =
   ) =>
   (taskFn: TaskFn<T, Args>): TaskFn<T, Args> =>
   async (...args: Args) => {
-    const maxAttempts = Math.max(0, attempts);
+    const maxAttempts = toNonNegativeFiniteInteger(attempts, "retry attempts");
     let lastError: unknown;
 
     for (let i = 0; i <= maxAttempts; i++) {
@@ -239,6 +271,7 @@ type RetryWhenOptions = {
 
 /**
  * Retry while `shouldRetry` resolves to true.
+ * `maxAttempts` must be a non-negative finite integer when provided.
  */
 export const retryWhen =
   <T, Args extends unknown[] = []>(
@@ -250,7 +283,10 @@ export const retryWhen =
     const maxAttempts =
       options.maxAttempts === undefined
         ? Number.POSITIVE_INFINITY
-        : Math.max(0, options.maxAttempts);
+        : toNonNegativeFiniteInteger(
+            options.maxAttempts,
+            "retryWhen maxAttempts",
+          );
     let attempt = 0;
 
     while (true) {
@@ -263,7 +299,10 @@ export const retryWhen =
         const should = await shouldRetry(err, attempt);
         if (!should) throw toError(err);
         options.onRetry?.(err, attempt);
-        const delay = options.delayMs?.(attempt, err) ?? 0;
+        const delay = toNonNegativeFiniteDelay(
+          options.delayMs?.(attempt, err) ?? 0,
+          "retryWhen delayMs",
+        );
         if (delay > 0) await sleep(delay);
       }
     }
@@ -277,6 +316,7 @@ type BackoffOptions = {
 
 /**
  * Convenience wrapper over `retryWhen` with fixed/computed delay behavior.
+ * `attempts` must be a non-negative finite integer.
  */
 export const backoff =
   <T, Args extends unknown[] = []>(options: BackoffOptions) =>
@@ -284,11 +324,17 @@ export const backoff =
     retryWhen<T, Args>(
       (err) => (options.shouldRetry ? options.shouldRetry(err) : true),
       {
-        maxAttempts: options.attempts,
+        maxAttempts: toNonNegativeFiniteInteger(
+          options.attempts,
+          "backoff attempts",
+        ),
         delayMs: (attempt, err) =>
-          typeof options.delayMs === "function"
-            ? options.delayMs(attempt, err)
-            : options.delayMs,
+          toNonNegativeFiniteDelay(
+            typeof options.delayMs === "function"
+              ? options.delayMs(attempt, err)
+              : options.delayMs,
+            "backoff delayMs",
+          ),
       },
     )(taskFn);
 
@@ -357,11 +403,15 @@ export const throttle =
 
 /**
  * Queue executions with configurable concurrency (default `1`).
+ * `concurrency` must be a positive finite integer when provided.
  */
 export const queue =
   <T, Args extends unknown[] = []>(options: { concurrency?: number } = {}) =>
   (taskFn: TaskFn<T, Args>): TaskFn<T, Args> => {
-    const concurrency = Math.max(1, options.concurrency ?? 1);
+    const concurrency = toPositiveFiniteInteger(
+      options.concurrency ?? 1,
+      "queue concurrency",
+    );
     const pending: Array<{ start: () => void }> = [];
     let active = 0;
 

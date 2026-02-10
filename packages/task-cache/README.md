@@ -133,7 +133,8 @@ const getFeed = new Task(() => fetch("/api/feed").then((r) => r.json())).pipe(
 ## Runtime Semantics
 
 - `cache` returns cached value when entry is fresh; otherwise it executes and stores on success.
-- `staleWhileRevalidate` requires `ttl` as a non-negative finite number.
+- `cache` validates `ttl` as a non-negative finite number when provided.
+- `staleWhileRevalidate` validates `ttl` and `staleTtl` as non-negative finite numbers.
 - Fresh SWR hit returns immediately without background work.
 - Stale-window SWR hit returns stale value and triggers background revalidation.
 - Background revalidation errors are ignored for the caller path.

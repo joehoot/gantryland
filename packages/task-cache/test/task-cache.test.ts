@@ -82,6 +82,28 @@ describe("Task.pipe integration", () => {
 });
 
 describe("cache", () => {
+  it("rejects negative ttl at runtime", async () => {
+    const store = new MemoryCacheStore();
+    const taskFn = cache<string, []>("key", store, { ttl: -1 })(
+      async () => "data",
+    );
+
+    await expect(taskFn()).rejects.toThrow(
+      "cache ttl must be a non-negative finite number",
+    );
+  });
+
+  it("rejects NaN ttl at runtime", async () => {
+    const store = new MemoryCacheStore();
+    const taskFn = cache<string, []>("key", store, { ttl: Number.NaN })(
+      async () => "data",
+    );
+
+    await expect(taskFn()).rejects.toThrow(
+      "cache ttl must be a non-negative finite number",
+    );
+  });
+
   it("returns cached data when fresh", async () => {
     const store = new MemoryCacheStore();
     const taskFn = cache<string, []>("key", store, { ttl: 100 })(
@@ -208,7 +230,7 @@ describe("staleWhileRevalidate", () => {
     )(async () => "data");
 
     await expect(taskFn()).rejects.toThrow(
-      "staleWhileRevalidate requires a non-negative finite ttl",
+      "staleWhileRevalidate ttl must be a non-negative finite number",
     );
   });
 
@@ -219,7 +241,7 @@ describe("staleWhileRevalidate", () => {
     })(async () => "data");
 
     await expect(taskFn()).rejects.toThrow(
-      "staleWhileRevalidate requires a non-negative finite ttl",
+      "staleWhileRevalidate ttl must be a non-negative finite number",
     );
   });
 
@@ -230,7 +252,7 @@ describe("staleWhileRevalidate", () => {
     })(async () => "data");
 
     await expect(taskFn()).rejects.toThrow(
-      "staleWhileRevalidate requires a non-negative finite ttl",
+      "staleWhileRevalidate ttl must be a non-negative finite number",
     );
   });
 
@@ -241,7 +263,31 @@ describe("staleWhileRevalidate", () => {
     })(async () => "data");
 
     await expect(taskFn()).rejects.toThrow(
-      "staleWhileRevalidate requires a non-negative finite ttl",
+      "staleWhileRevalidate ttl must be a non-negative finite number",
+    );
+  });
+
+  it("rejects negative staleTtl at runtime", async () => {
+    const store = new MemoryCacheStore();
+    const taskFn = staleWhileRevalidate<string, []>("key", store, {
+      ttl: 1,
+      staleTtl: -1,
+    })(async () => "data");
+
+    await expect(taskFn()).rejects.toThrow(
+      "staleWhileRevalidate staleTtl must be a non-negative finite number",
+    );
+  });
+
+  it("rejects infinite staleTtl at runtime", async () => {
+    const store = new MemoryCacheStore();
+    const taskFn = staleWhileRevalidate<string, []>("key", store, {
+      ttl: 1,
+      staleTtl: Number.POSITIVE_INFINITY,
+    })(async () => "data");
+
+    await expect(taskFn()).rejects.toThrow(
+      "staleWhileRevalidate staleTtl must be a non-negative finite number",
     );
   });
 

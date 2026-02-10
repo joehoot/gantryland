@@ -60,11 +60,11 @@ const isFresh = (entry: CacheEntry<unknown>, ttl?: number): boolean => {
   return Date.now() - entry.updatedAt <= ttl;
 };
 
-const toValidTtl = (ttl: unknown): number => {
-  if (typeof ttl !== "number" || !Number.isFinite(ttl) || ttl < 0) {
-    throw new Error("staleWhileRevalidate requires a non-negative finite ttl");
+const toValidNonNegativeFinite = (value: unknown, name: string): number => {
+  if (typeof value !== "number" || !Number.isFinite(value) || value < 0) {
+    throw new Error(`${name} must be a non-negative finite number`);
   }
-  return ttl;
+  return value;
 };
 
 const isWithinStale = (
@@ -126,8 +126,12 @@ export const cache =
   ): TaskOperator<T, T, Args> =>
   (taskFn: TaskFn<T, Args>): TaskFn<T, Args> =>
   async (...args: Args) => {
+    const ttl =
+      options.ttl === undefined
+        ? undefined
+        : toValidNonNegativeFinite(options.ttl, "cache ttl");
     const entry = store.get<T>(key);
-    if (entry && isFresh(entry, options.ttl)) return entry.value;
+    if (entry && isFresh(entry, ttl)) return entry.value;
     return resolveWithDedupe(key, store, taskFn, args, options);
   };
 
@@ -142,11 +146,21 @@ export const staleWhileRevalidate =
   ): TaskOperator<T, T, Args> =>
   (taskFn: TaskFn<T, Args>): TaskFn<T, Args> =>
   async (...args: Args) => {
-    const ttl = toValidTtl((options as { ttl?: unknown } | undefined)?.ttl);
+    const ttl = toValidNonNegativeFinite(
+      (options as { ttl?: unknown } | undefined)?.ttl,
+      "staleWhileRevalidate ttl",
+    );
+    const staleTtl =
+      options.staleTtl === undefined
+        ? undefined
+        : toValidNonNegativeFinite(
+            options.staleTtl,
+            "staleWhileRevalidate staleTtl",
+          );
     const entry = store.get<T>(key);
     if (entry && isFresh(entry, ttl)) return entry.value;
 
-    if (entry && isWithinStale(entry, ttl, options.staleTtl)) {
+    if (entry && isWithinStale(entry, ttl, staleTtl)) {
       void resolveWithDedupe(key, store, taskFn, args, options).catch(() => {
         // Background revalidation errors are ignored.
       });

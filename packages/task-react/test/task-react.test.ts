@@ -1,7 +1,7 @@
-import { Task } from "@gantryland/task";
 import { createElement } from "react";
 import { act, create } from "react-test-renderer";
 import { describe, expect, it } from "vitest";
+import { Task, type TaskOperator } from "../../task/index";
 import { useTask, useTaskState } from "../index";
 
 describe("task-react", () => {
@@ -9,12 +9,12 @@ describe("task-react", () => {
     const baseTask = new Task<string, [string]>(
       async (value: string): Promise<string> => value,
     );
-    const task = (baseTask as any).pipe(
-      (taskFn: (value: string) => Promise<string>) => async (value: string) => {
+    const uppercase: TaskOperator<string, string, [string]> =
+      (taskFn) => async (value: string) => {
         const result = await taskFn(value);
         return result.toUpperCase();
-      },
-    ) as Task<string, [string]>;
+      };
+    const task = baseTask.pipe(uppercase);
     let latest: ReturnType<typeof useTask<string, [string]>> | undefined;
 
     const Harness = () => {

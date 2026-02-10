@@ -71,7 +71,7 @@ describe("Task", () => {
 
   it("pipe returns a new task and keeps original behavior", async () => {
     const task = new Task<number, [number]>(async (value) => value + 1);
-    const doubled = task.pipe<number>(
+    const doubled = task.pipe(
       (taskFn) =>
         async (...args) =>
           (await taskFn(...args)) * 2,
@@ -84,7 +84,7 @@ describe("Task", () => {
 
   it("pipe composes operators left to right", async () => {
     const task = new Task<string, [string]>(async (value) => value);
-    const piped = task.pipe<string>(
+    const piped = task.pipe(
       (taskFn) =>
         async (...args) =>
           `A(${await taskFn(...args)})`,
@@ -100,7 +100,7 @@ describe("Task", () => {
     const task = new Task<string, [number, string]>(
       async (id, label) => `${id}:${label}`,
     );
-    const piped = task.pipe<string>(
+    const piped = task.pipe(
       (taskFn) =>
         async (...args) =>
           `value=${await taskFn(...args)}`,
@@ -197,6 +197,34 @@ describe("Task", () => {
     await expect(runPromise).rejects.toMatchObject({ name: "AbortError" });
     expect(task.getState().isLoading).toBe(false);
     expect(task.getState().error).toBe(undefined);
+  });
+
+  it("cancel always targets the latest in-flight run", async () => {
+    const first = createDeferred<string>();
+    const second = createDeferred<string>();
+    const calls: Array<ReturnType<typeof createDeferred<string>>> = [
+      first,
+      second,
+    ];
+    let index = 0;
+
+    const task = new Task(() => {
+      const next = calls[index];
+      index += 1;
+      if (!next) throw new Error("Unexpected run");
+      return next.promise;
+    });
+
+    const firstRun = task.run();
+    void firstRun.catch(() => {});
+    await Promise.resolve();
+
+    const secondRun = task.run();
+    await expect(firstRun).rejects.toMatchObject({ name: "AbortError" });
+
+    task.cancel();
+    await expect(secondRun).rejects.toMatchObject({ name: "AbortError" });
+    expect(task.getState().isLoading).toBe(false);
   });
 
   it("treats AbortError as cancellation and does not set error", async () => {
@@ -340,5 +368,49 @@ describe("Task", () => {
 
     expect(task.getState().data).toBe("second");
     expect(task.getState().error).toBe(undefined);
+  });
+
+  it("does not allow mutating internal state through getState", async () => {
+    const task = new Task(async () => "value");
+    const snapshot = task.getState();
+    expect(Object.isFrozen(snapshot)).toBe(true);
+    expect(() => {
+      snapshot.isLoading = true;
+    }).toThrow();
+
+    expect(task.getState()).toEqual({
+      data: undefined,
+      error: undefined,
+      isLoading: false,
+      isStale: true,
+    });
+
+    await expect(task.run()).resolves.toBe("value");
+    expect(task.getState().data).toBe("value");
+  });
+
+  it("subscriber snapshots cannot mutate internal state", async () => {
+    const task = new Task(async () => "ok");
+    const seen: Array<ReturnType<typeof task.getState>> = [];
+
+    const unsubscribe = task.subscribe((state) => {
+      seen.push(state);
+    });
+
+    await task.run();
+    unsubscribe();
+
+    expect(seen).toHaveLength(3);
+    expect(Object.isFrozen(seen[0])).toBe(true);
+    expect(Object.isFrozen(seen[1])).toBe(true);
+    expect(Object.isFrozen(seen[2])).toBe(true);
+    expect(seen[0]).not.toBe(seen[1]);
+    expect(seen[1]).not.toBe(seen[2]);
+    expect(task.getState()).toEqual({
+      data: "ok",
+      error: undefined,
+      isLoading: false,
+      isStale: false,
+    });
   });
 });

@@ -8,6 +8,10 @@ export type TaskState<T> = {
 
 type Listener<T> = (state: TaskState<T>) => void;
 type Unsubscribe = () => void;
+type InFlightRun = {
+  requestId: number;
+  reject: (reason: Error) => void;
+};
 
 /** Async function signature used by `Task.run()`. */
 export type TaskFn<T, Args extends unknown[] = []> = (
@@ -42,12 +46,15 @@ const createDefaultTaskState = <T>(): TaskState<T> => ({
   isStale: true,
 });
 
+const toSnapshot = <T>(state: TaskState<T>): TaskState<T> =>
+  Object.freeze(state);
+
 /** Minimal async primitive with latest-run-wins state. */
 export class Task<T, Args extends unknown[] = []> {
-  private _state: TaskState<T> = createDefaultTaskState<T>();
+  private _state: TaskState<T> = toSnapshot(createDefaultTaskState<T>());
   private readonly listeners = new Set<Listener<T>>();
   private requestId = 0;
-  private inFlightReject: ((reason: Error) => void) | null = null;
+  private inFlight: InFlightRun | null = null;
   private readonly fn: TaskFn<T, Args>;
 
   /** Create a task from an async function. */
@@ -56,18 +63,18 @@ export class Task<T, Args extends unknown[] = []> {
   }
 
   private cancelInFlight(reason: Error): void {
-    if (!this.inFlightReject) return;
-    this.inFlightReject(reason);
-    this.inFlightReject = null;
+    if (!this.inFlight) return;
+    this.inFlight.reject(reason);
+    this.inFlight = null;
   }
 
   private setState(state: TaskState<T>): void {
-    this._state = state;
+    this._state = toSnapshot(state);
     this.notify();
   }
 
   private updateState(partial: Partial<TaskState<T>>): void {
-    this._state = { ...this._state, ...partial };
+    this._state = toSnapshot({ ...this._state, ...partial });
     this.notify();
   }
 
@@ -85,7 +92,10 @@ export class Task<T, Args extends unknown[] = []> {
     this.updateState({ isLoading: true, isStale: false, error: undefined });
 
     const cancelPromise = new Promise<T>((_resolve, reject) => {
-      this.inFlightReject = reject;
+      this.inFlight = {
+        requestId: currentRequestId,
+        reject,
+      };
     });
 
     let executionPromise: Promise<T>;
@@ -103,7 +113,9 @@ export class Task<T, Args extends unknown[] = []> {
       if (currentRequestId !== this.requestId) {
         throw createAbortError();
       }
-      this.inFlightReject = null;
+      if (this.inFlight?.requestId === currentRequestId) {
+        this.inFlight = null;
+      }
       this.setState({
         data,
         error: undefined,
@@ -112,7 +124,9 @@ export class Task<T, Args extends unknown[] = []> {
       });
       return data;
     } catch (err) {
-      this.inFlightReject = null;
+      if (this.inFlight?.requestId === currentRequestId) {
+        this.inFlight = null;
+      }
       if (currentRequestId !== this.requestId) {
         throw createAbortError();
       }
@@ -128,12 +142,12 @@ export class Task<T, Args extends unknown[] = []> {
     }
   }
 
-  /** Return the current state snapshot. */
+  /** Return the current immutable state snapshot. */
   getState(): TaskState<T> {
     return this._state;
   }
 
-  /** Subscribe to state changes and receive the current state immediately. */
+  /** Subscribe to state snapshots and receive the current snapshot immediately. */
   subscribe(listener: Listener<T>): Unsubscribe {
     this.listeners.add(listener);
     listener(this._state);
@@ -144,7 +158,7 @@ export class Task<T, Args extends unknown[] = []> {
 
   /** Cancel the in-flight run, if any. */
   cancel(): void {
-    if (!this.inFlightReject) return;
+    if (!this.inFlight) return;
     this.requestId += 1;
     this.cancelInFlight(createAbortError());
     if (this._state.isLoading) {
@@ -173,13 +187,35 @@ export class Task<T, Args extends unknown[] = []> {
   }
 
   /** Compose this task function with operators and return a new task. */
-  pipe<U = T>(
-    ...operators: Array<TaskOperator<any, any, Args>>
-  ): Task<U, Args> {
+  pipe(): Task<T, Args>;
+  pipe<A>(operator1: TaskOperator<T, A, Args>): Task<A, Args>;
+  pipe<A, B>(
+    operator1: TaskOperator<T, A, Args>,
+    operator2: TaskOperator<A, B, Args>,
+  ): Task<B, Args>;
+  pipe<A, B, C>(
+    operator1: TaskOperator<T, A, Args>,
+    operator2: TaskOperator<A, B, Args>,
+    operator3: TaskOperator<B, C, Args>,
+  ): Task<C, Args>;
+  pipe<A, B, C, D>(
+    operator1: TaskOperator<T, A, Args>,
+    operator2: TaskOperator<A, B, Args>,
+    operator3: TaskOperator<B, C, Args>,
+    operator4: TaskOperator<C, D, Args>,
+  ): Task<D, Args>;
+  pipe<A, B, C, D, E>(
+    operator1: TaskOperator<T, A, Args>,
+    operator2: TaskOperator<A, B, Args>,
+    operator3: TaskOperator<B, C, Args>,
+    operator4: TaskOperator<C, D, Args>,
+    operator5: TaskOperator<D, E, Args>,
+  ): Task<E, Args>;
+  pipe(...operators: Array<TaskOperator<any, any, Args>>): Task<any, Args> {
     let taskFn: TaskFn<any, Args> = this.fn as TaskFn<any, Args>;
     for (const operator of operators) {
       taskFn = operator(taskFn);
     }
-    return new Task<U, Args>(taskFn as TaskFn<U, Args>);
+    return new Task(taskFn);
   }
 }

@@ -113,14 +113,22 @@ function TaskStatus({ task }: { task: Task<unknown> }) {
 }
 ```
 
-### Example: Seed Data Then Refetch
+### Example: Seed Data Then Refetch In Effects
 
 ```typescript
+import { useEffect } from "react";
+
 function Example({ task }: { task: Task<{ id: string }> }) {
   const { fulfill, run, reset } = useTask(task);
-  fulfill({ id: "local" });
-  void run();
-  reset();
+
+  useEffect(() => {
+    fulfill({ id: "local" });
+    void run();
+    return () => {
+      reset();
+    };
+  }, [fulfill, run, reset]);
+
   return null;
 }
 ```

@@ -1,6 +1,6 @@
 {
   "name": "@gantryland/task-combinators",
-  "version": "0.4.0",
+  "version": "0.5.0",
   "description": "Task.pipe operator factories for @gantryland/task",
   "keywords": ["task", "combinators", "async", "retry"],
   "type": "module",
@@ -40,6 +40,6 @@
   },
   "homepage": "https://github.com/joehoot/gantryland/tree/main/packages/task-combinators#readme",
   "dependencies": {
-    "@gantryland/task": "^0.4.0"
+    "@gantryland/task": "^0.5.0"
   }
 }

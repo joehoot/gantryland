@@ -64,7 +64,7 @@ These combinators are designed to plug into `Task.pipe(...)`.
 | Export | Signature | Description |
 | --- | --- | --- |
 | `map` | `map(fn)` | Maps successful values. |
-| `flatMap` | `flatMap(fn)` | Chains async value transforms. |
+| `flatMap` | `flatMap(fn)` | Chains sync or async value transforms. |
 | `tap` | `tap(fn)` | Runs success side effects and returns original value. |
 
 ### Error Handling
@@ -93,6 +93,8 @@ These combinators are designed to plug into `Task.pipe(...)`.
 { onRetry?: (err: unknown, attempt: number) => void }
 ```
 
+`attempts` must be a non-negative finite integer.
+
 `retryWhen` options:
 
 ```typescript
@@ -102,6 +104,9 @@ These combinators are designed to plug into `Task.pipe(...)`.
   onRetry?: (err: unknown, attempt: number) => void;
 }
 ```
+
+- `maxAttempts` must be a non-negative finite integer when provided.
+- `delayMs` return values must be non-negative finite numbers.
 
 `backoff` options:
 
@@ -113,6 +118,9 @@ These combinators are designed to plug into `Task.pipe(...)`.
 }
 ```
 
+- `attempts` must be a non-negative finite integer.
+- `delayMs` values must be non-negative finite numbers.
+
 ### Coordination And Scheduling
 
 | Export | Signature | Description |
@@ -123,6 +131,8 @@ These combinators are designed to plug into `Task.pipe(...)`.
 | `debounce` | `debounce({ waitMs })` | Runs only the latest call in a debounce window. |
 | `throttle` | `throttle({ windowMs })` | Reuses first in-window in-flight promise. |
 | `queue` | `queue({ concurrency? })` | Limits concurrent executions, default `1`. |
+
+`queue` concurrency must be a positive finite integer.
 
 ## Practical Use Cases
 
@@ -164,4 +174,5 @@ const syncItem = queue<void, [string]>({ concurrency: 2 })(async (id) => {
 - `timeout` controls only the wrapper promise boundary and does not abort transport.
 - `timeoutWith` runs fallback only for timeout failures.
 - `retry` and `retryWhen` normalize terminal non-`Error` failures.
-- `debounce`, `throttle`, and `queue` are promise-level schedulers that keep args unchanged.
+- `debounce`, `throttle`, and `queue` are promise-level schedulers.
+- For `throttle`, in-window calls reuse the active in-flight promise and do not apply newer args.

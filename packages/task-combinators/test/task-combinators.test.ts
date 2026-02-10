@@ -47,7 +47,7 @@ const flushMicrotasks = async () => {
 describe("task-combinators", () => {
   it("operators compose through Task.pipe", async () => {
     const baseTask = new Task<number, [number]>(async (value) => value);
-    const task = baseTask.pipe<number>(
+    const task = baseTask.pipe(
       map<number, number, [number]>((value) => value + 1),
       map<number, number, [number]>((value) => value * 3),
     );
@@ -177,15 +177,25 @@ describe("task-combinators", () => {
     expect(onRetry).toHaveBeenCalledTimes(1);
   });
 
-  it("retry treats negative attempts as zero", async () => {
-    let attempts = 0;
-    const taskFn = retry(-5)(async () => {
-      attempts += 1;
-      throw new Error("boom");
-    });
+  it("retry rejects negative attempts", async () => {
+    const taskFn = retry(-5)(async () => "ok");
+    await expect(taskFn()).rejects.toThrow(
+      "retry attempts must be a non-negative finite integer",
+    );
+  });
 
-    await expect(taskFn()).rejects.toThrow("boom");
-    expect(attempts).toBe(1);
+  it("retry rejects NaN attempts", async () => {
+    const taskFn = retry(Number.NaN)(async () => "ok");
+    await expect(taskFn()).rejects.toThrow(
+      "retry attempts must be a non-negative finite integer",
+    );
+  });
+
+  it("retry rejects infinite attempts", async () => {
+    const taskFn = retry(Number.POSITIVE_INFINITY)(async () => "ok");
+    await expect(taskFn()).rejects.toThrow(
+      "retry attempts must be a non-negative finite integer",
+    );
   });
 
   it("retry normalizes non-Error terminal throw", async () => {
@@ -346,6 +356,27 @@ describe("task-combinators", () => {
     await expect(taskFn()).rejects.toMatchObject({ message: "boom" });
   });
 
+  it("retryWhen rejects NaN maxAttempts", async () => {
+    const taskFn = retryWhen(() => true, { maxAttempts: Number.NaN })(
+      async () => "ok",
+    );
+    await expect(taskFn()).rejects.toThrow(
+      "retryWhen maxAttempts must be a non-negative finite integer",
+    );
+  });
+
+  it("retryWhen rejects invalid delayMs", async () => {
+    const taskFn = retryWhen(() => true, {
+      maxAttempts: 1,
+      delayMs: () => Number.NaN,
+    })(async () => {
+      throw new Error("boom");
+    });
+    await expect(taskFn()).rejects.toThrow(
+      "retryWhen delayMs must be a non-negative finite number",
+    );
+  });
+
   it("backoff applies delays", async () => {
     vi.useFakeTimers();
     const delays: number[] = [];
@@ -385,6 +416,23 @@ describe("task-combinators", () => {
     await expect(promise).resolves.toBe("ok");
     expect(attempts).toBe(2);
     vi.useRealTimers();
+  });
+
+  it("backoff rejects invalid attempts", () => {
+    expect(() =>
+      backoff({ attempts: Number.NaN, delayMs: 1 })(async () => "ok"),
+    ).toThrow("backoff attempts must be a non-negative finite integer");
+  });
+
+  it("backoff rejects invalid delayMs", async () => {
+    const taskFn = backoff({ attempts: 1, delayMs: Number.POSITIVE_INFINITY })(
+      async () => {
+        throw new Error("boom");
+      },
+    );
+    await expect(taskFn()).rejects.toThrow(
+      "backoff delayMs must be a non-negative finite number",
+    );
   });
 
   it("debounce runs latest call and rejects superseded ones", async () => {
@@ -533,5 +581,11 @@ describe("task-combinators", () => {
       "two",
       "three",
     ]);
+  });
+
+  it("queue rejects invalid concurrency", () => {
+    expect(() =>
+      queue<string>({ concurrency: Number.NaN })(async () => "ok"),
+    ).toThrow("queue concurrency must be a positive finite integer");
   });
 });

@@ -47,7 +47,7 @@ new Task<T, Args extends unknown[] = []>(fn: TaskFn<T, Args>)
 | `fulfill` | `(data: T) => T` | Sets success state immediately and returns `data`. |
 | `cancel` | `() => void` | Cancels the in-flight run, if any. |
 | `reset` | `() => void` | Resets to the initial stale idle state. |
-| `pipe` | `<U = T>(...operators: TaskOperator<any, any, Args>[]) => Task<U, Args>` | Returns a new task composed from this task function. |
+| `pipe` | Overloaded `pipe(...operators)` returning a typed `Task` chain | Returns a new task composed from this task function. |
 
 ### `TaskFn`
 
@@ -127,4 +127,5 @@ const hardenedTask = baseTask.pipe(
 - Canceled runs reject with `AbortError` and do not write `error` to state.
 - Failed runs keep previous `data`, normalize non-`Error` throws, and write `error`.
 - `fulfill`, `cancel`, and `reset` cancel any in-flight run.
+- `getState` and `subscribe` expose snapshot copies, not mutable internal state references.
 - `pipe` never mutates the source task; it always returns a new `Task` instance.
