@@ -337,12 +337,12 @@ describe("staleWhileRevalidate", () => {
     await Promise.resolve();
 
     const revalidations = events.filter((type) => type === "revalidate");
-    expect(revalidations.length).toBe(2);
+    expect(revalidations.length).toBe(1);
 
     const revalidateErrors = events.filter(
       (type) => type === "revalidateError",
     );
-    expect(revalidateErrors.length).toBeGreaterThanOrEqual(1);
+    expect(revalidateErrors.length).toBe(1);
     expect(store.get<string>("key")?.value).toBe("cached");
     vi.useRealTimers();
   });

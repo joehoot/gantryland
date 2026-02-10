@@ -8,7 +8,7 @@ stale-while-revalidate, dedupe, and invalidation.
 ## Installation
 
 ```bash
-npm install @gantryland/task @gantryland/task-combinators @gantryland/task-cache
+npm install @gantryland/task @gantryland/task-cache
 ```
 
 ## Quick start
@@ -16,16 +16,13 @@ npm install @gantryland/task @gantryland/task-combinators @gantryland/task-cache
 ```typescript
 import { Task } from "@gantryland/task";
 import { MemoryCacheStore, cache } from "@gantryland/task-cache";
-import { pipe } from "@gantryland/task-combinators";
 
 const store = new MemoryCacheStore();
-
-const usersTask = new Task(
-  pipe(
-    () => fetch("/api/users").then((r) => r.json()),
-    cache("users", store, { ttl: 60_000, tags: ["users"] }),
-  ),
+const usersTaskFn = cache("users", store, { ttl: 60_000, tags: ["users"] })(
+  () => fetch("/api/users").then((r) => r.json()),
 );
+
+const usersTask = new Task(usersTaskFn);
 
 await usersTask.run();
 await usersTask.run();

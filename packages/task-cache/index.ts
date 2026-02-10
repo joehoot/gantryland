@@ -422,7 +422,14 @@ export const staleWhileRevalidate =
 
     if (entry && isWithinStale(entry, options.ttl, options.staleTtl)) {
       store.emit?.({ type: "stale", key, entry });
-      store.emit?.({ type: "revalidate", key, entry });
+      const dedupe = options.dedupe !== false;
+      const pending = dedupe ? getPendingMap(store) : undefined;
+      const hasInFlight = pending?.has(key) ?? false;
+
+      if (!hasInFlight) {
+        store.emit?.({ type: "revalidate", key, entry });
+      }
+
       void resolveWithDedupe(
         key,
         store,
@@ -430,9 +437,11 @@ export const staleWhileRevalidate =
         args,
         options,
         entry,
-        (error) => {
-          store.emit?.({ type: "revalidateError", key, entry, error });
-        },
+        hasInFlight
+          ? undefined
+          : (error) => {
+              store.emit?.({ type: "revalidateError", key, entry, error });
+            },
       ).catch(() => {
         // Background revalidation errors are ignored.
       });

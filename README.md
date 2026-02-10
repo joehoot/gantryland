@@ -22,6 +22,8 @@ Use `npm run format` and `npm run lint:fix` for local auto-fixes.
 
 ## Publish
 
+Bump package versions in `packages/*/package.json` before publishing.
+
 ```bash
 npm run check
 npm run publish:all
