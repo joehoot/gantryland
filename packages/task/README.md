@@ -24,9 +24,11 @@ await userTask.run("42");
 
 ## Exports
 
-- `Task`
-- `TaskFn`
-- `TaskState`
+| Export | Kind | What it does |
+| --- | --- | --- |
+| `Task` | Class | Provides reactive async state with latest-run-wins behavior. |
+| `TaskFn` | Type | Represents the async function signature used by `Task.run`. |
+| `TaskState` | Type | Represents the task state snapshot shape. |
 
 ## API Reference
 

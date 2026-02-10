@@ -27,14 +27,16 @@ await usersTask.run();
 
 ## Exports
 
-- `MemoryCacheStore`
-- `cache`
-- `staleWhileRevalidate`
-- `CacheKey`
-- `CacheEntry`
-- `CacheStore`
-- `CacheOptions`
-- `StaleWhileRevalidateOptions`
+| Export | Kind | What it does |
+| --- | --- | --- |
+| `MemoryCacheStore` | Class | Provides an in-memory `CacheStore` backed by `Map`. |
+| `cache` | Wrapper factory | Returns a TTL cache wrapper with optional in-flight dedupe. |
+| `staleWhileRevalidate` | Wrapper factory | Returns an SWR wrapper with stale window background refresh. |
+| `CacheKey` | Type | Represents supported cache keys (`string | number | symbol`). |
+| `CacheEntry` | Type | Represents cached value data with `updatedAt` timestamp. |
+| `CacheStore` | Type | Represents the minimal cache store contract (`get`, `set`, `delete`). |
+| `CacheOptions` | Type | Represents options for `cache` (`ttl?`, `dedupe?`). |
+| `StaleWhileRevalidateOptions` | Type | Represents options for `staleWhileRevalidate` (`ttl`, `staleTtl?`, `dedupe?`). |
 
 ## API Reference
 

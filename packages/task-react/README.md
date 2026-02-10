@@ -36,9 +36,11 @@ export function UserPanel({ id }: { id: string }) {
 
 ## Exports
 
-- `useTaskState`
-- `useTask`
-- `UseTaskResult`
+| Export | Kind | What it does |
+| --- | --- | --- |
+| `useTaskState` | Hook | Returns the latest `TaskState` from a subscribed `Task`. |
+| `useTask` | Hook | Returns `TaskState` plus imperative task controls. |
+| `UseTaskResult` | Type | Represents the return shape of `useTask`. |
 
 ## API Reference
 

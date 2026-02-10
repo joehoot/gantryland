@@ -32,26 +32,28 @@ await usersTask.run();
 
 ## Exports
 
-- `TimeoutError`
-- `pipe`
-- `map`
-- `flatMap`
-- `tap`
-- `tapError`
-- `tapAbort`
-- `mapError`
-- `catchError`
-- `retry`
-- `retryWhen`
-- `backoff`
-- `timeout`
-- `timeoutWith`
-- `zip`
-- `race`
-- `sequence`
-- `debounce`
-- `throttle`
-- `queue`
+| Export | Kind | What it does |
+| --- | --- | --- |
+| `TimeoutError` | Error class | Timeout failure type used by `timeout`. |
+| `pipe` | Composition | Composes functions left-to-right. |
+| `map` | Value transform | Maps successful values. |
+| `flatMap` | Async transform | Chains async transforms from successful values. |
+| `tap` | Side effect | Runs side effects on success and returns original value. |
+| `tapError` | Error side effect | Runs side effects for non-abort errors, then rethrows. |
+| `tapAbort` | Abort side effect | Runs side effects only for `AbortError`, then rethrows. |
+| `mapError` | Error transform | Maps non-abort errors to a new `Error`. |
+| `catchError` | Recovery | Recovers from non-abort failures with fallback value or async fallback. |
+| `retry` | Retry policy | Retries non-abort failures for a fixed retry count. |
+| `retryWhen` | Retry policy | Retries while a predicate allows it. |
+| `backoff` | Retry policy | Retries with fixed or computed delay strategy. |
+| `timeout` | Timeout policy | Rejects with `TimeoutError` after the configured deadline. |
+| `timeoutWith` | Timeout fallback | Runs fallback only on timeout failures. |
+| `zip` | Coordination | Runs task functions in parallel and resolves tuple results. |
+| `race` | Coordination | Settles with the first result or error. |
+| `sequence` | Coordination | Runs task functions sequentially and resolves tuple results. |
+| `debounce` | Scheduling | Runs only the latest call in a debounce window. |
+| `throttle` | Scheduling | Reuses first in-window in-flight promise. |
+| `queue` | Scheduling | Limits concurrent executions with optional concurrency. |
 
 ## API Reference
 
