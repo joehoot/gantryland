@@ -52,12 +52,6 @@ new Task<T, Args extends unknown[] = []>(fn: (...args: Args) => Promise<T>)
 - Failures keep previous `data`, normalize non-`Error` throws, and set `error`.
 - `fulfill(data)` and `reset()` both cancel any in-flight run.
 
-## Migration note
-
-- `TaskFn` changed from `(signal, ...args) => Promise<T>` to `(...args) => Promise<T>`.
-- Constructor `mode` options were removed.
-- `run(...args)` now rejects on error/cancel instead of resolving `undefined`.
-
 ## Types
 
 ```typescript

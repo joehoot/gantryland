@@ -65,12 +65,6 @@ await usersTask.run();
 - `retry` and `retryWhen` normalize non-`Error` failures before terminal throw.
 - `debounce`/`throttle`/`queue` are promise-level scheduling primitives and do not alter your function arguments.
 
-## Migration note
-
-- `timeoutAbort` was removed in the signal-free API.
-- Use `timeout(ms)` for promise-boundary timeout behavior.
-- If transport-level abort is required, implement it inside your task function.
-
 ## Test this package
 
 ```bash
