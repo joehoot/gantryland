@@ -1,6 +1,6 @@
 # @gantryland/task-combinators
 
-Composable operators for `TaskFn` pipelines.
+Composable operators for `Task.pipe(...)` pipelines.
 
 All combinators preserve plain async signatures: `(...args) => Promise<T>`.
 
@@ -14,17 +14,16 @@ npm install @gantryland/task @gantryland/task-combinators
 
 ```typescript
 import { Task } from "@gantryland/task";
-import { map, pipe, retry, timeout } from "@gantryland/task-combinators";
+import { map, retry, timeout } from "@gantryland/task-combinators";
 
 type User = { id: string; active: boolean };
 
-const usersTask = new Task<User[]>(
-  pipe(
-    () => fetch("/api/users").then((r) => r.json()),
-    map((users) => users.filter((u) => u.active)),
-    retry(2),
-    timeout(5_000),
-  ),
+const usersTask = new Task<User[]>(() =>
+  fetch("/api/users").then((r) => r.json()),
+).pipe(
+  map((users) => users.filter((u) => u.active)),
+  retry(2),
+  timeout(5_000),
 );
 
 await usersTask.run();
@@ -35,7 +34,6 @@ await usersTask.run();
 | Export | Kind | What it does |
 | --- | --- | --- |
 | `TimeoutError` | Error class | Timeout failure type used by `timeout`. |
-| `pipe` | Composition | Composes functions left-to-right. |
 | `map` | Value transform | Maps successful values. |
 | `flatMap` | Async transform | Chains async transforms from successful values. |
 | `tap` | Side effect | Runs side effects on success and returns original value. |
@@ -59,11 +57,12 @@ await usersTask.run();
 
 `TaskFn<T, Args>` represents `(...args: Args) => Promise<T>`.
 
+These combinators are designed to plug into `Task.pipe(...)`.
+
 ### Core Composition
 
 | Export | Signature | Description |
 | --- | --- | --- |
-| `pipe` | `pipe(initial, ...fns)` | Composes functions left-to-right. |
 | `map` | `map(fn)` | Maps successful values. |
 | `flatMap` | `flatMap(fn)` | Chains async value transforms. |
 | `tap` | `tap(fn)` | Runs success side effects and returns original value. |
@@ -130,10 +129,10 @@ await usersTask.run();
 ### Example: Harden a Network Request
 
 ```typescript
-import { pipe, retry, timeout } from "@gantryland/task-combinators";
+import { Task } from "@gantryland/task";
+import { retry, timeout } from "@gantryland/task-combinators";
 
-const getUsers = pipe(
-  () => fetch("/api/users").then((r) => r.json()),
+const getUsers = new Task(() => fetch("/api/users").then((r) => r.json())).pipe(
   retry(2),
   timeout(4_000),
 );

@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
+import { Task } from "../../task/index";
 import {
   TimeoutError,
   backoff,
@@ -7,7 +8,6 @@ import {
   flatMap,
   map,
   mapError,
-  pipe,
   queue,
   race,
   retry,
@@ -45,6 +45,16 @@ const flushMicrotasks = async () => {
 };
 
 describe("task-combinators", () => {
+  it("operators compose through Task.pipe", async () => {
+    const baseTask = new Task<number, [number]>(async (value) => value);
+    const task = baseTask.pipe<number>(
+      map<number, number, [number]>((value) => value + 1),
+      map<number, number, [number]>((value) => value * 3),
+    );
+
+    await expect(task.run(2)).resolves.toBe(9);
+  });
+
   it("map transforms resolved data", async () => {
     const taskFn = map((value: number) => value * 2)(async () => 2);
     await expect(taskFn()).resolves.toBe(4);
@@ -523,14 +533,5 @@ describe("task-combinators", () => {
       "two",
       "three",
     ]);
-  });
-
-  it("pipe composes functions left to right", () => {
-    const result = pipe(
-      1,
-      (value) => value + 1,
-      (value) => value * 3,
-    );
-    expect(result).toBe(6);
   });
 });

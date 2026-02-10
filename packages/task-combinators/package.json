@@ -1,7 +1,7 @@
 {
   "name": "@gantryland/task-combinators",
   "version": "0.4.0",
-  "description": "Composable operators for @gantryland/task",
+  "description": "Task.pipe operator factories for @gantryland/task",
   "keywords": ["task", "combinators", "async", "retry"],
   "type": "module",
   "main": "./dist/index.js",

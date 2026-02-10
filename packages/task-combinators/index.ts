@@ -392,24 +392,3 @@ export const queue =
         runNext();
       });
   };
-
-type AnyFn = (arg: any) => any;
-
-type PipeResult<Input, Fns extends AnyFn[]> = Fns extends []
-  ? Input
-  : Fns extends [(arg: Input) => infer R, ...infer Rest]
-    ? Rest extends AnyFn[]
-      ? PipeResult<R, Rest>
-      : R
-    : never;
-
-/**
- * Compose functions left-to-right.
- */
-export function pipe<T, Fns extends AnyFn[]>(
-  initial: T,
-  ...fns: Fns
-): PipeResult<T, Fns>;
-export function pipe(initial: unknown, ...fns: AnyFn[]): unknown {
-  return fns.reduce((acc, fn) => fn(acc), initial);
-}
