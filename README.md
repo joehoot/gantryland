@@ -2,7 +2,7 @@
 
 Gantryland is a TypeScript monorepo of small async workflow libraries published as `@gantryland/*`.
 
-If you are new here: run setup, then open the package README you need.
+Install dependencies, then open the package README you need.
 
 ## Packages
 
@@ -15,25 +15,20 @@ If you are new here: run setup, then open the package README you need.
 
 ```bash
 npm install
-npm run release:check
+npm run check
 ```
 
 Use `npm run format` and `npm run lint:fix` for local auto-fixes.
 
-## Release
+## Publish
 
 ```bash
-npm run release:changeset
-npm run release:status
-npm run release:version
-npm run release:publish
+npm run check
+npm run publish:all
 ```
 
-For the initial `v0.4.0` bootstrap release, no changeset is required.
+Run `npm run test:coverage` any time you want a coverage report.
 
 ## Docs
 
-- [Contributing](CONTRIBUTING.md)
-- [API baselines](docs/api/README.md)
-- [Support](SUPPORT.md)
-- [Security](SECURITY.md)
+- [License](LICENSE)

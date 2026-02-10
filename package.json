@@ -17,8 +17,6 @@
   "scripts": {
     "build": "tsc -b",
     "clean": "tsc -b --clean",
-    "api:check": "node ./scripts/api-delta.mjs --check",
-    "api:update": "node ./scripts/api-delta.mjs --update",
     "lint": "biome lint .",
     "lint:fix": "biome lint --write .",
     "format": "biome format --write .",
@@ -26,19 +24,13 @@
     "typecheck": "tsc -b --pretty false",
     "typecheck:tests": "tsc -p tsconfig.tests.json --pretty false",
     "prepack": "npm run build",
-    "release:changeset": "changeset",
-    "release:version": "changeset version",
-    "release:guard:changeset": "node ./scripts/changeset-guard.mjs",
-    "release:status": "npm run release:guard:changeset && npm run release:check",
-    "release:check": "npm run lint && npm run format:check && npm run typecheck && npm run typecheck:tests && npm run build && npm run api:check && npm run test:coverage",
-    "release:publish": "npm run release:check && npm run changeset:publish",
+    "check": "npm run lint && npm run format:check && npm run typecheck && npm run typecheck:tests && npm run build && npm run test",
+    "publish:all": "npm run check && npm publish --workspaces --access public",
     "test": "vitest run",
-    "test:coverage": "vitest run --coverage",
-    "changeset:publish": "changeset publish"
+    "test:coverage": "vitest run --coverage"
   },
   "devDependencies": {
     "@biomejs/biome": "^1.9.4",
-    "@changesets/cli": "^2.27.1",
     "@types/react": "^18.3.12",
     "@types/react-test-renderer": "^18.3.0",
     "@vitest/coverage-v8": "^2.1.9",
