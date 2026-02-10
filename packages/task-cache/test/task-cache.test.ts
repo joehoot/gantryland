@@ -158,6 +158,39 @@ describe("staleWhileRevalidate", () => {
     );
   });
 
+  it("rejects negative ttl at runtime", async () => {
+    const store = new MemoryCacheStore();
+    const taskFn = staleWhileRevalidate<string, []>("key", store, {
+      ttl: -1,
+    })(async () => "data");
+
+    await expect(taskFn()).rejects.toThrow(
+      "staleWhileRevalidate requires a non-negative finite ttl",
+    );
+  });
+
+  it("rejects infinite ttl at runtime", async () => {
+    const store = new MemoryCacheStore();
+    const taskFn = staleWhileRevalidate<string, []>("key", store, {
+      ttl: Number.POSITIVE_INFINITY,
+    })(async () => "data");
+
+    await expect(taskFn()).rejects.toThrow(
+      "staleWhileRevalidate requires a non-negative finite ttl",
+    );
+  });
+
+  it("rejects NaN ttl at runtime", async () => {
+    const store = new MemoryCacheStore();
+    const taskFn = staleWhileRevalidate<string, []>("key", store, {
+      ttl: Number.NaN,
+    })(async () => "data");
+
+    await expect(taskFn()).rejects.toThrow(
+      "staleWhileRevalidate requires a non-negative finite ttl",
+    );
+  });
+
   it("returns fresh data without revalidating", async () => {
     const store = new MemoryCacheStore();
     let calls = 0;

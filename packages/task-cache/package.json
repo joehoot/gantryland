@@ -1,7 +1,7 @@
 {
   "name": "@gantryland/task-cache",
   "version": "0.4.0",
-  "description": "Cache store and combinator for @gantryland/task",
+  "description": "Task-function cache wrappers for @gantryland/task",
   "keywords": ["task", "cache", "memoize", "async"],
   "type": "module",
   "main": "./dist/index.js",
