@@ -41,6 +41,7 @@ export function UserPanel({ id }: { id: string }) {
 - `useTaskState(task)` returns `TaskState<T>`.
 - `useTask(task)` returns `UseTaskResult<T, Args>`.
 - `UseTaskResult.run(...args)` returns `Promise<T>` and rejects on failure/cancel.
+- `UseTaskResult.fulfill(data)` proxies `task.fulfill(data)` and returns `data`.
 - `UseTaskResult.cancel()` proxies `task.cancel()`.
 - `UseTaskResult.reset()` proxies `task.reset()`.
 

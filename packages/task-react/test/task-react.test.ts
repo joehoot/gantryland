@@ -45,7 +45,7 @@ describe("task-react", () => {
     renderer?.unmount();
   });
 
-  it("useTask exposes run cancel and reset", async () => {
+  it("useTask exposes run fulfill cancel and reset", async () => {
     const task = new Task<string, [string]>(async (value) => value);
     let latest: ReturnType<typeof useTask<string, [string]>> | undefined;
 
@@ -65,6 +65,12 @@ describe("task-react", () => {
     });
 
     expect(latest?.data).toBe("hello");
+
+    await act(async () => {
+      latest?.fulfill("manual");
+    });
+
+    expect(latest?.data).toBe("manual");
 
     await act(async () => {
       latest?.reset();

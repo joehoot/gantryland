@@ -1,11 +1,10 @@
-# Task Primitive Bare-Metal Todo
+# Task React Bare-Metal Todo
 
-- Keep `fulfill` in `packages/task/index.ts`.
-- Keep concise JSDoc for public API; remove only redundant/verbose commentary.
-- Remove runtime state freezing / immutability enforcement machinery.
-- Remove listener error isolation/logging (`try/catch` + `console.error`).
-- Simplify AbortError creation to a minimal helper.
-- Simplify `run` internals to reduce branching/duplication while preserving core behavior.
-- Update `packages/task/test/task.test.ts` to match the reduced behavior guarantees.
-- Trim `packages/task/README.md` to a concise bare-metal reference.
-- Run full verification with `npm run check`.
+- Align `packages/task-react/index.ts` with current `@gantryland/task` primitive semantics.
+- Audit `useTaskState` for minimum viable behavior and remove unnecessary wrapping/indirection.
+- Audit `useTask` API shape (`run`, `cancel`, `reset`) and keep only core controls needed for Task interop.
+- Keep concise public JSDoc; remove only redundant/verbose commentary.
+- Trim `packages/task-react/README.md` to a concise bare-metal reference that matches actual guarantees.
+- Update `packages/task-react/test/task-react.test.ts` to reflect reduced guarantees and core behavior only.
+- Run package-level tests for `task-react`.
+- Run full repo verification with `npm run check`.
