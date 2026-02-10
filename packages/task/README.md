@@ -29,6 +29,7 @@ await userTask.run("42");
 | `Task` | Class | Provides reactive async state with latest-run-wins behavior. |
 | `TaskFn` | Type | Represents the async function signature used by `Task.run`. |
 | `TaskState` | Type | Represents the task state snapshot shape. |
+| `TaskOperator` | Type | Represents a function wrapper used by `task.pipe(...)`. |
 
 ## API Reference
 
@@ -46,11 +47,20 @@ new Task<T, Args extends unknown[] = []>(fn: TaskFn<T, Args>)
 | `fulfill` | `(data: T) => T` | Sets success state immediately and returns `data`. |
 | `cancel` | `() => void` | Cancels the in-flight run, if any. |
 | `reset` | `() => void` | Resets to the initial stale idle state. |
+| `pipe` | `<U = T>(...operators: TaskOperator<any, any, Args>[]) => Task<U, Args>` | Returns a new task composed from this task function. |
 
 ### `TaskFn`
 
 ```typescript
 type TaskFn<T, Args extends unknown[] = []> = (...args: Args) => Promise<T>;
+```
+
+### `TaskOperator`
+
+```typescript
+type TaskOperator<In, Out, Args extends unknown[] = []> = (
+  taskFn: TaskFn<In, Args>,
+) => TaskFn<Out, Args>;
 ```
 
 ### `TaskState`
@@ -95,6 +105,21 @@ void reportTask.run("a");
 void reportTask.run("b");
 ```
 
+### Example: Derive a Piped Task
+
+```typescript
+const baseTask = new Task(async (id: string) =>
+  fetch(`/api/users/${id}`).then((r) => r.json()),
+);
+
+const hardenedTask = baseTask.pipe(
+  (taskFn) => async (...args: [string]) => {
+    const value = await taskFn(...args);
+    return value;
+  },
+);
+```
+
 ## Runtime Semantics
 
 - Starting `run(...args)` clears `error`, sets `isLoading: true`, and sets `isStale: false`.
@@ -102,3 +127,4 @@ void reportTask.run("b");
 - Canceled runs reject with `AbortError` and do not write `error` to state.
 - Failed runs keep previous `data`, normalize non-`Error` throws, and write `error`.
 - `fulfill`, `cancel`, and `reset` cancel any in-flight run.
+- `pipe` never mutates the source task; it always returns a new `Task` instance.

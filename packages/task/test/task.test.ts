@@ -69,6 +69,61 @@ describe("Task", () => {
     expect(task.getState().data).toBe("7:ok");
   });
 
+  it("pipe returns a new task and keeps original behavior", async () => {
+    const task = new Task<number, [number]>(async (value) => value + 1);
+    const doubled = task.pipe<number>(
+      (taskFn) =>
+        async (...args) =>
+          (await taskFn(...args)) * 2,
+    );
+
+    expect(doubled).not.toBe(task);
+    await expect(task.run(2)).resolves.toBe(3);
+    await expect(doubled.run(2)).resolves.toBe(6);
+  });
+
+  it("pipe composes operators left to right", async () => {
+    const task = new Task<string, [string]>(async (value) => value);
+    const piped = task.pipe<string>(
+      (taskFn) =>
+        async (...args) =>
+          `A(${await taskFn(...args)})`,
+      (taskFn) =>
+        async (...args) =>
+          `B(${await taskFn(...args)})`,
+    );
+
+    await expect(piped.run("x")).resolves.toBe("B(A(x))");
+  });
+
+  it("pipe forwards args through operators", async () => {
+    const task = new Task<string, [number, string]>(
+      async (id, label) => `${id}:${label}`,
+    );
+    const piped = task.pipe<string>(
+      (taskFn) =>
+        async (...args) =>
+          `value=${await taskFn(...args)}`,
+    );
+
+    await expect(piped.run(3, "ok")).resolves.toBe("value=3:ok");
+  });
+
+  it("pipe with no operators returns an equivalent independent task", async () => {
+    const task = new Task(async () => "ok");
+    const cloned = task.pipe();
+
+    expect(cloned).not.toBe(task);
+    await expect(task.run()).resolves.toBe("ok");
+    expect(cloned.getState()).toEqual({
+      data: undefined,
+      error: undefined,
+      isLoading: false,
+      isStale: true,
+    });
+    await expect(cloned.run()).resolves.toBe("ok");
+  });
+
   it("preserves data when later runs fail", async () => {
     let fail = false;
     const error = new Error("boom");

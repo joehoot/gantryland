@@ -14,6 +14,11 @@ export type TaskFn<T, Args extends unknown[] = []> = (
   ...args: Args
 ) => Promise<T>;
 
+/** Function wrapper that transforms one task function into another. */
+export type TaskOperator<In, Out, Args extends unknown[] = []> = (
+  taskFn: TaskFn<In, Args>,
+) => TaskFn<Out, Args>;
+
 const isAbortError = (err: unknown): boolean =>
   (err instanceof Error && err.name === "AbortError") ||
   (typeof err === "object" &&
@@ -165,5 +170,16 @@ export class Task<T, Args extends unknown[] = []> {
     this.requestId += 1;
     this.cancelInFlight(createAbortError());
     this.setState(createDefaultTaskState<T>());
+  }
+
+  /** Compose this task function with operators and return a new task. */
+  pipe<U = T>(
+    ...operators: Array<TaskOperator<any, any, Args>>
+  ): Task<U, Args> {
+    let taskFn: TaskFn<any, Args> = this.fn as TaskFn<any, Args>;
+    for (const operator of operators) {
+      taskFn = operator(taskFn);
+    }
+    return new Task<U, Args>(taskFn as TaskFn<U, Args>);
   }
 }
