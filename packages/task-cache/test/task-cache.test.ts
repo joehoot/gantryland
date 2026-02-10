@@ -1,10 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import {
-  MemoryCacheStore,
-  cache,
-  invalidateOnResolve,
-  staleWhileRevalidate,
-} from "../index";
+import { MemoryCacheStore, cache, staleWhileRevalidate } from "../index";
 
 const createDeferred = <T>() => {
   let resolve: (value: T) => void = (_value) => {
@@ -21,76 +16,23 @@ const createDeferred = <T>() => {
 };
 
 describe("MemoryCacheStore", () => {
-  it("stores and retrieves entries", () => {
+  it("stores, retrieves, and deletes entries", () => {
     const store = new MemoryCacheStore();
-    store.set("key", { value: 1, createdAt: 1, updatedAt: 1 });
-
-    expect(store.has("key")).toBe(true);
-    expect(store.get("key")?.value).toBe(1);
-    expect(Array.from(store.keys())).toEqual(["key"]);
-  });
-
-  it("deletes and clears entries", () => {
-    const store = new MemoryCacheStore();
-    store.set("a", { value: "a", createdAt: 1, updatedAt: 1 });
-    store.set("b", { value: "b", createdAt: 1, updatedAt: 1 });
-
-    store.delete("a");
-    expect(store.has("a")).toBe(false);
-    expect(store.has("b")).toBe(true);
-
-    store.clear();
-    expect(Array.from(store.keys())).toEqual([]);
-  });
-
-  it("invalidates by tags", () => {
-    const store = new MemoryCacheStore();
-    store.set("a", { value: 1, createdAt: 1, updatedAt: 1, tags: ["t1"] });
-    store.set("b", {
-      value: 2,
-      createdAt: 1,
-      updatedAt: 1,
-      tags: ["t1", "t2"],
-    });
-
-    store.invalidateTags(["t1"]);
-
-    expect(store.has("a")).toBe(false);
-    expect(store.has("b")).toBe(false);
-  });
-
-  it("emits events and isolates listener errors", () => {
-    const store = new MemoryCacheStore();
-    const events: string[] = [];
-    const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
-
-    store.subscribe((event) => {
-      events.push(event.type);
-      throw new Error("listener boom");
-    });
-    store.subscribe((event) => events.push(`ok:${event.type}`));
 
     store.set("key", { value: 1, createdAt: 1, updatedAt: 1 });
+    expect(store.get<number>("key")?.value).toBe(1);
+
     store.delete("key");
-    store.clear();
-
-    expect(events).toEqual([
-      "set",
-      "ok:set",
-      "invalidate",
-      "ok:invalidate",
-      "clear",
-      "ok:clear",
-    ]);
-    expect(errorSpy).toHaveBeenCalled();
-    errorSpy.mockRestore();
+    expect(store.get("key")).toBeUndefined();
   });
 });
 
 describe("cache", () => {
   it("returns cached data when fresh", async () => {
     const store = new MemoryCacheStore();
-    const taskFn = cache("key", store, { ttl: 100 })(async () => "fresh");
+    const taskFn = cache<string, []>("key", store, { ttl: 100 })(
+      async () => "fresh",
+    );
 
     vi.useFakeTimers();
     vi.setSystemTime(new Date("2024-01-01T00:00:00.000Z"));
@@ -104,7 +46,7 @@ describe("cache", () => {
   it("refetches when stale", async () => {
     const store = new MemoryCacheStore();
     let calls = 0;
-    const taskFn = cache("key", store, { ttl: 10 })(async () => {
+    const taskFn = cache<string, []>("key", store, { ttl: 10 })(async () => {
       calls += 1;
       return `value-${calls}`;
     });
@@ -120,7 +62,7 @@ describe("cache", () => {
 
   it("does not cache when task rejects", async () => {
     const store = new MemoryCacheStore();
-    const taskFn = cache(
+    const taskFn = cache<string, []>(
       "key",
       store,
     )(async () => {
@@ -134,7 +76,7 @@ describe("cache", () => {
   it("dedupes in-flight requests by default", async () => {
     const store = new MemoryCacheStore();
     const deferred = createDeferred<string>();
-    const taskFn = cache("key", store)(() => deferred.promise);
+    const taskFn = cache<string, []>("key", store)(() => deferred.promise);
 
     const first = taskFn();
     const second = taskFn();
@@ -149,7 +91,7 @@ describe("cache", () => {
   it("shares rejection across deduped callers", async () => {
     const store = new MemoryCacheStore();
     const deferred = createDeferred<string>();
-    const taskFn = cache("key", store)(() => deferred.promise);
+    const taskFn = cache<string, []>("key", store)(() => deferred.promise);
 
     const first = taskFn();
     const second = taskFn();
@@ -164,7 +106,7 @@ describe("cache", () => {
     const store = new MemoryCacheStore();
     const deferreds = [createDeferred<string>(), createDeferred<string>()];
     let index = 0;
-    const taskFn = cache("key", store, { dedupe: false })(
+    const taskFn = cache<string, []>("key", store, { dedupe: false })(
       () => deferreds[index++].promise,
     );
 
@@ -183,7 +125,7 @@ describe("cache", () => {
   it("preserves createdAt when refreshing existing cache entry", async () => {
     const store = new MemoryCacheStore();
     let calls = 0;
-    const taskFn = cache("key", store, { ttl: 10 })(async () => {
+    const taskFn = cache<string, []>("key", store, { ttl: 10 })(async () => {
       calls += 1;
       return `value-${calls}`;
     });
@@ -203,10 +145,14 @@ describe("cache", () => {
 describe("staleWhileRevalidate", () => {
   it("returns fresh data without revalidating", async () => {
     const store = new MemoryCacheStore();
-    const taskFn = staleWhileRevalidate("key", store, {
+    let calls = 0;
+    const taskFn = staleWhileRevalidate<string, []>("key", store, {
       ttl: 50,
       staleTtl: 50,
-    })(async () => "data");
+    })(async () => {
+      calls += 1;
+      return "data";
+    });
 
     vi.useFakeTimers();
     vi.setSystemTime(new Date("2024-01-01T00:00:00.000Z"));
@@ -214,102 +160,43 @@ describe("staleWhileRevalidate", () => {
 
     vi.setSystemTime(new Date("2024-01-01T00:00:00.040Z"));
     await expect(taskFn()).resolves.toBe("data");
+    expect(calls).toBe(1);
     vi.useRealTimers();
   });
 
   it("returns stale data and revalidates in background", async () => {
     const store = new MemoryCacheStore();
-    const deferred = createDeferred<string>();
-    const taskFn = staleWhileRevalidate("key", store, {
+    const initial = createDeferred<string>();
+    const next = createDeferred<string>();
+    let calls = 0;
+
+    const taskFn = staleWhileRevalidate<string, []>("key", store, {
       ttl: 10,
       staleTtl: 30,
-    })(() => deferred.promise);
+    })(() => {
+      calls += 1;
+      return calls === 1 ? initial.promise : next.promise;
+    });
 
     vi.useFakeTimers();
     vi.setSystemTime(new Date("2024-01-01T00:00:00.000Z"));
-    deferred.resolve("initial");
-    await taskFn();
-
-    await Promise.resolve();
-
-    const revalidated = createDeferred<void>();
-    const unsubscribe = store.subscribe((event) => {
-      if (event.type === "set" && event.entry?.value === "updated") {
-        revalidated.resolve();
-      }
-    });
-
-    const next = createDeferred<string>();
-    const nextTaskFn = staleWhileRevalidate("key", store, {
-      ttl: 10,
-      staleTtl: 30,
-    })(() => next.promise);
+    initial.resolve("initial");
+    await expect(taskFn()).resolves.toBe("initial");
 
     vi.setSystemTime(new Date("2024-01-01T00:00:00.020Z"));
-    await expect(nextTaskFn()).resolves.toBe("initial");
+    await expect(taskFn()).resolves.toBe("initial");
+    expect(calls).toBe(2);
 
     next.resolve("updated");
     await next.promise;
-    await revalidated.promise;
-    unsubscribe();
+    await Promise.resolve();
+
     expect(store.get<string>("key")?.value).toBe("updated");
     vi.useRealTimers();
   });
 
-  it("emits stale and revalidate events in stale window", async () => {
+  it("dedupes stale-window background revalidations", async () => {
     const store = new MemoryCacheStore();
-    const events: string[] = [];
-    store.subscribe((event) => events.push(event.type));
-    const seed = staleWhileRevalidate("key", store, { ttl: 10, staleTtl: 30 })(
-      async () => "initial",
-    );
-
-    vi.useFakeTimers();
-    vi.setSystemTime(new Date("2024-01-01T00:00:00.000Z"));
-    await seed();
-
-    vi.setSystemTime(new Date("2024-01-01T00:00:00.020Z"));
-    await seed();
-
-    expect(events).toContain("stale");
-    expect(events).toContain("revalidate");
-    vi.useRealTimers();
-  });
-
-  it("emits revalidateError and keeps stale value on background failure", async () => {
-    const store = new MemoryCacheStore();
-    const events: string[] = [];
-    store.subscribe((event) => events.push(event.type));
-
-    vi.useFakeTimers();
-    vi.setSystemTime(new Date("2024-01-01T00:00:00.000Z"));
-    store.set("key", {
-      value: "cached",
-      createdAt: Date.now(),
-      updatedAt: Date.now() - 20,
-    });
-
-    const deferred = createDeferred<string>();
-    const taskFn = staleWhileRevalidate("key", store, {
-      ttl: 10,
-      staleTtl: 30,
-    })(() => deferred.promise);
-
-    await expect(taskFn()).resolves.toBe("cached");
-    deferred.reject(new Error("boom"));
-    await deferred.promise.catch(() => {});
-    await Promise.resolve();
-
-    expect(events).toContain("revalidateError");
-    expect(store.get<string>("key")?.value).toBe("cached");
-    vi.useRealTimers();
-  });
-
-  it("attaches onError for deduped stale revalidations", async () => {
-    const store = new MemoryCacheStore();
-    const events: string[] = [];
-    store.subscribe((event) => events.push(event.type));
-
     vi.useFakeTimers();
     vi.setSystemTime(new Date("2024-01-01T00:00:00.000Z"));
     store.set("key", {
@@ -320,7 +207,7 @@ describe("staleWhileRevalidate", () => {
 
     const deferred = createDeferred<string>();
     let calls = 0;
-    const taskFn = staleWhileRevalidate("key", store, {
+    const taskFn = staleWhileRevalidate<string, []>("key", store, {
       ttl: 10,
       staleTtl: 30,
     })(() => {
@@ -332,17 +219,35 @@ describe("staleWhileRevalidate", () => {
     await expect(taskFn()).resolves.toBe("cached");
     expect(calls).toBe(1);
 
+    deferred.resolve("updated");
+    await deferred.promise;
+    await Promise.resolve();
+    expect(store.get<string>("key")?.value).toBe("updated");
+    vi.useRealTimers();
+  });
+
+  it("keeps stale value on background failure", async () => {
+    const store = new MemoryCacheStore();
+
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2024-01-01T00:00:00.000Z"));
+    store.set("key", {
+      value: "cached",
+      createdAt: Date.now(),
+      updatedAt: Date.now() - 20,
+    });
+
+    const deferred = createDeferred<string>();
+    const taskFn = staleWhileRevalidate<string, []>("key", store, {
+      ttl: 10,
+      staleTtl: 30,
+    })(() => deferred.promise);
+
+    await expect(taskFn()).resolves.toBe("cached");
     deferred.reject(new Error("boom"));
     await deferred.promise.catch(() => {});
     await Promise.resolve();
 
-    const revalidations = events.filter((type) => type === "revalidate");
-    expect(revalidations.length).toBe(1);
-
-    const revalidateErrors = events.filter(
-      (type) => type === "revalidateError",
-    );
-    expect(revalidateErrors.length).toBe(1);
     expect(store.get<string>("key")?.value).toBe("cached");
     vi.useRealTimers();
   });
@@ -350,7 +255,7 @@ describe("staleWhileRevalidate", () => {
   it("falls through to fetch after stale window", async () => {
     const store = new MemoryCacheStore();
     let calls = 0;
-    const taskFn = staleWhileRevalidate("key", store, {
+    const taskFn = staleWhileRevalidate<string, []>("key", store, {
       ttl: 10,
       staleTtl: 10,
     })(async () => {
@@ -369,7 +274,7 @@ describe("staleWhileRevalidate", () => {
 
   it("rejects and does not cache when miss fetch fails", async () => {
     const store = new MemoryCacheStore();
-    const taskFn = staleWhileRevalidate("key", store, {
+    const taskFn = staleWhileRevalidate<string, []>("key", store, {
       ttl: 10,
       staleTtl: 10,
     })(async () => {
@@ -378,62 +283,5 @@ describe("staleWhileRevalidate", () => {
 
     await expect(taskFn()).rejects.toThrow("boom");
     expect(store.get("key")).toBeUndefined();
-  });
-});
-
-describe("invalidateOnResolve", () => {
-  it("invalidates by key or keys", async () => {
-    const store = new MemoryCacheStore();
-    store.set("a", { value: 1, createdAt: 1, updatedAt: 1 });
-    store.set("b", { value: 2, createdAt: 1, updatedAt: 1 });
-
-    const taskFn = invalidateOnResolve(["a", "b"], store)(async () => "ok");
-    await taskFn();
-
-    expect(store.has("a")).toBe(false);
-    expect(store.has("b")).toBe(false);
-  });
-
-  it("invalidates by tags", async () => {
-    const store = new MemoryCacheStore();
-    store.set("a", { value: 1, createdAt: 1, updatedAt: 1, tags: ["t1"] });
-    store.set("b", { value: 2, createdAt: 1, updatedAt: 1, tags: ["t1"] });
-
-    const taskFn = invalidateOnResolve(
-      { tags: ["t1"] },
-      store,
-    )(async () => "ok");
-    await taskFn();
-
-    expect(store.has("a")).toBe(false);
-    expect(store.has("b")).toBe(false);
-  });
-
-  it("supports dynamic targets", async () => {
-    const store = new MemoryCacheStore();
-    store.set("user:1", { value: 1, createdAt: 1, updatedAt: 1 });
-
-    const taskFn = invalidateOnResolve(
-      (id: number) => `user:${id}`,
-      store,
-    )(async () => 1);
-    await taskFn();
-
-    expect(store.has("user:1")).toBe(false);
-  });
-
-  it("does not invalidate when task rejects", async () => {
-    const store = new MemoryCacheStore();
-    store.set("a", { value: 1, createdAt: 1, updatedAt: 1 });
-
-    const taskFn = invalidateOnResolve(
-      "a",
-      store,
-    )(async () => {
-      throw new Error("boom");
-    });
-
-    await expect(taskFn()).rejects.toThrow("boom");
-    expect(store.has("a")).toBe(true);
   });
 });

@@ -3,7 +3,7 @@
 Cache primitives and combinators for `@gantryland/task`.
 
 This package provides explicit cache behavior at the task-function layer: TTL,
-stale-while-revalidate, dedupe, and invalidation.
+stale-while-revalidate, and dedupe.
 
 ## Installation
 
@@ -18,7 +18,7 @@ import { Task } from "@gantryland/task";
 import { MemoryCacheStore, cache } from "@gantryland/task-cache";
 
 const store = new MemoryCacheStore();
-const usersTaskFn = cache("users", store, { ttl: 60_000, tags: ["users"] })(
+const usersTaskFn = cache("users", store, { ttl: 60_000 })(
   () => fetch("/api/users").then((r) => r.json()),
 );
 
@@ -32,36 +32,21 @@ await usersTask.run();
 
 | Export | Signature | Notes |
 | --- | --- | --- |
-| `MemoryCacheStore` | `new MemoryCacheStore()` | in-memory store with eventing and tag index |
+| `MemoryCacheStore` | `new MemoryCacheStore()` | in-memory store |
 | `cache` | `cache(key, store, options?)` | fresh-hit cache wrapper |
 | `staleWhileRevalidate` | `staleWhileRevalidate(key, store, options?)` | return stale value and revalidate in background |
-| `invalidateOnResolve` | `invalidateOnResolve(target, store)` | invalidate only after success |
 | `CacheKey` | `string \| number \| symbol` | supported keys |
-| `CacheEntry<T>` | `{ value, createdAt, updatedAt, tags? }` | cached value with metadata |
-| `CacheEvent` | `{ type, key?, entry?, error? }` | emitted store/cache lifecycle event |
-| `CacheStore` | cache store interface | minimum methods: `get`, `set`, `delete`, `clear`, `has` |
-| `CacheOptions` | `{ ttl?, staleTtl?, tags?, dedupe? }` | cache wrapper options |
-
-`invalidateOnResolve(target, store)` accepts:
-
-- `CacheKey`
-- `CacheKey[]`
-- `{ tags: string[] }`
-- `(result) => CacheKey | CacheKey[] | { tags: string[] }`
+| `CacheEntry<T>` | `{ value, createdAt, updatedAt }` | cached value with metadata |
+| `CacheStore` | cache store interface | minimum methods: `get`, `set`, `delete` |
+| `CacheOptions` | `{ ttl?, staleTtl?, dedupe? }` | cache wrapper options |
 
 ## MemoryCacheStore methods
 
 | Method | Purpose |
 | --- | --- |
 | `get<T>(key)` | read entry |
-| `set<T>(key, entry)` | write/replace entry and update tag index |
-| `delete(key)` | remove entry and emit `invalidate` |
-| `clear()` | clear all entries and emit `clear` |
-| `has(key)` | check key presence |
-| `keys()` | iterate keys |
-| `subscribe(listener)` | observe cache events |
-| `emit(event)` | manually emit event |
-| `invalidateTags(tags)` | invalidate entries by tag |
+| `set<T>(key, entry)` | write/replace entry |
+| `delete(key)` | remove entry |
 
 ## Semantics
 
@@ -72,10 +57,9 @@ await usersTask.run();
 - `staleWhileRevalidate(...)`
   - fresh hit returns immediately
   - stale-window hit returns stale value, then revalidates in background
-  - background failure emits `revalidateError` and is ignored for caller path
+  - background failure is ignored for caller path
 - `dedupe` defaults to `true`
   - same key + in-flight call share one promise
-- `invalidateOnResolve(...)` only runs invalidation on success
 
 ## Test this package
 
