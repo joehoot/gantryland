@@ -1,12 +1,6 @@
 # @gantryland/task
 
-Minimal async task with reactive state.
-
-`Task` gives you one shared async state identity with latest-run-wins behavior built in.
-
-- Plain async task functions: `(...args) => Promise<T>`
-- Small API: `run`, `fulfill`, `subscribe`, `cancel`, `reset`
-- No runtime dependencies
+Minimal async task primitive with reactive state and latest-run-wins behavior.
 
 ## Installation
 
@@ -14,7 +8,7 @@ Minimal async task with reactive state.
 npm install @gantryland/task
 ```
 
-## Quick start
+## Quick Start
 
 ```typescript
 import { Task } from "@gantryland/task";
@@ -28,30 +22,36 @@ const userTask = new Task<User, [string]>((id) =>
 await userTask.run("42");
 ```
 
-## API
+## Exports
+
+- `Task`
+- `TaskFn`
+- `TaskState`
+
+## API Reference
+
+### `Task`
 
 ```typescript
-new Task<T, Args extends unknown[] = []>(fn: (...args: Args) => Promise<T>)
+new Task<T, Args extends unknown[] = []>(fn: TaskFn<T, Args>)
 ```
 
-| Member | Return | Notes |
+| Member | Signature | Description |
 | --- | --- | --- |
-| `getState()` | `TaskState<T>` | Current snapshot |
-| `subscribe(listener)` | `() => void` | Immediate emit, then every update |
-| `run(...args)` | `Promise<T>` | Rejects on failure or cancellation |
-| `fulfill(data)` | `T` | Sets success state immediately |
-| `cancel()` | `void` | Cancels in-flight run |
-| `reset()` | `void` | Restores stale initial state |
+| `getState` | `() => TaskState<T>` | Returns the current state snapshot. |
+| `subscribe` | `(listener: (state: TaskState<T>) => void) => () => void` | Subscribes to state updates and emits the current state immediately. |
+| `run` | `(...args: Args) => Promise<T>` | Runs the task function and updates state. Rejects on failure or cancellation. |
+| `fulfill` | `(data: T) => T` | Sets success state immediately and returns `data`. |
+| `cancel` | `() => void` | Cancels the in-flight run, if any. |
+| `reset` | `() => void` | Resets to the initial stale idle state. |
 
-## Semantics
+### `TaskFn`
 
-- `run(...args)` clears previous `error`, sets loading, and marks `isStale: false`.
-- If a second `run` starts before the first settles, the first is canceled.
-- Canceled runs reject with `AbortError` and do not write `error` to state.
-- Failures keep previous `data`, normalize non-`Error` throws, and set `error`.
-- `fulfill(data)` and `reset()` both cancel any in-flight run.
+```typescript
+type TaskFn<T, Args extends unknown[] = []> = (...args: Args) => Promise<T>;
+```
 
-## Types
+### `TaskState`
 
 ```typescript
 type TaskState<T> = {
@@ -60,12 +60,43 @@ type TaskState<T> = {
   isLoading: boolean;
   isStale: boolean;
 };
-
-type TaskFn<T, Args extends unknown[] = []> = (...args: Args) => Promise<T>;
 ```
 
-## Test this package
+## Practical Use Cases
 
-```bash
-npx vitest packages/task/test
+### Example: Load on Demand
+
+```typescript
+const searchTask = new Task<string[], [string]>((query) =>
+  fetch(`/api/search?q=${encodeURIComponent(query)}`).then((r) => r.json()),
+);
+
+await searchTask.run("term");
 ```
+
+### Example: Optimistic Local Fulfill
+
+```typescript
+const profileTask = new Task(async () => fetch("/api/profile").then((r) => r.json()));
+
+profileTask.fulfill({ id: "42", name: "Local Name" });
+```
+
+### Example: Cancel Superseded Work
+
+```typescript
+const reportTask = new Task(async (id: string) =>
+  fetch(`/api/reports/${id}`).then((r) => r.json()),
+);
+
+void reportTask.run("a");
+void reportTask.run("b");
+```
+
+## Runtime Semantics
+
+- Starting `run(...args)` clears `error`, sets `isLoading: true`, and sets `isStale: false`.
+- If a later `run` starts before an earlier one settles, the earlier run is canceled.
+- Canceled runs reject with `AbortError` and do not write `error` to state.
+- Failed runs keep previous `data`, normalize non-`Error` throws, and write `error`.
+- `fulfill`, `cancel`, and `reset` cancel any in-flight run.

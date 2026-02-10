@@ -1,9 +1,6 @@
 # @gantryland/task-cache
 
-Cache primitives and combinators for `@gantryland/task`.
-
-This package provides explicit cache behavior at the task-function layer: TTL,
-stale-while-revalidate, and dedupe.
+Task-function cache wrappers with TTL, stale-while-revalidate, and in-flight dedupe.
 
 ## Installation
 
@@ -11,7 +8,7 @@ stale-while-revalidate, and dedupe.
 npm install @gantryland/task @gantryland/task-cache
 ```
 
-## Quick start
+## Quick Start
 
 ```typescript
 import { Task } from "@gantryland/task";
@@ -28,43 +25,114 @@ await usersTask.run();
 await usersTask.run();
 ```
 
-## API
+## Exports
 
-| Export | Signature | Notes |
+- `MemoryCacheStore`
+- `cache`
+- `staleWhileRevalidate`
+- `CacheKey`
+- `CacheEntry`
+- `CacheStore`
+- `CacheOptions`
+- `StaleWhileRevalidateOptions`
+
+## API Reference
+
+### `MemoryCacheStore`
+
+Provides an in-memory `CacheStore` implementation backed by `Map`.
+
+| Method | Signature | Description |
 | --- | --- | --- |
-| `MemoryCacheStore` | `new MemoryCacheStore()` | in-memory store |
-| `cache` | `cache(key, store, options?)` | fresh-hit cache wrapper |
-| `staleWhileRevalidate` | `staleWhileRevalidate(key, store, options)` | return stale value and revalidate in background |
-| `CacheKey` | `string \| number \| symbol` | supported keys |
-| `CacheEntry<T>` | `{ value, updatedAt }` | cached value with metadata |
-| `CacheStore` | cache store interface | minimum methods: `get`, `set`, `delete` |
-| `CacheOptions` | `{ ttl?, dedupe? }` | options for `cache(...)` |
-| `StaleWhileRevalidateOptions` | `{ ttl, staleTtl?, dedupe? }` | options for `staleWhileRevalidate(...)` |
+| `get` | `<T>(key: CacheKey) => CacheEntry<T> \| undefined` | Returns cached entry for `key`, if present. |
+| `set` | `<T>(key: CacheKey, entry: CacheEntry<T>) => void` | Stores or replaces entry for `key`. |
+| `delete` | `(key: CacheKey) => void` | Removes entry for `key`. |
 
-## MemoryCacheStore methods
+### `cache`
 
-| Method | Purpose |
-| --- | --- |
-| `get<T>(key)` | read entry |
-| `set<T>(key, entry)` | write/replace entry |
-| `delete(key)` | remove entry |
-
-## Semantics
-
-- `cache(...)`
-  - fresh hit returns cached value immediately
-  - stale/miss runs source and writes on success
-  - source rejection does not write cache
-- `staleWhileRevalidate(...)`
-  - requires a non-negative finite `ttl`
-  - fresh hit returns immediately
-  - stale-window hit returns stale value, then revalidates in background
-  - background failure is ignored for caller path
-- `dedupe` defaults to `true`
-  - same key + in-flight call share one promise
-
-## Test this package
-
-```bash
-npx vitest packages/task-cache/test
+```typescript
+cache<T, Args extends unknown[] = []>(
+  key: CacheKey,
+  store: CacheStore,
+  options?: CacheOptions,
+): (taskFn: (...args: Args) => Promise<T>) => (...args: Args) => Promise<T>
 ```
+
+Returns a wrapper that serves fresh cache hits and resolves source on miss or stale entry.
+
+### `staleWhileRevalidate`
+
+```typescript
+staleWhileRevalidate<T, Args extends unknown[] = []>(
+  key: CacheKey,
+  store: CacheStore,
+  options: StaleWhileRevalidateOptions,
+): (taskFn: (...args: Args) => Promise<T>) => (...args: Args) => Promise<T>
+```
+
+Returns a wrapper that can return stale values within `staleTtl` while refreshing in background.
+
+### Types
+
+```typescript
+type CacheKey = string | number | symbol;
+
+type CacheEntry<T> = {
+  value: T;
+  updatedAt: number;
+};
+
+type CacheStore = {
+  get<T>(key: CacheKey): CacheEntry<T> | undefined;
+  set<T>(key: CacheKey, entry: CacheEntry<T>): void;
+  delete(key: CacheKey): void;
+};
+
+type CacheOptions = {
+  ttl?: number;
+  dedupe?: boolean;
+};
+
+type StaleWhileRevalidateOptions = CacheOptions & {
+  ttl: number;
+  staleTtl?: number;
+};
+```
+
+## Practical Use Cases
+
+### Example: TTL Cache for List Endpoints
+
+```typescript
+const store = new MemoryCacheStore();
+
+const listUsers = cache("users:list", store, { ttl: 30_000 })(() =>
+  fetch("/api/users").then((r) => r.json()),
+);
+```
+
+### Example: Stale-While-Revalidate for Dashboards
+
+```typescript
+const getStats = staleWhileRevalidate("stats", store, {
+  ttl: 10_000,
+  staleTtl: 50_000,
+})(() => fetch("/api/stats").then((r) => r.json()));
+```
+
+### Example: Disable Dedupe for Independent Refreshes
+
+```typescript
+const getFeed = cache("feed", store, { ttl: 5_000, dedupe: false })(() =>
+  fetch("/api/feed").then((r) => r.json()),
+);
+```
+
+## Runtime Semantics
+
+- `cache` returns cached value when entry is fresh; otherwise it executes and stores on success.
+- `staleWhileRevalidate` requires `ttl` as a non-negative finite number.
+- Fresh SWR hit returns immediately without background work.
+- Stale-window SWR hit returns stale value and triggers background revalidation.
+- Background revalidation errors are ignored for the caller path.
+- `dedupe` defaults to `true` so same key and in-flight requests share one promise.

@@ -1,8 +1,8 @@
 # @gantryland/task-combinators
 
-Composable operators for `TaskFn`.
+Composable operators for `TaskFn` pipelines.
 
-All combinators use plain async function signatures: `(...args) => Promise<T>`.
+All combinators preserve plain async signatures: `(...args) => Promise<T>`.
 
 ## Installation
 
@@ -10,7 +10,7 @@ All combinators use plain async function signatures: `(...args) => Promise<T>`.
 npm install @gantryland/task @gantryland/task-combinators
 ```
 
-## Quick start
+## Quick Start
 
 ```typescript
 import { Task } from "@gantryland/task";
@@ -30,43 +30,137 @@ const usersTask = new Task<User[]>(
 await usersTask.run();
 ```
 
-## API
+## Exports
 
-`TaskFn<T, Args>` means `(...args: Args) => Promise<T>`.
+- `TimeoutError`
+- `pipe`
+- `map`
+- `flatMap`
+- `tap`
+- `tapError`
+- `tapAbort`
+- `mapError`
+- `catchError`
+- `retry`
+- `retryWhen`
+- `backoff`
+- `timeout`
+- `timeoutWith`
+- `zip`
+- `race`
+- `sequence`
+- `debounce`
+- `throttle`
+- `queue`
 
-| Export | Signature | Notes |
+## API Reference
+
+`TaskFn<T, Args>` represents `(...args: Args) => Promise<T>`.
+
+### Core Composition
+
+| Export | Signature | Description |
 | --- | --- | --- |
-| `TimeoutError` | `new TimeoutError(message?)` | timeout failure type |
-| `pipe` | `pipe(initial, ...fns)` | left-to-right composition |
-| `map` | `map(fn)` | transform success value |
-| `flatMap` | `flatMap(fn)` | async transform |
-| `tap` | `tap(fn)` | success side effect |
-| `tapError` | `tapError(fn)` | non-abort error side effect + rethrow |
-| `tapAbort` | `tapAbort(fn)` | `AbortError` side effect + rethrow |
-| `mapError` | `mapError(fn)` | map non-abort errors |
-| `catchError` | `catchError(fallback)` | recover non-abort errors |
-| `retry` | `retry(attempts, options?)` | options: `onRetry?(err, attempt)` |
-| `retryWhen` | `retryWhen(shouldRetry, options?)` | options: `maxAttempts?`, `delayMs?`, `onRetry?` |
-| `backoff` | `backoff(options)` | options: `attempts`, `delayMs`, `shouldRetry?` |
-| `timeout` | `timeout(ms)` | rejects `TimeoutError` only at wrapper layer |
-| `timeoutWith` | `timeoutWith(ms, fallback)` | fallback runs only on timeout |
-| `zip` | `zip(...taskFns)` | parallel tuple result |
-| `race` | `race(...taskFns)` | first settled result/error |
-| `sequence` | `sequence(...taskFns)` | sequential tuple result |
-| `debounce` | `debounce({ waitMs })` | latest pending call wins; superseded pending calls reject `AbortError` |
-| `throttle` | `throttle({ windowMs })` | reuses first in-window in-flight promise |
-| `queue` | `queue({ concurrency? })` | default concurrency `1` |
+| `pipe` | `pipe(initial, ...fns)` | Composes functions left-to-right. |
+| `map` | `map(fn)` | Maps successful values. |
+| `flatMap` | `flatMap(fn)` | Chains async value transforms. |
+| `tap` | `tap(fn)` | Runs success side effects and returns original value. |
 
-## Semantics
+### Error Handling
+
+| Export | Signature | Description |
+| --- | --- | --- |
+| `tapError` | `tapError(fn)` | Runs side effects for non-abort errors, then rethrows. |
+| `tapAbort` | `tapAbort(fn)` | Runs side effects for `AbortError`, then rethrows. |
+| `mapError` | `mapError(fn)` | Maps non-abort errors to a new `Error`. |
+| `catchError` | `catchError(fallback)` | Recovers from non-abort errors with value or async fallback. |
+
+### Retry And Timeouts
+
+| Export | Signature | Description |
+| --- | --- | --- |
+| `retry` | `retry(attempts, options?)` | Retries on non-abort errors; `attempts` is retry count. |
+| `retryWhen` | `retryWhen(shouldRetry, options?)` | Retries while predicate returns true. |
+| `backoff` | `backoff(options)` | Retry helper using fixed or computed delay. |
+| `timeout` | `timeout(ms)` | Rejects with `TimeoutError` after `ms`. |
+| `timeoutWith` | `timeoutWith(ms, fallback)` | Uses fallback only when timeout occurs. |
+| `TimeoutError` | `new TimeoutError(message?)` | Error type thrown by `timeout`. |
+
+`retry` options:
+
+```typescript
+{ onRetry?: (err: unknown, attempt: number) => void }
+```
+
+`retryWhen` options:
+
+```typescript
+{
+  maxAttempts?: number;
+  delayMs?: (attempt: number, err: unknown) => number;
+  onRetry?: (err: unknown, attempt: number) => void;
+}
+```
+
+`backoff` options:
+
+```typescript
+{
+  attempts: number;
+  delayMs: number | ((attempt: number, err: unknown) => number);
+  shouldRetry?: (err: unknown) => boolean;
+}
+```
+
+### Coordination And Scheduling
+
+| Export | Signature | Description |
+| --- | --- | --- |
+| `zip` | `zip(...taskFns)` | Runs task functions in parallel and resolves tuple results. |
+| `race` | `race(...taskFns)` | Settles with first result or error. |
+| `sequence` | `sequence(...taskFns)` | Runs task functions sequentially and resolves tuple results. |
+| `debounce` | `debounce({ waitMs })` | Runs only the latest call in a debounce window. |
+| `throttle` | `throttle({ windowMs })` | Reuses first in-window in-flight promise. |
+| `queue` | `queue({ concurrency? })` | Limits concurrent executions, default `1`. |
+
+## Practical Use Cases
+
+### Example: Harden a Network Request
+
+```typescript
+import { pipe, retry, timeout } from "@gantryland/task-combinators";
+
+const getUsers = pipe(
+  () => fetch("/api/users").then((r) => r.json()),
+  retry(2),
+  timeout(4_000),
+);
+```
+
+### Example: Debounced Search
+
+```typescript
+import { debounce } from "@gantryland/task-combinators";
+
+const searchUsers = debounce<{ id: string }[], [string]>({ waitMs: 250 })(
+  (q) => fetch(`/api/users?q=${encodeURIComponent(q)}`).then((r) => r.json()),
+);
+```
+
+### Example: Controlled Background Work
+
+```typescript
+import { queue } from "@gantryland/task-combinators";
+
+const syncItem = queue<void, [string]>({ concurrency: 2 })(async (id) => {
+  await fetch(`/api/sync/${id}`, { method: "POST" });
+});
+```
+
+## Runtime Semantics
 
 - `AbortError` is treated as cancellation and is never swallowed.
-- `timeout(ms)` rejects with `TimeoutError` but does not abort underlying transport.
-- `timeoutWith(ms, fallback)` runs fallback only for timeout; other failures rethrow.
-- `retry` and `retryWhen` normalize non-`Error` failures before terminal throw.
-- `debounce`/`throttle`/`queue` are promise-level scheduling primitives and do not alter your function arguments.
-
-## Test this package
-
-```bash
-npx vitest packages/task-combinators/test
-```
+- `timeout` controls only the wrapper promise boundary and does not abort transport.
+- `timeoutWith` runs fallback only for timeout failures.
+- `retry` and `retryWhen` normalize terminal non-`Error` failures.
+- `debounce`, `throttle`, and `queue` are promise-level schedulers that keep args unchanged.
