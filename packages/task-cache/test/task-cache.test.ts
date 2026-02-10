@@ -19,7 +19,7 @@ describe("MemoryCacheStore", () => {
   it("stores, retrieves, and deletes entries", () => {
     const store = new MemoryCacheStore();
 
-    store.set("key", { value: 1, createdAt: 1, updatedAt: 1 });
+    store.set("key", { value: 1, updatedAt: 1 });
     expect(store.get<number>("key")?.value).toBe(1);
 
     store.delete("key");
@@ -122,7 +122,7 @@ describe("cache", () => {
     ]);
   });
 
-  it("preserves createdAt when refreshing existing cache entry", async () => {
+  it("updates updatedAt when refreshing existing cache entry", async () => {
     const store = new MemoryCacheStore();
     let calls = 0;
     const taskFn = cache<string, []>("key", store, { ttl: 10 })(async () => {
@@ -133,11 +133,13 @@ describe("cache", () => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date("2024-01-01T00:00:00.000Z"));
     await taskFn();
-    const createdAt = store.get<string>("key")?.createdAt;
+    const firstUpdatedAt = store.get<string>("key")?.updatedAt;
 
     vi.setSystemTime(new Date("2024-01-01T00:00:00.050Z"));
     await taskFn();
-    expect(store.get<string>("key")?.createdAt).toBe(createdAt);
+    expect(store.get<string>("key")?.updatedAt).toBeGreaterThan(
+      firstUpdatedAt ?? 0,
+    );
     vi.useRealTimers();
   });
 });
@@ -201,7 +203,6 @@ describe("staleWhileRevalidate", () => {
     vi.setSystemTime(new Date("2024-01-01T00:00:00.000Z"));
     store.set("key", {
       value: "cached",
-      createdAt: Date.now(),
       updatedAt: Date.now() - 20,
     });
 
@@ -233,7 +234,6 @@ describe("staleWhileRevalidate", () => {
     vi.setSystemTime(new Date("2024-01-01T00:00:00.000Z"));
     store.set("key", {
       value: "cached",
-      createdAt: Date.now(),
       updatedAt: Date.now() - 20,
     });
 

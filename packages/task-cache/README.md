@@ -34,11 +34,12 @@ await usersTask.run();
 | --- | --- | --- |
 | `MemoryCacheStore` | `new MemoryCacheStore()` | in-memory store |
 | `cache` | `cache(key, store, options?)` | fresh-hit cache wrapper |
-| `staleWhileRevalidate` | `staleWhileRevalidate(key, store, options?)` | return stale value and revalidate in background |
+| `staleWhileRevalidate` | `staleWhileRevalidate(key, store, options)` | return stale value and revalidate in background |
 | `CacheKey` | `string \| number \| symbol` | supported keys |
-| `CacheEntry<T>` | `{ value, createdAt, updatedAt }` | cached value with metadata |
+| `CacheEntry<T>` | `{ value, updatedAt }` | cached value with metadata |
 | `CacheStore` | cache store interface | minimum methods: `get`, `set`, `delete` |
-| `CacheOptions` | `{ ttl?, staleTtl?, dedupe? }` | cache wrapper options |
+| `CacheOptions` | `{ ttl?, dedupe? }` | options for `cache(...)` |
+| `StaleWhileRevalidateOptions` | `{ ttl, staleTtl?, dedupe? }` | options for `staleWhileRevalidate(...)` |
 
 ## MemoryCacheStore methods
 
@@ -55,6 +56,7 @@ await usersTask.run();
   - stale/miss runs source and writes on success
   - source rejection does not write cache
 - `staleWhileRevalidate(...)`
+  - requires `ttl`
   - fresh hit returns immediately
   - stale-window hit returns stale value, then revalidates in background
   - background failure is ignored for caller path

@@ -4,7 +4,6 @@ export type CacheKey = string | number | symbol;
 
 export type CacheEntry<T> = {
   value: T;
-  createdAt: number;
   updatedAt: number;
 };
 
@@ -32,8 +31,12 @@ export class MemoryCacheStore implements CacheStore {
 
 export type CacheOptions = {
   ttl?: number;
-  staleTtl?: number;
   dedupe?: boolean;
+};
+
+export type StaleWhileRevalidateOptions = CacheOptions & {
+  ttl: number;
+  staleTtl?: number;
 };
 
 type PendingMap = Map<CacheKey, Promise<unknown>>;
@@ -54,10 +57,9 @@ const isFresh = (entry: CacheEntry<unknown>, ttl?: number): boolean => {
 
 const isWithinStale = (
   entry: CacheEntry<unknown>,
-  ttl?: number,
+  ttl: number,
   staleTtl?: number,
 ): boolean => {
-  if (ttl === undefined) return false;
   const age = Date.now() - entry.updatedAt;
   return age > ttl && age <= ttl + (staleTtl ?? 0);
 };
@@ -66,13 +68,10 @@ const setEntry = <T>(
   store: CacheStore,
   key: CacheKey,
   value: T,
-  previous?: CacheEntry<T>,
 ): CacheEntry<T> => {
-  const now = Date.now();
   const entry: CacheEntry<T> = {
     value,
-    createdAt: previous?.createdAt ?? now,
-    updatedAt: now,
+    updatedAt: Date.now(),
   };
   store.set(key, entry);
   return entry;
@@ -84,7 +83,6 @@ const resolveWithDedupe = async <T, Args extends unknown[] = []>(
   taskFn: TaskFn<T, Args>,
   args: Args,
   options: CacheOptions = {},
-  previous?: CacheEntry<T>,
 ): Promise<T> => {
   const dedupe = options.dedupe !== false;
   const pending = dedupe ? getPendingMap(store) : undefined;
@@ -96,7 +94,7 @@ const resolveWithDedupe = async <T, Args extends unknown[] = []>(
   const promise = Promise.resolve()
     .then(() => taskFn(...args))
     .then((value) => {
-      setEntry(store, key, value, previous);
+      setEntry(store, key, value);
       return value;
     })
     .finally(() => {
@@ -117,14 +115,14 @@ export const cache =
   async (...args: Args) => {
     const entry = store.get<T>(key);
     if (entry && isFresh(entry, options.ttl)) return entry.value;
-    return resolveWithDedupe(key, store, taskFn, args, options, entry);
+    return resolveWithDedupe(key, store, taskFn, args, options);
   };
 
 export const staleWhileRevalidate =
   <T, Args extends unknown[] = []>(
     key: CacheKey,
     store: CacheStore,
-    options: CacheOptions = {},
+    options: StaleWhileRevalidateOptions,
   ) =>
   (taskFn: TaskFn<T, Args>): TaskFn<T, Args> =>
   async (...args: Args) => {
@@ -132,13 +130,11 @@ export const staleWhileRevalidate =
     if (entry && isFresh(entry, options.ttl)) return entry.value;
 
     if (entry && isWithinStale(entry, options.ttl, options.staleTtl)) {
-      void resolveWithDedupe(key, store, taskFn, args, options, entry).catch(
-        () => {
-          // Background revalidation errors are ignored.
-        },
-      );
+      void resolveWithDedupe(key, store, taskFn, args, options).catch(() => {
+        // Background revalidation errors are ignored.
+      });
       return entry.value;
     }
 
-    return resolveWithDedupe(key, store, taskFn, args, options, entry);
+    return resolveWithDedupe(key, store, taskFn, args, options);
   };
