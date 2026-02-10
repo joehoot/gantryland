@@ -84,7 +84,7 @@ export declare const backoff: <T, Args extends unknown[] = []>(options: BackoffO
 /**
  * Debounce calls so only the latest call in the wait window executes.
  *
- * Superseded callers reject with `AbortError`.
+ * Superseded pending callers reject with `AbortError`.
  */
 export declare const debounce: <T, Args extends unknown[] = []>(options: {
     waitMs: number;

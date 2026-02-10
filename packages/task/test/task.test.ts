@@ -123,6 +123,16 @@ describe("Task", () => {
     expect(task.getState().error?.message).toBe("boom");
   });
 
+  it("handles synchronous task function throws", async () => {
+    const task = new Task<string>(() => {
+      throw new Error("sync boom");
+    });
+
+    await expect(task.run()).rejects.toThrow("sync boom");
+    expect(task.getState().error?.message).toBe("sync boom");
+    expect(task.getState().isLoading).toBe(false);
+  });
+
   it("normalizes null failures", async () => {
     const task = new Task(async () => {
       throw null;

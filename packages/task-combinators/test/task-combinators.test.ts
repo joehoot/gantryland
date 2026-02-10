@@ -213,6 +213,22 @@ describe("task-combinators", () => {
     await expect(taskFn()).rejects.toMatchObject({ message: "boom" });
   });
 
+  it("timeout handles synchronous throws", async () => {
+    const taskFn = timeout(20)(() => {
+      throw new Error("sync boom");
+    });
+
+    await expect(taskFn()).rejects.toThrow("sync boom");
+  });
+
+  it("timeout passes AbortError through", async () => {
+    const taskFn = timeout(20)(async () => {
+      throw createAbortError();
+    });
+
+    await expect(taskFn()).rejects.toMatchObject({ name: "AbortError" });
+  });
+
   it("timeout does not cancel underlying operation", async () => {
     vi.useFakeTimers();
     const deferred = createDeferred<string>();
@@ -344,6 +360,23 @@ describe("task-combinators", () => {
     vi.useRealTimers();
   });
 
+  it("backoff supports numeric delayMs", async () => {
+    vi.useFakeTimers();
+    let attempts = 0;
+
+    const taskFn = backoff({ attempts: 1, delayMs: 15 })(async () => {
+      attempts += 1;
+      if (attempts === 1) throw new Error("boom");
+      return "ok";
+    });
+
+    const promise = taskFn();
+    await vi.advanceTimersByTimeAsync(15);
+    await expect(promise).resolves.toBe("ok");
+    expect(attempts).toBe(2);
+    vi.useRealTimers();
+  });
+
   it("debounce runs latest call and rejects superseded ones", async () => {
     vi.useFakeTimers();
     const taskFn = vi.fn(async () => "ok");
@@ -370,6 +403,35 @@ describe("task-combinators", () => {
     const rejection = expect(promise).rejects.toThrow("boom");
     await vi.advanceTimersByTimeAsync(10);
     await rejection;
+    vi.useRealTimers();
+  });
+
+  it("debounce does not reject an already-started prior execution", async () => {
+    vi.useFakeTimers();
+    const firstDeferred = createDeferred<string>();
+    const secondDeferred = createDeferred<string>();
+    const runs = [firstDeferred.promise, secondDeferred.promise];
+    let runIndex = 0;
+    const taskFn = vi.fn(() => {
+      const next = runs[runIndex++];
+      if (!next) throw new Error("Unexpected debounced run");
+      return next;
+    });
+    const debounced = debounce<string>({ waitMs: 10 })(taskFn);
+
+    const first = debounced();
+    await vi.advanceTimersByTimeAsync(10);
+
+    const second = debounced();
+
+    firstDeferred.resolve("first");
+    await expect(first).resolves.toBe("first");
+
+    await vi.advanceTimersByTimeAsync(10);
+    secondDeferred.resolve("second");
+    await expect(second).resolves.toBe("second");
+
+    expect(taskFn).toHaveBeenCalledTimes(2);
     vi.useRealTimers();
   });
 

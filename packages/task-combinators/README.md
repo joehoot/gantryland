@@ -7,7 +7,7 @@ All combinators use plain async function signatures: `(...args) => Promise<T>`.
 ## Installation
 
 ```bash
-npm install @gantryland/task-combinators
+npm install @gantryland/task @gantryland/task-combinators
 ```
 
 ## Quick start
@@ -53,7 +53,7 @@ await usersTask.run();
 | `zip` | `zip(...taskFns)` | parallel tuple result |
 | `race` | `race(...taskFns)` | first settled result/error |
 | `sequence` | `sequence(...taskFns)` | sequential tuple result |
-| `debounce` | `debounce({ waitMs })` | latest call wins; superseded calls reject `AbortError` |
+| `debounce` | `debounce({ waitMs })` | latest pending call wins; superseded pending calls reject `AbortError` |
 | `throttle` | `throttle({ windowMs })` | reuses first in-window in-flight promise |
 | `queue` | `queue({ concurrency? })` | default concurrency `1` |
 

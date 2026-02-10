@@ -8,7 +8,7 @@ stale-while-revalidate, dedupe, and invalidation.
 ## Installation
 
 ```bash
-npm install @gantryland/task-cache
+npm install @gantryland/task @gantryland/task-combinators @gantryland/task-cache
 ```
 
 ## Quick start

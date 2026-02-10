@@ -305,6 +305,48 @@ describe("staleWhileRevalidate", () => {
     vi.useRealTimers();
   });
 
+  it("attaches onError for deduped stale revalidations", async () => {
+    const store = new MemoryCacheStore();
+    const events: string[] = [];
+    store.subscribe((event) => events.push(event.type));
+
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2024-01-01T00:00:00.000Z"));
+    store.set("key", {
+      value: "cached",
+      createdAt: Date.now(),
+      updatedAt: Date.now() - 20,
+    });
+
+    const deferred = createDeferred<string>();
+    let calls = 0;
+    const taskFn = staleWhileRevalidate("key", store, {
+      ttl: 10,
+      staleTtl: 30,
+    })(() => {
+      calls += 1;
+      return deferred.promise;
+    });
+
+    await expect(taskFn()).resolves.toBe("cached");
+    await expect(taskFn()).resolves.toBe("cached");
+    expect(calls).toBe(1);
+
+    deferred.reject(new Error("boom"));
+    await deferred.promise.catch(() => {});
+    await Promise.resolve();
+
+    const revalidations = events.filter((type) => type === "revalidate");
+    expect(revalidations.length).toBe(2);
+
+    const revalidateErrors = events.filter(
+      (type) => type === "revalidateError",
+    );
+    expect(revalidateErrors.length).toBeGreaterThanOrEqual(1);
+    expect(store.get<string>("key")?.value).toBe("cached");
+    vi.useRealTimers();
+  });
+
   it("falls through to fetch after stale window", async () => {
     const store = new MemoryCacheStore();
     let calls = 0;

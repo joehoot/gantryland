@@ -308,41 +308,37 @@ export const backoff =
 /**
  * Debounce calls so only the latest call in the wait window executes.
  *
- * Superseded callers reject with `AbortError`.
+ * Superseded pending callers reject with `AbortError`.
  */
 export const debounce =
   <T, Args extends unknown[] = []>(options: { waitMs: number }) =>
   (taskFn: TaskFn<T, Args>): TaskFn<T, Args> => {
     let timer: ReturnType<typeof setTimeout> | null = null;
-    let pendingReject: ((err: Error) => void) | null = null;
-    let callId = 0;
-    let lastArgs: Args = [] as unknown as Args;
+    let pending: {
+      args: Args;
+      resolve: (value: T) => void;
+      reject: (reason: Error) => void;
+    } | null = null;
 
     return (...args: Args) => {
-      callId += 1;
-      const currentCallId = callId;
-      lastArgs = args;
-
       if (timer) clearTimeout(timer);
-      pendingReject?.(createAbortError());
-      pendingReject = null;
+      pending?.reject(createAbortError());
+      pending = null;
 
       return new Promise<T>((resolve, reject) => {
-        pendingReject = reject;
+        pending = { args, resolve, reject };
 
         timer = setTimeout(() => {
-          if (currentCallId !== callId) return;
+          const run = pending;
+          if (!run) return;
+
+          pending = null;
           timer = null;
 
           void Promise.resolve()
-            .then(() => taskFn(...lastArgs))
-            .then(resolve)
-            .catch(reject)
-            .finally(() => {
-              if (currentCallId === callId) {
-                pendingReject = null;
-              }
-            });
+            .then(() => taskFn(...run.args))
+            .then(run.resolve)
+            .catch(run.reject);
         }, options.waitMs);
       });
     };
