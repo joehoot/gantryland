@@ -7,10 +7,8 @@ const isAbortError = (err: unknown): boolean =>
     "name" in err &&
     (err as { name?: unknown }).name === "AbortError");
 
-const toError = (err: unknown): Error => {
-  if (err instanceof Error) return err;
-  return new Error(String(err));
-};
+const toError = (err: unknown): Error =>
+  err instanceof Error ? err : new Error(String(err));
 
 const createAbortError = (): Error => {
   if (typeof DOMException !== "undefined") {
@@ -50,7 +48,7 @@ export const flatMap =
   <T, U, Args extends unknown[] = []>(fn: (data: T) => Promise<U>) =>
   (taskFn: TaskFn<T, Args>): TaskFn<U, Args> =>
   (...args: Args) =>
-    taskFn(...args).then((data) => fn(data));
+    taskFn(...args).then(fn);
 
 /**
  * Run a success-side effect and return the original value unchanged.
@@ -164,33 +162,22 @@ export const timeout =
   (taskFn: TaskFn<T, Args>): TaskFn<T, Args> =>
   (...args: Args) =>
     new Promise((resolve, reject) => {
-      let settled = false;
-      const finish = (fn: () => void) => {
-        if (settled) return;
-        settled = true;
-        fn();
-        clearTimeout(timer);
-      };
-
       const timer = setTimeout(() => {
-        finish(() => reject(new TimeoutError()));
+        reject(new TimeoutError());
       }, ms);
 
-      let runPromise: Promise<T>;
-      try {
-        runPromise = Promise.resolve(taskFn(...args));
-      } catch (error) {
-        runPromise = Promise.reject(error);
-      }
-
-      runPromise
-        .then((value) => finish(() => resolve(value)))
+      Promise.resolve()
+        .then(() => taskFn(...args))
+        .then(resolve)
         .catch((err) => {
           if (isAbortError(err)) {
-            finish(() => reject(err));
+            reject(err);
             return;
           }
-          finish(() => reject(toError(err)));
+          reject(toError(err));
+        })
+        .finally(() => {
+          clearTimeout(timer);
         });
     });
 
@@ -260,10 +247,10 @@ export const retryWhen =
   ) =>
   (taskFn: TaskFn<T, Args>): TaskFn<T, Args> =>
   async (...args: Args) => {
-    const maxAttempts = Math.max(
-      0,
-      options.maxAttempts ?? Number.POSITIVE_INFINITY,
-    );
+    const maxAttempts =
+      options.maxAttempts === undefined
+        ? Number.POSITIVE_INFINITY
+        : Math.max(0, options.maxAttempts);
     let attempt = 0;
 
     while (true) {
