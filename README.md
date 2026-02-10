@@ -1,36 +1,50 @@
 # Gantryland
 
-Gantryland is a TypeScript monorepo of small async workflow libraries published as `@gantryland/*`.
-
-Install dependencies, then open the package README you need.
+TypeScript monorepo of minimal async workflow libraries published as `@gantryland/*`.
 
 ## Packages
 
-- [@gantryland/task](packages/task/)
-- [@gantryland/task-react](packages/task-react/)
-- [@gantryland/task-cache](packages/task-cache/)
-- [@gantryland/task-combinators](packages/task-combinators/)
+| Package | Purpose |
+| --- | --- |
+| [`@gantryland/task`](packages/task/) | Core async task primitive with reactive state. |
+| [`@gantryland/task-react`](packages/task-react/) | React hooks for `@gantryland/task`. |
+| [`@gantryland/task-cache`](packages/task-cache/) | Cache wrappers with TTL and stale-while-revalidate. |
+| [`@gantryland/task-combinators`](packages/task-combinators/) | Functional combinators for task pipelines. |
 
-## Setup
+## Installation
 
 ```bash
 npm install
+```
+
+## Quick Start
+
+```bash
 npm run check
 ```
 
-Use `npm run format` and `npm run lint:fix` for local auto-fixes.
+## Workspace Commands
 
-## Publish
+| Command | Description |
+| --- | --- |
+| `npm run check` | Runs lint, format check, typecheck, build, and tests. |
+| `npm run format` | Applies formatter to the workspace. |
+| `npm run lint:fix` | Applies safe lint fixes. |
+| `npm run test:coverage` | Runs tests with coverage reporting. |
 
-Bump package versions in `packages/*/package.json` before publishing.
+## Release
+
+Update versions in `packages/*/package.json`, then publish:
 
 ```bash
 npm run check
 npm run publish:all
 ```
 
-Run `npm run test:coverage` any time you want a coverage report.
+## Documentation
 
-## Docs
+- Package-level API docs live in each package `README.md`.
 
-- [License](LICENSE)
+## License
+
+[MIT](LICENSE)
