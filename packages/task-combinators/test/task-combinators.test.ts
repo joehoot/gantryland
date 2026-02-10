@@ -225,6 +225,24 @@ describe("task-combinators", () => {
     vi.useRealTimers();
   });
 
+  it("timeout rejects negative ms", () => {
+    expect(() => timeout(-1)(async () => "ok")).toThrow(
+      "timeout ms must be a non-negative finite number",
+    );
+  });
+
+  it("timeout rejects NaN ms", () => {
+    expect(() => timeout(Number.NaN)(async () => "ok")).toThrow(
+      "timeout ms must be a non-negative finite number",
+    );
+  });
+
+  it("timeout rejects infinite ms", () => {
+    expect(() => timeout(Number.POSITIVE_INFINITY)(async () => "ok")).toThrow(
+      "timeout ms must be a non-negative finite number",
+    );
+  });
+
   it("timeout normalizes non-Error throws", async () => {
     const taskFn = timeout(20)(async () => {
       throw "boom";
@@ -493,6 +511,12 @@ describe("task-combinators", () => {
     vi.useRealTimers();
   });
 
+  it("debounce rejects invalid waitMs", () => {
+    expect(() =>
+      debounce<string>({ waitMs: Number.NaN })(async () => "ok"),
+    ).toThrow("debounce waitMs must be a non-negative finite number");
+  });
+
   it("throttle reuses in-flight promise within window", async () => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date("2024-01-01T00:00:00.000Z"));
@@ -517,6 +541,14 @@ describe("task-combinators", () => {
     expect(taskFn).toHaveBeenCalledTimes(2);
     await third;
     vi.useRealTimers();
+  });
+
+  it("throttle rejects invalid windowMs", () => {
+    expect(() =>
+      throttle<string>({ windowMs: Number.POSITIVE_INFINITY })(
+        async () => "ok",
+      ),
+    ).toThrow("throttle windowMs must be a non-negative finite number");
   });
 
   it("queue runs tasks in order with default concurrency", async () => {

@@ -19,7 +19,7 @@ export type UseTaskResult<T, Args extends unknown[] = []> = TaskState<T> & {
   reset: () => void;
 };
 
-/** Subscribes React to Task state with `useSyncExternalStore`. */
+/** Subscribes React to TaskLike state with `useSyncExternalStore`. */
 export const useTaskState = <T, Args extends unknown[] = []>(
   task: TaskLike<T, Args>,
 ): TaskState<T> => {
@@ -32,7 +32,7 @@ export const useTaskState = <T, Args extends unknown[] = []>(
   return useSyncExternalStore(subscribe, getSnapshot, getSnapshot);
 };
 
-/** Binds task controls to a Task instance. */
+/** Binds task controls to a TaskLike instance. */
 export const useTask = <T, Args extends unknown[] = []>(
   task: TaskLike<T, Args>,
 ): UseTaskResult<T, Args> => {

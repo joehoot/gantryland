@@ -121,6 +121,10 @@ These combinators are designed to plug into `Task.pipe(...)`.
 - `attempts` must be a non-negative finite integer.
 - `delayMs` values must be non-negative finite numbers.
 
+`timeout` constraints:
+
+- `ms` must be a non-negative finite number.
+
 ### Coordination And Scheduling
 
 | Export | Signature | Description |
@@ -131,6 +135,11 @@ These combinators are designed to plug into `Task.pipe(...)`.
 | `debounce` | `debounce({ waitMs })` | Runs only the latest call in a debounce window. |
 | `throttle` | `throttle({ windowMs })` | Reuses first in-window in-flight promise. |
 | `queue` | `queue({ concurrency? })` | Limits concurrent executions, default `1`. |
+
+`debounce` and `throttle` constraints:
+
+- `waitMs` must be a non-negative finite number.
+- `windowMs` must be a non-negative finite number.
 
 `queue` concurrency must be a positive finite integer.
 

@@ -127,5 +127,5 @@ const hardenedTask = baseTask.pipe(
 - Canceled runs reject with `AbortError` and do not write `error` to state.
 - Failed runs keep previous `data`, normalize non-`Error` throws, and write `error`.
 - `fulfill`, `cancel`, and `reset` cancel any in-flight run.
-- `getState` and `subscribe` expose snapshot copies, not mutable internal state references.
+- `getState` and `subscribe` expose immutable snapshots, not mutable internal state references.
 - `pipe` never mutates the source task; it always returns a new `Task` instance.

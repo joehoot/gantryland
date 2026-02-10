@@ -43,8 +43,9 @@ export function UserPanel({ id }: { id: string }) {
 
 | Export | Kind | What it does |
 | --- | --- | --- |
-| `useTaskState` | Hook | Returns the latest `TaskState` from a subscribed `Task`. |
+| `useTaskState` | Hook | Returns the latest `TaskState` from a subscribed `TaskLike`. |
 | `useTask` | Hook | Returns `TaskState` plus imperative task controls. |
+| `TaskLike` | Type | Represents the structural task contract accepted by hooks. |
 | `UseTaskResult` | Type | Represents the return shape of `useTask`. |
 
 ## API Reference
@@ -52,18 +53,31 @@ export function UserPanel({ id }: { id: string }) {
 ### `useTaskState`
 
 ```typescript
-useTaskState<T, Args extends unknown[] = []>(task: Task<T, Args>): TaskState<T>
+useTaskState<T, Args extends unknown[] = []>(task: TaskLike<T, Args>): TaskState<T>
 ```
 
-Returns the latest `TaskState` snapshot from a subscribed `Task`.
+Returns the latest `TaskState` snapshot from a subscribed `TaskLike`.
 
 ### `useTask`
 
 ```typescript
-useTask<T, Args extends unknown[] = []>(task: Task<T, Args>): UseTaskResult<T, Args>
+useTask<T, Args extends unknown[] = []>(task: TaskLike<T, Args>): UseTaskResult<T, Args>
 ```
 
 Returns `TaskState` plus imperative task controls for component usage.
+
+### `TaskLike`
+
+```typescript
+type TaskLike<T, Args extends unknown[] = []> = {
+  getState: () => TaskState<T>;
+  subscribe: (listener: (state: TaskState<T>) => void) => () => void;
+  run: (...args: Args) => Promise<T>;
+  fulfill: (data: T) => T;
+  cancel: () => void;
+  reset: () => void;
+};
+```
 
 ### `UseTaskResult`
 
@@ -92,7 +106,7 @@ type UseTaskResult<T, Args extends unknown[] = []> = TaskState<T> & {
 ### Example: Manual Fetch in UI
 
 ```typescript
-function RefreshButton({ task }: { task: Task<number> }) {
+function RefreshButton({ task }: { task: TaskLike<number> }) {
   const { data, isLoading, run } = useTask(task);
   return (
     <button disabled={isLoading} onClick={() => void run()} type="button">
@@ -105,7 +119,7 @@ function RefreshButton({ task }: { task: Task<number> }) {
 ### Example: Read-Only State Subscription
 
 ```typescript
-function TaskStatus({ task }: { task: Task<unknown> }) {
+function TaskStatus({ task }: { task: TaskLike<unknown> }) {
   const { isLoading, error } = useTaskState(task);
   if (isLoading) return <p>Loading...</p>;
   if (error) return <p>{error.message}</p>;
@@ -118,7 +132,7 @@ function TaskStatus({ task }: { task: Task<unknown> }) {
 ```typescript
 import { useEffect } from "react";
 
-function Example({ task }: { task: Task<{ id: string }> }) {
+function Example({ task }: { task: TaskLike<{ id: string }> }) {
   const { fulfill, run, reset } = useTask(task);
 
   useEffect(() => {

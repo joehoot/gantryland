@@ -185,33 +185,36 @@ export const retry =
 
 /**
  * Reject with `TimeoutError` if execution exceeds `ms`.
+ * `ms` must be a non-negative finite number.
  *
  * This combinator does not abort underlying transport; it only controls
  * the returned promise boundary.
  */
 export const timeout =
   <T, Args extends unknown[] = []>(ms: number) =>
-  (taskFn: TaskFn<T, Args>): TaskFn<T, Args> =>
-  (...args: Args) =>
-    new Promise((resolve, reject) => {
-      const timer = setTimeout(() => {
-        reject(new TimeoutError());
-      }, ms);
+  (taskFn: TaskFn<T, Args>): TaskFn<T, Args> => {
+    const delayMs = toNonNegativeFiniteDelay(ms, "timeout ms");
+    return (...args: Args) =>
+      new Promise((resolve, reject) => {
+        const timer = setTimeout(() => {
+          reject(new TimeoutError());
+        }, delayMs);
 
-      Promise.resolve()
-        .then(() => taskFn(...args))
-        .then(resolve)
-        .catch((err) => {
-          if (isAbortError(err)) {
-            reject(err);
-            return;
-          }
-          reject(toError(err));
-        })
-        .finally(() => {
-          clearTimeout(timer);
-        });
-    });
+        Promise.resolve()
+          .then(() => taskFn(...args))
+          .then(resolve)
+          .catch((err) => {
+            if (isAbortError(err)) {
+              reject(err);
+              return;
+            }
+            reject(toError(err));
+          })
+          .finally(() => {
+            clearTimeout(timer);
+          });
+      });
+  };
 
 /**
  * Run fallback only on timeout. Non-timeout errors are rethrown.
@@ -340,12 +343,14 @@ export const backoff =
 
 /**
  * Debounce calls so only the latest call in the wait window executes.
+ * `waitMs` must be a non-negative finite number.
  *
  * Superseded pending callers reject with `AbortError`.
  */
 export const debounce =
   <T, Args extends unknown[] = []>(options: { waitMs: number }) =>
   (taskFn: TaskFn<T, Args>): TaskFn<T, Args> => {
+    const waitMs = toNonNegativeFiniteDelay(options.waitMs, "debounce waitMs");
     let timer: ReturnType<typeof setTimeout> | null = null;
     let pending: {
       args: Args;
@@ -372,23 +377,28 @@ export const debounce =
             .then(() => taskFn(...run.args))
             .then(run.resolve)
             .catch(run.reject);
-        }, options.waitMs);
+        }, waitMs);
       });
     };
   };
 
 /**
  * Reuse the first in-window in-flight execution.
+ * `windowMs` must be a non-negative finite number.
  */
 export const throttle =
   <T, Args extends unknown[] = []>(options: { windowMs: number }) =>
   (taskFn: TaskFn<T, Args>): TaskFn<T, Args> => {
+    const windowMs = toNonNegativeFiniteDelay(
+      options.windowMs,
+      "throttle windowMs",
+    );
     let lastRun = 0;
     let inFlight: Promise<T> | null = null;
 
     return (...args: Args) => {
       const now = Date.now();
-      if (inFlight && now - lastRun < options.windowMs) return inFlight;
+      if (inFlight && now - lastRun < windowMs) return inFlight;
 
       lastRun = now;
       inFlight = Promise.resolve()
